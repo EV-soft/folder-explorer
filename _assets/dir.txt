@@ -1,0 +1,17 @@
+ Volume in drive D is Data
+ Volume Serial Number is D4E3-05A1
+
+ Directory of d:\CloudSt-SALDI\saldi-e\Proj1\_assets
+
+2020-05-19  14:44    <DIR>          .
+2020-05-19  14:44    <DIR>          ..
+2020-03-29  12:17    <DIR>          css
+2020-05-19  14:44                 0 dir.txt
+2020-03-29  12:18    <DIR>          font-awesome5
+2020-03-07  09:59    <DIR>          fonts
+2020-03-07  09:59    <DIR>          icons
+2020-05-17  11:46    <DIR>          images
+2020-03-07  09:59    <DIR>          jquery
+2020-03-07  09:59    <DIR>          tablesorter
+               1 File(s)              0 bytes
+               9 Dir(s)  48.561.025.024 bytes free
