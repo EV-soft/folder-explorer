@@ -1,5 +1,7 @@
-<?php   $DocFil= '\Proj1\folder-explorer.php';    $DocVer='1.0.0';    $DocRev='2020-11-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= '\Proj1\folder-explorer.php';    $DocVer='1.0.0';    $DocRev='2020-11-30';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-2020 EV-soft *** See the file: LICENSE';
+
+// error_reporting(E_ERROR);
 
 $GLOBALS["ØProgRoot"]= './';
 require_once ('./php2html.lib.php');    // Creating HTML-functions
@@ -11,65 +13,71 @@ define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
 define ('p2h_PATH', ''); // $p);             // $p = pathinfo($p)['dirname'];
 define ('p2h_SELF_URL', '');
 
-defined('p2h_SHOW_HIDDEN')       || define('p2h_SHOW_HIDDEN', $show_hidden_files);
-defined('p2h_ROOT_PATH')         || define('p2h_ROOT_PATH', $p2h_AppConf['root_path']);
-defined('p2h_LANG')              || define('p2h_LANG', $lang);
-defined('p2h_FILE_EXTENSION')    || define('p2h_FILE_EXTENSION', $p2h_AppConf['allowed_file_extensions']);
-defined('p2h_UPLOAD_EXTENSION')  || define('p2h_UPLOAD_EXTENSION', $p2h_AppConf['allowed_upload_extensions']);
-defined('p2h_EXCLUDE_ITEMS')     || define('p2h_EXCLUDE_ITEMS', $p2h_AppConf['exclude_items']);
-defined('p2h_DOC_VIEWER')        || define('p2h_DOC_VIEWER', $p2h_AppConf['online_viewer']);
-define ('p2h_READONLY', $p2h_AppConf['use_auth'] 
+defined('p2h_SHOW_HIDDEN')       || define('p2h_SHOW_HIDDEN', $show_hidden_files?? '');
+defined('p2h_ROOT_PATH')         || define('p2h_ROOT_PATH', $p2h_AppConf['root_path']?? '');
+defined('p2h_LANG')              || define('p2h_LANG', $lang?? '');
+defined('p2h_FILE_EXTENSION')    || define('p2h_FILE_EXTENSION', $p2h_AppConf['allowed_file_extensions']?? '');
+defined('p2h_UPLOAD_EXTENSION')  || define('p2h_UPLOAD_EXTENSION', $p2h_AppConf['allowed_upload_extensions']?? '');
+defined('p2h_EXCLUDE_ITEMS')     || define('p2h_EXCLUDE_ITEMS', $p2h_AppConf['exclude_items']?? '');
+defined('p2h_DOC_VIEWER')        || define('p2h_DOC_VIEWER', $p2h_AppConf['online_viewer']?? '');
+define ('p2h_READONLY', $p2h_AppConf['use_auth'] ?? ''
             && !empty($p2h_AppConf['readonly_users']) 
             && isset($_SESSION[p2h_SESSION_ID]['logged']) 
             && in_array($_SESSION[p2h_SESSION_ID]['logged'], 
             $p2h_AppConf['readonly_users']));
-define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
-define ('p2h_USER_PATH', $p2h_AppConf['myPlace']);
-define ('MAX_UPLOAD_SIZE', $p2h_AppConf['max_upload_size_bytes']);
+// define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
+define ('p2h_USER_PATH', $p2h_AppConf['myPlace']?? '');
+define ('MAX_UPLOAD_SIZE', $p2h_AppConf['max_upload_size_bytes']?? '');
 
+// if (!isset($path)) $path= '';
+//$localVars=[$path, $breadcrumbs ];
+//foreach ($localVars as $var)
+//    if (!isset($var)) $var= '';
+if (!isset($quickView)) $quickView= false;
 
+/*
 // PAFM:
 // https://github.com/mustafa0x/pafm/blob/master/pafm.php:
 define('AUTHORIZE', true);
 
 if ($do) {  // perform requested action
-	if (isset($_GET['subject']) && !isNull($_GET['subject'])) {
-		$subject = str_replace('/', null, $_GET['subject']);
-		$subjectURL = escape($subject);
-		$subjectHTML = htmlspecialchars($subject);
-	}
-	switch ($do) {
-		case 'login':			                exit(doLogin());
-		case 'logout':			                exit(doLogout());
-		case 'shell':			nonce_check();  exit(shell_exec($_POST['cmd']));
-		case 'create':			nonce_check();  exit(doCreate($_POST['f_name'], $_GET['f_type'], $path));
-		case 'upload':			nonce_check();  exit(doUpload($path));
-		case 'chmod':			nonce_check();  exit(doChmod($subject, $path, $_POST['mod']));
-		case 'extract':			nonce_check();  exit(doExtract($subject, $path));
-		case 'readFile':			            exit(doReadFile($subject, $path));
-		case 'rename':			nonce_check();  exit(doRename($subject, $path));
-		case 'delete':			nonce_check();  exit(doDelete($subject, $path));
-		case 'saveEdit':        nonce_check();  exit(doSaveEdit($subject, $path));
-		case 'copy':			nonce_check();  exit(doCopy($subject, $path));
-		case 'move':			nonce_check();  exit(doMove($subject, $path));
-		case 'moveList':			            exit(moveList($subject, $path));
-		case 'installCodeMirror':			    exit(installCodeMirror());
-		case 'fileExists':			            exit(file_exists($path .'/'. $subject));
-		case 'getfs':			                exit(getFs($path .'/'. $subject));
-		case 'remoteCopy':      nonce_check();  exit(doRemoteCopy($path));
-	}   
+    if (isset($_GET['subject']) && !isNull($_GET['subject'])) {
+        $subject = str_replace('/', null, $_GET['subject']);
+        $subjectURL = escape($subject);
+        $subjectHTML = htmlspecialchars($subject);
+    }
+    switch ($do) {
+        case 'login':                           exit(doLogin());
+        case 'logout':                          exit(doLogout());
+        case 'shell':           nonce_check();  exit(shell_exec($_POST['cmd']));
+        case 'create':          nonce_check();  exit(doCreate($_POST['f_name'], $_GET['f_type'], $path));
+        case 'upload':          nonce_check();  exit(doUpload($path));
+        case 'chmod':           nonce_check();  exit(doChmod($subject, $path, $_POST['mod']));
+        case 'extract':         nonce_check();  exit(doExtract($subject, $path));
+        case 'readFile':                        exit(doReadFile($subject, $path));
+        case 'rename':          nonce_check();  exit(doRename($subject, $path));
+        case 'delete':          nonce_check();  exit(doDelete($subject, $path));
+        case 'saveEdit':        nonce_check();  exit(doSaveEdit($subject, $path));
+        case 'copy':            nonce_check();  exit(doCopy($subject, $path));
+        case 'move':            nonce_check();  exit(doMove($subject, $path));
+        case 'moveList':                        exit(moveList($subject, $path));
+        case 'installCodeMirror':               exit(installCodeMirror());
+        case 'fileExists':                      exit(file_exists($path .'/'. $subject));
+        case 'getfs':                           exit(getFs($path .'/'. $subject));
+        case 'remoteCopy':      nonce_check();  exit(doRemoteCopy($path));
+    }   
 }
 function nonce_check() {
     if (AUTHORIZE && $_GET['nonce'] != $_SESSION['nonce']) exit(refresh('Invalid nonce, try again.'));
 }
-function refresh($message, $speed = 2){	global $redir;
-	return '<meta http-equiv="refresh" content="'.$speed.';url='.$redir.'">'.$message;
+function refresh($message, $speed = 2){ global $redir;
+    return '<meta http-equiv="refresh" content="'.$speed.';url='.$redir.'">'.$message;
 }
 function escape($uri) {
-	return str_replace('%2F', '/', rawurlencode($uri));
+    return str_replace('%2F', '/', rawurlencode($uri));
 }
 // :PAFM
-
+/**/
 
 
 /**
@@ -154,6 +162,7 @@ $p2h_Style = '
 <style>  // ICON-colors: colrx used in icon class $icoc:
     .colr0 { color: #0157b3;    }  /* fa-folder          */
     .colr1 { color: #26b99a;    }  /* fa-file-image      */
+    .colr2 { color: #E16666;  background-color: gold;  }  /* fa-file-archive    */
     .colr2 { color: #E16666;    }  /* fa-file-archive    */
     .colr3 { color: #cc4b4c;    }  /* fa-file-code       */
     .colr4 { color: #0096e6;    }  /* fa-file-alt        */
@@ -167,6 +176,7 @@ $p2h_Style = '
     .txtbutt {
         text-decoration: none; 
         padding: 2px; 
+        margin-right:4px;
         border: 1px solid lightgray; 
         color: blue; 
         box-shadow: 2px 2px 1px lightgray;
@@ -309,7 +319,7 @@ $p2h_Style = '
 
 .dropdown-content a:hover {      /* Change color of dropdown links on hover  */
     background-color: #f1f1f1;
-    color: white;
+    color: blue;
 }
  
 .show {     /* Show the dropdown menu (use JS to add this class to the .dropdown-content container when the user clicks on the dropdown button)  */
@@ -494,6 +504,14 @@ function p2h_get_directoryInfo($directory) {    // Get directory total size
 
 function fileView($view_title, $file, $ext, $file_path, $filesize_raw, $mime_type) {
 // if(!$quickView) fileView();
+    $is_zip = false;
+    $is_gzip = false;
+    $is_text = false;
+    $is_onlineViewer = false;
+    
+    $is_image = false;
+    $file_url = '';
+    
 $result= '
     <div class="left" style="width: 720px; margin: auto; background-color: white;">
         <p class="break-word"><b>'. $view_title. ': '. p2h_enc(p2h_convert_win($file)). '</b></p>
@@ -585,7 +603,7 @@ $result= '
 } // fileView()
 
 function p2h_fileExplore($path,$parentDir) {
-    global $calc_folder, $totFolds, $totFiles, $totSize, $filesIncurrent, $locSize, $filesize_raw, $view_title, $currentPath, $arrNames;
+    global $calc_folder, $totFolds, $totFiles, $totSize, $filesIncurrent, $locSize, $filesize_raw, $view_title, $currentPath, $arrNames, $quickView;
     $objects = is_readable($path) ? scandir($path) : array();
     $folders = array();    $files = array();
     $totFiles= 0;   $totFolds= 0;    $totSize= 0;
@@ -598,14 +616,16 @@ function p2h_fileExplore($path,$parentDir) {
             elseif (@is_dir($pathName) && ($obj != '.') && ($obj != '..')) { $folders[] = $obj; }
         }
     }
-    $maxsize= 0;    $foldsize= 0;   $ix = 1000;     $arrNames= [];    //  folder checkbox id
+    $maxsize= 0;    $foldsize= 0;   $filesIncurrent= 0; $ix = 1000;     $arrNames= [];    //  folder checkbox id
     if ($calc_folder == true) {
+        foreach ($files as $fld) {
+            $maxsize+= p2h_get_size($path. '/'. $fld); 
+            $filesIncurrent+= 1;
+        }
         foreach ($folders as $fld) {
             $foldinfo = p2h_get_directoryInfo($path. '/'. $fld);
             $maxsize+=  $foldinfo[0];
         }
-        foreach ($files as $fld) 
-            $maxsize+= p2h_get_size($path. '/'. $fld); 
     }
     foreach ($folders as $fld) {
         $file_path= $path. '/'. $fld;
@@ -631,15 +651,17 @@ function p2h_fileExplore($path,$parentDir) {
         } else {
             $ext= '<pre style="margin-bottom:0;"><i class="far fa-folder colr0" style="background-color: gold;"></i> '.lang('@FOLDER').'</pre>';
             $foldhint = ' data-title="'.lang('@Calculation of files in folder, is disabled').'" title="" ';
-            $showsize = lang('@Not calculated');
+            $showsize = '<div style="width:100%;text-align:center;" title="'.lang('@Not calculated ! - Calculation of files in folder, is disabled').'">-</div>';
         }
-        $sortsize = '<span style="display:none;">'.str_pad($foldsize, 18, "0", STR_PAD_LEFT).' </span>';
+        // $sortsize = '<span style="display:none;">'.str_pad($foldsize, 18, "0", STR_PAD_LEFT).' </span>';
+        $sortsize = '<span class="sortPrefix">'. $foldsize.  ' </span>';
         $ftime = filemtime($file_path); //  Sort criteria
-        $sorttime = '<span style="display:none;">'.$ftime.'</span>';
+        $sorttime = '<span class="sortPrefix">'.$ftime.'</span>';
         $modif = date('Y-m-d H:i', $ftime);
         $perms = substr(decoct(fileperms($file_path)), -4);
         if (function_exists('posix_getpwuid') && function_exists('posix_getgrgid')) {
-                $owner = posix_getpwuid(fileowner($file_path));
+                // $owner = posix_getpwuid(fileowner($file_path));
+                $owner = posix_getpwuid(posix_getpwuid(fileowner($file_path)))['name'];
                 $group = posix_getgrgid(filegroup($file_path));
                 $posix = lang('@Owner : Group');
         } else {
@@ -655,31 +677,36 @@ function p2h_fileExplore($path,$parentDir) {
         //     str_WithHint($labl='<button id="btnModalSearch'.$ix.'" '.
         //                  'style="border-color: darkgrey; padding-inline-start: 5px; padding-inline-end: 5px; "><i class="fas fa-search"> </i></button>', $hint='@Search for filename in all subfolders').
         // if(isset($_POST["zipClone"])) { p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3); }
-        str_WithHint($labl='<form name="doZip'.$ix.'"><button name="zipClone'.$ix.'"'. // p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3)
+        str_WithHint($labl='<form name="doSync'.$ix.'" style="display:inline;"><button name="Syncronize'.$ix.'" '. // p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3)
+                          'style= "border-color: darkgrey; padding-inline-start: 5px; padding-inline-end: 5px;">
+                          <i class="fas fa-sync colrg"></i></button></form>', 
+                          $hint='@Syncronize this folder with another selected...').
+        str_WithHint($labl='<form name="doZip'.$ix.'" style="display:inline;"><button name="zipClone'.$ix.'" '. // p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3)
                           'style= "border-color: darkgrey; padding-inline-start: 5px; padding-inline-end: 5px;">
                           <i class="far fa-file-archive colr9"></i></button></form>', 
-                          $hint='@Create a ZipClone/backup of folder:'.' <b>'.$path.'/'.$fld). '</b>'.
+                          $hint='@Create a ZipClone/backup of folder:'. '<b>'.$path.'/'.$fld.'</b> ').
              '</div>';
-            if (isset($_GET["zipClone1000"])) { p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3); }
-        } else $buttns= '';
+            if (isset($_GET['zipClone'.$ix])) { p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3); }
+    } else { $buttns= ''; $meter= 0; }
   //      onclick="window.open('http://kanishkkunal.in','popup','width=600,height=600,scrollbars=no,resizable=no'); return false;">
   
         $rec['ix']= $ix;
-        $rec['name']= '<div style="white-space: nowrap;">'. '<div style="display: inline;"><i class="far fa-folder colr0" style="background-color: gold;"></i>'.str_WithHint($labl='<a href="'.basename(__FILE__).
-             '?show='.$path.'/'.$fld. '" class="txtbutt">&nbsp;'. $fld.'</a>', $hint='@Show content in subfolder').'</div>'. $buttns. '</div>';
+        $rec['name']= '<div style="white-space: nowrap;">'. '<div style="display: inline;"><i class="far fa-folder colr0" style="background-color: gold;"></i>'.
+             str_WithHint($labl='<a href="'.basename(__FILE__). '?show='.$path.'/'.$fld. '" class="txtbutt">&nbsp;'. $fld.'</a>', 
+             $hint=lang('@Show content in subfolder: <b>').$fld.'</b>').'</div>'. $buttns. '</div>';
         $rec['ext']= $ext;
         $rec['size']= $sortsize.'<div title="'.number_format((float)$foldsize, 0,',',' ').' Bytes">'.$showsize.'</div>';
         $rec['modifyed']= $sorttime.$modif;
         $rec['perms']= $perms;
         $rec['owner']= $owner['name'];      //$rec['group']= $group['name'];
         $rec['access']= '-';
-        $rec['space']= '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 85%;">'.$meter.'</meter>
-                        <small style="width: 10%; text-align: right;">'.number_format($meter*100,2).' %</small>';
+        $rec['space']= '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 92%;">'.$meter.'</meter>
+                        <small style="width: 40px; text-align: right;">'.number_format($meter*100,2).' %</small>';
         $foldRecords[]= $rec;
         flush();
         $ix++;
     }
-    $filesInsub= $ix;       $locSize= 0;
+    $filesInsub= $ix;       $locSize= 0;    $all_files_size= 0;
     foreach ($files as $fld) {
         $file_path= $path. '/'. $fld;
         if (is_file($file_path)) 
@@ -689,12 +716,13 @@ function p2h_fileExplore($path,$parentDir) {
         $icoc = $is_link ? 'far fa-file-alt colr4' : p2h_get_file_icon_class($file_path);
         $ftime = filemtime($file_path); //  Sort criteria
         $modif = date('Y-m-d H:i', $ftime);
-        $sorttime = '<span style="display:none;">'.$ftime.'</span>';
+        $sorttime = '<span class="sortPrefix">'.$ftime.'</span>';
         $atime = fileatime($file_path); //  Sort criteria
         $acces = date('Y-m-d H:i', $atime);
-        $accetime = '<span style="display:none;">'.$atime.'</span>';
+        $accetime = '<span class="sortPrefix">'.$atime.'</span>';
         $filesize_raw = p2h_get_size($file_path);
-        $sortsize = '<span style="display:none;">'.str_pad($filesize_raw, 18, "0", STR_PAD_LEFT).'</span>';
+        // $sortsize = '<span style="display:none;">'.str_pad($filesize_raw, 18, "0", STR_PAD_LEFT).'</span>';
+        $sortsize = '<span class="sortPrefix">'. $filesize_raw.  ' </span>';
         $showsize = p2h_nice_filesize($filesize_raw);
         $all_files_size += $filesize_raw;
         $totSize+=  $filesize_raw;
@@ -709,12 +737,15 @@ function p2h_fileExplore($path,$parentDir) {
             $group = array('name' => filegroup($file_path));
             $posix = lang('@PHP posix functions is not accessible! Numeric id is shown in sted of name.');
         }
-        if ($calc_folder) $meter= $filesize_raw / $maxsize;
-        $mime_type = p2h_get_mime_type($file_path);
-        if(!$quickView) $fileInfo= fileView($view_title, $fld, $ext, $file_path, $filesize_raw, $mime_type);
-        $nameFld= '<div class="file-name-div" title="File content: '.$view_title./* ' '.$fileInfo. */'">'.'<i class="'.$icoc.'"></i>&nbsp;'. $fld.'</div>';
-        if ($ix < 1500) // Max 500 previews on one page
+        if ($calc_folder) {
+            $meter= $filesize_raw / $maxsize;
+            $mime_type = p2h_get_mime_type($file_path);
+            if(!$quickView) $fileInfo= fileView($view_title, $fld, $ext, $file_path, $filesize_raw, $mime_type);
+            $nameFld= '<div class="file-name-div" title="File content: '.$view_title./* ' '.$fileInfo. */'">'.'<i class="'.$icoc.'"></i>&nbsp;'. $fld.'</div>';
+            if ($ix < 1500) // Max 500 previews on one page
             $nameFld.= '<div class="live-preview-img file-name-div"> <img src="'. p2h_enc($currentPath. $fld). '" alt="">'.$fileInfo.'</div>';
+        } else
+            $nameFld= $fld;
         if ($ext>'') $ext = '.'.$ext;
         $rec['ix']= $ix;
         $rec['name']= $nameFld;
@@ -724,37 +755,17 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['perms']= $perms;
         $rec['owner']= $owner['name'];      //$rec['group']= $group['name'];
         $rec['access']= $accetime.$acces;
-        $rec['space']= '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 85%;">'.$meter.'</meter>
-                        <small style="width: 10%; text-align: right;">'.number_format($meter*100,2).' %</small>';
+        $rec['space']= '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 92%;">'.$meter.'</meter>
+                        <small style="width: 40px; text-align: right;">'.number_format($meter*100,2).' %</small>';
         $fileRecords[]= $rec;
         $ix++; 
         $fileRecordsIncurrent= $ix-$filesInsub;
     }
-    return array($foldRecords,$fileRecords);
+    return array($foldRecords ?? null,$fileRecords ?? null);
 } // p2h_fileExplore()
 
 
 function p2h_folder_backup($currDir, $subdirs= 3) { ## Serverside-zip-backup:
-$txt= [	// Translated message strings:
-  ['da','getFileList: Åbning af mappe ', ' for læsning... ', '<br>Overspring: ', ' som ikke kan læses!<br>',  
-    'Du befinder dig i mappen: ', 'Så starter vi på komprimering af filer... <br>', 
-    'Kan ikke oprette <', 'Denne ZIP-fil indeholder et øjebliks billede pr: ', ' af filer i mappen: ', 
-    ', samt i undermapper, begrænset til ', ' niveauer.', 'På serveren: ', 
-    'Bemærk at rutinen sletter en evt. ældre zip-fil med navnet ', 
-    'Vil du bevare gamle versioner, skal du omdøbe ', ' inden du starter rutinen!',
-    '<br>Færdig - ', ' filer i zip-filen: ', 'Se nyttig information i _Readme.txt i zip-filen <br>', 
-    '<br> MISLYKKET: '],
-  ['en','getFileList: Opening Folder ',  ' for Reading... ', '<br>Skip: ', ' Unreadable!<br>', 
-    'You\'re in folder: ', 'So We Start Compression of files... <br>',
-    'Unable to create <','This ZIP file contains a moment\'s image per: ', ' of files in the folder: ', 
-    ', as well as subfolders, restricted to ', ' levels.', 'On the server: ', 
-    'Note that the routine deletes an optionally older zip file named ', 
-    'Do you want to keep old versions, please rename ', ' before starting the routine!',
-    '<br>Finished - ', ' files in the zip file: ',  'See useful information in _Readme.txt in the zip file <br>', 
-    '<br> FAILED: ']
-];
-$lang= 1; //  en
- 
   $result= 'ZipClone-backup:<br>';
   //$currDir= dirname(__FILE__).'/';
   $destDir = '';
@@ -764,55 +775,55 @@ $lang= 1; //  en
   $lf= chr(10).chr(13);
   
   $result.= 'Server: '.$server.'<br>';
-  $result.= $txt[$lang][5].$currDir.'<br>';
+  $result.= lang('@You\'re in folder: ').$currDir.'<br>';
+  $result.= lang('@So We Start Compression of files... <br>')[6];  // $result.= 'This should be shown, befor starting zipning!', bet is shown at last!
   
-  $result.= $txt[$lang][6];  // $result.= 'This should be shown, befor starting zipning!', bet is shown at last!
-  if (file_exists($destDir.$destFile)) {unlink($destDir.$destFile);}            // Is deleted so old version will not be included in zip
-  $ix= '00';  $thisdir= './';                             // Aktual folder:'./'   One niveau up:'./../'
-  $files= getFileList($thisdir, true, $subdirs);          // File-list has to be created, before the zip-file is created, to prevent tempory zip-fraktions.
-  $zip = new ZipArchive();                                // PHP ZIP-extension must be active in PHP-system!
-  if ($zip->open($destDir.$destFile, ZipArchive::CREATE)!==TRUE) { exit($txt[$lang][7].$destFile.'>'); }
+  if (file_exists($destDir.$destFile))              // Will be deleted so old version will not be included in zip
+    {unlink($destDir.$destFile);}
+  $ix= '00';  $thisdir= './';                       // Aktual folder:'./'   One niveau up:'./../'
+  $files= getFileList($thisdir, true, $subdirs);    // File-list has to be created, before the zip-file is created, to prevent tempory zip-fraktions.
+  $zip = new ZipArchive();                          // PHP ZIP-extension must be active in PHP-system!
+  if ($zip->open($destDir.$destFile, ZipArchive::CREATE)!==TRUE) { exit(lang('@Unable to create <').$destFile.'>'); }
 
-  $zip->addFromString('_Readme.txt', 	## Info-file in Zip-file:
-    $txt[$lang][8].$timestamp.
-    $txt[$lang][9].$lf.$currDir.
-    $txt[$lang][10].$subdirs.
-    $txt[$lang][11].$lf.
-    $txt[$lang][12].$server.$lf.$lf.
-    $txt[$lang][13].$destFile.$lf.
-    $txt[$lang][14].$destFile.
-    $txt[$lang][15].$lf
+  $zip->addFromString('_Readme.txt',    ## Info-file in Zip-file:
+    lang('@This ZIP file contains a moment\'s image per: ').$timestamp.
+    lang('@ of files in the folder: ').$lf.$currDir.
+    lang('@, as well as subfolders, restricted to ').$subdirs.
+    lang('@ levels.').$lf.
+    lang('@On the server: ').$server.$lf.$lf.
+    lang('@Note that the routine deletes an optionally older zip file named ').$destFile.$lf.
+    lang('@Do you want to keep old versions, please rename ').$destFile.
+    lang('@ before starting the routine!').$lf
   );
   
    foreach ($files as $fil) {
-    $filref= $fil['path'].$fil['name'];	## Add data-files to Zip-file:
-      if (substr($fil['path'],strlen($thisdir),1)!='._')	//  Step over folder with this prefix
+    $filref= $fil['path'].$fil['name']; ## Add data-files to Zip-file:
+      if (substr($fil['path'],strlen($thisdir),1)!='._')    //  Step over folder with this prefix
       if (is_file( $filref ))
         if ($zip->addFile($filref,$filref))  {   } 
-        else {$result.= $txt[$lang][19].$filref;}
+        else {$result.= lang('@<br> FAILED: ').$filref;}
   } $result.= '<br>';
   
 ## Result:  // $result.= skulle vises, inden der gås igang med zipning!
-  $result.= $txt[$lang][16]. $zip->numFiles.$txt[$lang][17].$destFile.'<br><br>'; 
+  $result.= lang('@<br>Finished - '). $zip->numFiles.lang('@ files in the zip file: ').$destFile.'<br><br>'; 
   $zip->close();
   
 ## Download-button:
   $result.= '<div style= "margin:1px 5px; padding:2px 6px; border:2px; box-shadow: 2px 2px 4px #888888;'.
        ' width:100px; " title= "Download Zip-file"> '.
        '<a href="'.$destFile.'">DOWNLOAD</a></div><br>'; 
-  $result.= $txt[$lang][18];
+  $result.= lang('@See useful information in _Readme.txt in the zip file <br>');
   return $result;
 } ##  </p2h_folder_backup>
 
-function getFileList($dir, $recurse=false, $depth=false)	// Create list of files recursive, and save to array
-{ global $txt, $lang;
-  $return = array();
-  if(substr($dir, -1) != "/") $dir .= "/";              	// Add slash, if missing
-  $dirPtr = @dir($dir) 			    						// Create pointer to the folder
-	or die($txt[$lang][1].$dir.$txt[$lang][2]);
-  while (false !== ($entry = $dirPtr->read())) {			// and read the list of files
-    if (($entry == ".") or ($entry == "..")   				// Go on if system folders
-      or (substr($entry,0,4) == '_zip.')      				// or unzipped folder
+function getFileList($dir, $recurse=false, $depth=false)    // Create list of files recursive, and save to array
+{ $return = array();
+  if(substr($dir, -1) != "/") $dir .= "/";                  // Add slash, if missing
+  $dirPtr = @dir($dir)                                      // Create pointer to the folder
+    or die(lang('@getFileList: Opening Folder ').$dir.lang('@  for Reading... '));
+  while (false !== ($entry = $dirPtr->read())) {            // and read the list of files
+    if (($entry == ".") or ($entry == "..")                 // Go on if system folders
+      or (substr($entry,0,4) == '_zip.')                    // or unzipped folder
     ) continue;
     $de= $dir.$entry;
     if (is_dir($de)) {
@@ -820,11 +831,11 @@ function getFileList($dir, $recurse=false, $depth=false)	// Create list of files
       $mappe= $de.'/';
       if ($recurse && is_readable($mappe)) {
         if($depth === false) { $return = array_merge($return, getFileList($mappe, true)); } 
-		elseif($depth > 0) 	 { $return = array_merge($return, getFileList($mappe, true, $depth-1)); }
+        elseif($depth > 0)   { $return = array_merge($return, getFileList($mappe, true, $depth-1)); }
       }
     } elseif (is_readable($de)) {
       $return[] = array( "path" => $dir, "name" => $entry, "type" => mime_content_type($de), "size" => filesize($de), "lastmod" => filemtime($de) );
-    } else ; // echo $txt[$lang][3].$de.$txt[$lang][4];
+    } else ; // echo lang('@<br>Skip: ').$de.lang('@ Unreadable!<br>');
   } $dirPtr->close();
   return $return;
 }
@@ -832,7 +843,7 @@ function getFileList($dir, $recurse=false, $depth=false)	// Create list of files
 
 function SearchSub(&$arrNames) { global $calc_folder;
 $result= '
-<div class="dropdown">'.
+<div class="dropdown" title="'.lang('@Enter search string...').'">'.
     htm_Input($type='html',$name='fsearch',
               $valu='<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
               $labl='Search',$hint='@Search for a file in sub-folders, and open that folder',
@@ -842,7 +853,7 @@ $result= '
         title="'. lang('@When clicking on a name, The folder with the file in it will be opened') .'">
         <input type="text" placeholder="Search.." id="searchInput" onkeyup="filterFunction()" 
             title="'. lang('@Type a search string: Part of the file-name or folder-name').'"
-            style="width:200px; text-align:left;">';
+            style="width:200px; text-align:left; border: 1px solid black;">';
         $name_list= ''; // List to search for file names in sub-folders 
         foreach($arrNames as $file) { 
             $pos= strrpos($file,'/')+1;
@@ -862,10 +873,11 @@ return $result;
 
 ##### PREPARE DATA:
 // if (!isset($calc_folder)) $calc_folder= true;
-$calc_folder= ($_POST['prgMode']== 'mode_E');
+$calc_folder= ($_POST['prgMode'] ?? '' == 'mode_A');
 $currPath= __DIR__; // Initial path if 'show' is not set
 
-if (isset($_GET['show'])) { $currPath= $_GET['show']; }
+if (isset($_GET['show']))     { $currPath= $_GET['show']; }
+if (isset($_POST['csvFile'])) { $csvFile= $_POST['csvFile']; }
 
 $root_dir= end(explode('/',$_SERVER['DOCUMENT_ROOT'])); // web
 $parentDir= array_reverse(explode('/',$currPath))[2];
@@ -873,8 +885,9 @@ $currentDir= end(explode('/',$currPath));
 $currentPath= substr($currPath,strlen($root_dir)+strpos($currPath,$root_dir)).'/';
 
 // Build Breadcrumbs:
-$publ= false;   $lnkPath= '//';
-foreach($JumpTo= explode('/',$path.$currPath) as $jt) if ($jt[0]>'') { 
+$publ= false;   $lnkPath= '//';     $breadcrumbs= '';
+foreach($JumpTo= explode('/',$path ?? ''.$currPath) as $jt) // if ($jt[0]>'') 
+{ 
     $lnkPath.= $jt.'/';
     if ($jt==$currentDir) $breadcrumbs.= '<b>'.$jt.'</b>';
     else    if ($publ)  {
@@ -890,17 +903,16 @@ $arrfolds= $data[0];
 $arrfiles= $data[1];
 // $arrfolds= $GLOBALS['folders']; $arrfiles= $GLOBALS['files'];
 
-if (is_array($arrfolds) and (count($arrfolds)>0)) 
-    $tabldata= array_merge($arrfolds,$arrfiles);
-else
-    $tabldata= $arrfiles;
+$tabldata= [];
+if (is_array($arrfolds) and (count($arrfolds)>0)) $tabldata= $arrfolds;
+if (is_array($arrfiles) and (count($arrfiles)>0)) $tabldata= array_merge($tabldata,$arrfiles);
 
 
 
 ##### SCREEN OUTPUT:  -  generated by PHP2HTML functions !
-#!!!: Remember no OUTPUT to screen, before htm_PagePrep()
+#!!!: Remember no OUTPUT to screen, before htm_PagePrep() output
 
-htm_PagePrep($pageTitl='Folder-explorer', $ØPageImage='./_background.png',$align='center',$PgInfo=lang(''),$PgHint=lang('@Tip: Toggle fullscreen-mode with function key: F11'),$headScript=$p2h_Style);
+htm_PagePrep($pageTitl='Folder-explorer', $ØPageImage='./_assets/images/_background.png',$align='center',$PgInfo=lang(''),$PgHint=lang('@Tip: Toggle fullscreen-mode with function key: F11'),$headScript=$p2h_Style);
     // print_r($tabldata);
     htm_Caption($labl='Folder-explorer',$style='color:'.$ØTitleColr.'; font-weight:600; font-size: 18px; padding: 4px;',$align='center',
         $hint='The file-explorer with focus on folders and used space.');
@@ -932,24 +944,43 @@ htm_PagePrep($pageTitl='Folder-explorer', $ØPageImage='./_background.png',$alig
 
     echo '<small>';
     htm_Table(
-        $TblCapt= array( #['0:Label', '1:Width', '2:Type', '3:OutFormat', '4:horJust', '5:Tip', '6:placeholder', '7:Content';], ...
-          ['Showing: ', '90%','html','','left','@Tip','?', $_SERVER['SERVER_NAME'].' // '.$breadcrumbs.'<br>'],
-          ['<span style="white-space: nowrap;">
-            Content: Folders: '.$totFolds.' - Files: '.markAllChars($filesIncurrent.'/','i','style="opacity:0.5;"').$totFiles.
-           ' - Space: '.markAllChars(p2h_nice_filesize($locSize).'/','i','style="opacity:0.5;"').p2h_nice_filesize($totSize).
+        $TblCapt= array( //#['0:Label', '1:Width', '2:Type', '3:OutFormat', '4:horJust', '5:Tip', '6:placeholder', '7:Content';], ...
+          ['<big>Showing: ', '90%','html','','left','@Tip','?', $_SERVER['SERVER_NAME'].' // '.$breadcrumbs.'</big><br>'],
+          ['<span style="white-space: nowrap; display: inline-block;">'.
+          '<span title="'.lang('@Space meaning file-space in local folder / total in subfolders').'">'.
+           ($calc_folder == true ? 
+          'Content: Folders: '.$totFolds.' - Files: '.markAllChars($filesIncurrent.'/','i','style="opacity:0.5;"').$totFiles. ' - ' : '' ).
+           'Space: '.markAllChars(p2h_nice_filesize($locSize).'/','i','style="opacity:0.5;"').p2h_nice_filesize($totSize).
            ' - Free: '.   p2h_nice_filesize(disk_free_space( __FILE__ )).
            ' of total: '. p2h_nice_filesize(disk_total_space( __FILE__ )). 
+           '</span>'.
            ' '.           SearchSub($arrNames).
-           ' '. '<form method="post" name= "frmMode" style="display: inline-block;">'.
-                htm_Input($type='opti',$name='prgMode',$valu= ($calc_folder == true ? 'mode_E' : 'mode_S'), $labl='@Select Mode',
+           ' '. //'<span style="display: inline-block;">'.
+                '<form method="post" name= "frmMode" style="display:inline;">'.
+                str_sp(2).
+                htm_Input($type='opti',$name='prgMode',$valu= ($calc_folder == true ? 'mode_A' : 'mode_S'), $labl='@Select Mode',
                           $hint='@The program mode.<br>Speedup by deactivating calculating content in subfolders using "Simple mode"',
                           $plho='@Select...',$width='',$algn='left',$unit='',$disa=false,
                           $rows='1',$step='',$more='',$list= [
                     ['mode_S','Simple','@Do not spend time on calulating subfolders'],
-                    ['mode_E','Enhanged','@Advanced mode exploring all subfolders']
-                    ],'','', $proc= false).
-                    '<input type="submit" value="'.lang('@Set Mode').'"></form></span>' ,
-                '90%','html','','left'] 
+                    ['mode_A','Advanced','@Advanced mode exploring all subfolders']
+                    ],'','', $proc= false,$form='').
+                    '<input type="submit" value="'.lang('@Set Mode').'" class="txtbutt">'.
+                    // '<input type="button" value="'.lang('@Manage language').'">'.
+                    //' <a href="translate.page.php">'.lang('@Manage language').'</a> '.
+                //    htm_Input($type='html',$name='lang',$valu= '<a href="translate.page.php">'.lang('@Manage language').'</a>', $labl='@Language',
+                //          $hint='@Go to the translate language page',
+                //          $plho='@Select...',$width='',$algn='left',$unit='',$disa=false,
+                //          $rows='1',$step='',$more='',$list= [],'','', $proc= false).
+                    '</form>'.
+                str_sp(2).
+                htm_Input($type='text',$name='csvFile',$valu= $csvFile ?? '', $labl='@Export to',
+                          $hint='@Output path/file name. If none given export is deactivated',
+                          $plho='@File...',$width='120px',$algn='left',$unit='',$disa=false,
+                          $rows='1',$step='',$more='',$list= [],'','', $proc= false, $form='csv').
+                str_sp(5).
+                htm_LinkButt($labl='@Language', $gotoLink='translate.page.php', $hint='@Open the translate language page', $target='_blank', $proc=false).
+           '</span>',  '90%','html','','left'] 
         ),
         $RowPref= array(),
         $RowBody= array(
@@ -957,10 +988,10 @@ htm_PagePrep($pageTitl='Folder-explorer', $ØPageImage='./_background.png',$alig
             ['@Name',      '10%', 'html', '', ['left'  ],                   '@The name of file or directory'], // Don`t change this hint. It will remove the goback-button in header!
             ['@Count/Ext', '05%', 'html', '', ['center','','',$sort=false], '@Folder content or the extension of the filename'],
             ['@Size',      '04%', 'html', '', ['right' ],                   '@The used space'],
-            ['@Modifyed',  '06%', 'html', '', ['center'],                   '@Last modifyed date/time'],
+            ['@Modifyed',  '08%', 'html', '', ['center'],                   '@Last modifyed date/time'],
             ['@Perms',     '02%', 'text', '', ['center'],                   '@The file permissions (UNIX.mode)'],
             ['@Owner',     '02%', 'text', '', ['center'],                   '@ID for the file creater (UNIX.owner)'],
-            ['@Accessed',  '06%', 'html', '', ['center'],                   '@File accessed date/time'],
+            ['@Accessed',  '08%', 'html', '', ['center'],                   '@File accessed date/time'],
             ['@Space',     '30%', ($calc_folder == true ? 'html' : 'hidd') , 
                                           '', ['left'  ,'','',$sort=false], '@Used space related to<br>Sum of all files in current folder and subfolders.']
         ),
@@ -974,9 +1005,9 @@ htm_PagePrep($pageTitl='Folder-explorer', $ØPageImage='./_background.png',$alig
         $ModifyRec=false,
         $ViewHeight= '650px',
         $TblStyle= 'width:98%',
-	    $CalledFrom= __FILE__ ,
+        $CalledFrom= __FILE__ ,
         $MultiList= ['',''],
-        $ExportTo= ''
+        $ExportTo= $csvFile ?? ''
     );
     echo '</small>';
     echo '<div id="with_selected">xxx<div>';

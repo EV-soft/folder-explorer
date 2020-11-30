@@ -1,4 +1,4 @@
-<?   $DocFile='../Proj1/php2html.lib.php';    $DocVers='1.0.0';    $DocRev1='2020-11-05';     $DocIni='evs';  $ModulNo=0; ## File informative only
+<?   $DocFile='../Proj1/php2html.lib.php';    $DocVers='1.0.0';    $DocRev1='2020-11-18';     $DocIni='evs';  $ModulNo=0; ## File informative only
 
 #   PHP to HTML generator
 #   If you program html output in php, you can use this library's routines to generate the html code.
@@ -52,13 +52,13 @@ $ØTitleColr= 'DarkGreen';           # Caption text-color in panel-head
 $ØPanelBgrd= 'transparent';         # Panels hideble background
 $GridOn= true;                      # Use grid to place objects in rows / colums
 
-if (is_null($rowHtml)) $rowHtml= '';
+if (is_null($rowHtml ?? '')) $rowHtml= '';
 
 # PATHS:
 if ($GLOBALS["ØProgRoot"]) $ØProgRoot= $GLOBALS["ØProgRoot"]; else
-  $ØProgRoot=  '../';                 # $ØProgRoot=   "./../";  // "../";        //  Relative in 1. subniveau    #-$ØProgRoot= "./../../";   //  Relative in 2. subniveau
+  $ØProgRoot=  './';                 # $ØProgRoot=   "./../";  // "../";        //  Relative in 1. subniveau    #-$ØProgRoot= "./../../";   //  Relative in 2. subniveau
 $_assets=     $ØProgRoot.'_assets/';
-$_images=     $ØProgRoot.'_assets/images/';
+//$_images=     $ØProgRoot.'_assets/images/';
 $_base=   '';
 
 # MENU-folders:
@@ -68,8 +68,11 @@ $folder3= '';
 $folder4= '';
 $folder5= '';
 
+if (!isset($_SESSION['proglang'])) $_SESSION['proglang']= '';
+
 $App_Conf['language'] = $_SESSION['proglang'];
-$Ønovice= false;
+$englishOnly= false;                # Deactivate the language translate system
+$Ønovice= false;                    # Activate extended help
 
 ## System required:
 // require_once ($ØProgRoot.'translate.inc.php');
@@ -102,7 +105,6 @@ function arrPrint($arr,$name='',$proc=true) {  ## Output actual value of any var
     $result= "<br><textarea>".$name. print_r($arr). "</textarea><hr>\n"; // </pre>
     if ($proc) echo $result;
     else return $result;
-
 }
 
 function run_Script($cmdStr='') {
@@ -173,10 +175,11 @@ function htm_Input(# $type='',$name='',$valu='',$labl='',$hint='',$plho='@Enter.
     $list=[],           # Data for "multi-list" (eg. options, checkbox, radiolist)
     $llgn='R',          # Label align Default: Right
     $bord='',           # BoxBorder color to mark required/optional field.   Default= 'border: 1px solid var(--grayColor);'
-    $proc= true         # Act as procedure: Echo result, or as function: Return string
+    $proc= true,        # Act as procedure: Echo result, or as function: Return string
+    $form=''            # With Local form given, click on label to submit
     ) {
     global $GridOn;
-    $result= '';
+    ($form=='' ? $result= '' : $result= '<form name= "'.$form.'" style="display:inline;">');
     if ($hint=='') $hint= '@There is no explanation !';
     $hint= lang($hint);
     $labl= lang($labl);
@@ -290,17 +293,17 @@ function htm_Input(# $type='',$name='',$valu='',$labl='',$hint='',$plho='@Enter.
                             '<span class="fieldContent boxStyle" style="'.$bord.'"><small>';
                             foreach ($list as $rec) { // $list= [[0:'value',1:'Label',2:'@ToolTip',3:'checked'], ['Label','@ToolTip'],...]
                                 if ($valu==$rec[0]) $chk= ' checked '; else $chk= '';
-                                    $result.= '<input type= "radio" id="'.$rec[0].'" name="'.$name.'" value="'.$rec[0].'" '.$chk.$rec[3].' style="width: 20px; box-shadow: none;">'.
+                                    $result.= '<input type= "radio" id="'.$rec[0].'" name="'.$name.'" value="'.$rec[0].'" '.$chk.$rec[3]. ' '.$more.' style="width: 20px; box-shadow: none;">'.
                                      '<label for="'.$rec[0].'" style="position: relative; top: -2px;">'. Lbl_Tip($rec[1],$rec[2],'','12px; box-shadow: none; ').'</label>';
                                 if ($rows=='1') $result.= '&nbsp;'; else $result.= '<br>';
                             }   $result.= '</small></span>';  break;
 
         case 'opti' : $result.= // OPTION:
                             '<span class="fieldContent boxStyle"  style="'.$bord.' background-color; white; text-align: center; padding: 10px 4px 4px;"><small>';
-                            $result.= '<select class="styled-select" name="'.$name.'" '.$events.' '.$eventInvalid.'style="width: 98%; '.$colr.'" '.$aktiv.'> '; dvl_pretty();
+                            $result.= '<select class="styled-select" name="'.$name.'" '.($events ?? '') .' '.$eventInvalid.'style="width: 98%; '.($colr ?? '').'" '.$aktiv.'> '; dvl_pretty();
                             $result.= '<option label="'.lang($plho).'" value="'.$valu.'">'.lang('@Select!').'</option> ';  # title="'.$hint.'"     selected="'.$valu.'"
                             foreach ($list as $rec) { # $list= [[0:value, 1:name, 2:@ToolTip, 3:'checked', [...]]
-                                $result.= '<option '. /* .'label="'.lang($rec[x]).'" '. */ 'title="'.lang($rec[2]).'" value="'.$rec[0].'" '.$state=$rec[3]; //  Firefox does not support Label !
+                                $result.= '<option '. /* .'label="'.lang($rec[x]).'" '. */ 'title="'.lang($rec[2] ?? '').'" value="'.$rec[0].'" '.$state=$rec[3] ?? ''; //  Firefox does not support Label !
                                 if ($rec[0]==$valu) $result.= ' selected ';
                                 $result.= '>'.$lbl=lang($rec[1]).'</option> ';
                             }   $result.= '</select></small></span>';  break;
@@ -318,15 +321,19 @@ function htm_Input(# $type='',$name='',$valu='',$labl='',$hint='',$plho='@Enter.
     case 'R': $lblalign = 'margin-left:   auto;';  break;   // Align label Right
     default:  $lblalign = 'margin-left:   auto;';
     }
+    if ($form>'') 
+        $subm= '<input type="submit" value="OK" style="padding:0 0 0 2px; border-radius: 3px; width:22px; position: relative; left:-13px; color:blue;" title="Submit" />';
     $result.= ' <abbr class= "hint">
                    <label for="'.$name.'" style="font-size: 12px; '.$top. '">
                         <div style="white-space: nowrap; '.$lblalign.'">'.$labl.'</div>
                    </label>
                    <data-hint style="top: 45px; left: 2px;">'.lang($hint).'</data-hint>
-               </abbr>
+               </abbr>'.($subm ?? '').'
             </div>'; # :FIELD
 
     if ((USEGRID) and ($GridOn)) $result.= '</div>'; # :GRID
+    ($form=='' ? $result.= '' : $result.= '</form>');
+
     if ($proc==true) echo $result; else return $result;
 } # :htm_Input()
 
@@ -418,13 +425,13 @@ Layout of htm_Table:
 |-------------------------------------------------------------------------------------------------------|
 */
 function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$FilterOn,$SorterOn,$CreateRec,$ModifyRec,$ViewHeight,$TblStyle,$CalledFrom,$MultiList)
-    $TblCapt= array( #['0:Label',   '1:Width',    '2:Type',    '3:OutFormat', '4:horJust',      '5:Tip',    '6:placeholder', '7:Content';], ...
+    $TblCapt= array( # ['0:Label',   '1:Width',    '2:Type',    '3:OutFormat', '4:horJust',      '5:Tip',    '6:placeholder', '7:Content';], ...
         ),
-    $RowPref= array( #['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:ColTip', '6:Html'], ...
+    $RowPref= array( # ['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:ColTip', '6:Html'], ...
         ),           // if (($ModifyRec) or ($RowBody[0][2]!='indx')) is 2% ColWidth can be used to => row-select-button
-    $RowBody= array( #['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:ColTip', '6:placeholder','7:default','8:[selectList]'], ...
+    $RowBody= array( # ['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:ColTip', '6:placeholder','7:default','8:[selectList]'], ...
         ),           # Field 4: $FieldProporties - is composed of: [horJust, FieldBgColor, FieldStyle, TdColor, SorterON, FilterON, SelectON,
-    $RowSuff= array( #['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:ColTip', '6:value! '], ...
+    $RowSuff= array( # ['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:ColTip', '6:value! '], ...
         ),
     $TblNote= '',           # HTML-string
     &$TblData,              # = array()= [{"name_0":value_0, "name_1":value_1, "name_2":value_2, "name_3":value_3, "name_4":value_4, "name_5":value_5, "name_6":value_6, "name_7":value_7, "name_8":value_8, "name_9":value_9},{...},{...}]
@@ -487,7 +494,7 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
     }
 
     $Width= '98%';
-    echo '<span class="tableStyle" name="tblSpan" style="width:'.$width.'; padding: 8px; '.$TblStyle.'">';
+    echo '<span class="tableStyle" name="tblSpan" style="width:'.($width ?? '').'; padding: 8px; '.$TblStyle.'">';
 ### Caption line:
     if ($TblCapt[0][0]>'') {    dvl_pretty();    // htm_nl(1);
         if ($TblCapt) foreach ($TblCapt as $Capt) { // $Capt[x]: 0:Label 1:width 2:type 3:name 4:align 5:titletip 6:default 7:value
@@ -496,7 +503,7 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
             switch ($Capt[2]) {  # Special outputs:
                 case 'show' : $mode= '" disabled value="';              break;
                 case 'rows' : echo count($TblData).' '.lang($Capt[6]);  break;  //  $Capt[6]= feltSuffix
-                case 'html' : echo ' '.lang($Capt[7]);                  break;
+                case 'html' : echo ' '.lang($Capt[7] ?? '');                  break;
                 case 'data' : echo ' <input type= "'.$Capt[2].'" name="'.$Capt[3].'" title="'.lang($Capt[5]).   //  Input-field with name
                     $mode.lang($Capt[6]).'" style="width:'.$Capt[1].'; text-align:'.$Capt[4].';" value="'.lang($Capt[7]).'" />&nbsp;&nbsp;'; break;
                 default:      echo ' <input type= "'.$Capt[2].'" title="'.lang($Capt[5]).   //  Input-field without name (not saved!)
@@ -567,14 +574,14 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
     foreach ($RowBody as $Body) { dvl_pretty();
         $colfilt= ' ';
         $resizable_widths[]= $Body[1]; # ColWidth
-        if (($GLOBALS["Øshow"]>0) and ($Body[2]=='hidd')) $Body[2]= 'text';
+        if (($GLOBALS["Øshow"] ?? ''>0) and ($Body[2]=='hidd')) $Body[2]= 'text';
         // if ($Body[8]==true) $selt= ' filter-select filter-onlyAvail'; else $selt= ' ';  //  FIXIT: sorting of datefields don’t works!
         if ($Export) $cvrData.= '"'.lang($Body[0]).'",';
 
         if ($Body[2]=='hidd') // FIXIT: showing filter-fields, gets columns out of syncronisation ! - $filter_cellFilter obvious don’t work: https://mottie.github.io/tablesorter/docs/#widget-filter-cellfilter
             { array_push($filter_cellFilter, 'hidden');
                 $hiddcount++;
-                echo '<th class="filter-false sorter-false" style="width:0; display:none;" ></th>'; // FIXIT: Filter-fields is showing hidden columns ! <td data-column="9" style="display:none" > fixes it
+                echo '<th class="filter-false sorter-false sortPrefix" style="width:0;" ></th>'; // FIXIT: Filter-fields is showing hidden columns ! <td data-column="9" style="display:none" > fixes it
             } //  visibility:hidden;    //  columnSelector_columns : { 5 : false, 6 : false}
         else // Special behavior:
             { $cNo++; array_push($filter_cellFilter, '');
@@ -600,14 +607,14 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                     default:  $sort.= ' sorter-text ';
                 }
                 // if ($Body[3]=='2d') $sort.= ' sorter-currency sorter-digit ';  // '3:OutFormat'
-                if ($Body[4][3]===false) $sort= ' sorter-false '; // '4:[horJust_etc]
-                if ($Body[5]=='@The name of file or directory') // GoBack in file/space explorers header:
+                if ($Body[4][3] ?? ''===false) $sort= ' sorter-false '; // '4:[horJust_etc]
+                if ($Body[5]=='@The name of file or directory') // GoBack in file/folder explorers header:
                     $goBack= str_WithHint(
-                        $labl='<a href="'.$GLOBALS['goback'].'" target="_self" style= "float: left; position: inherit; margin-top: 3px; font-size: 16px; z-index: 199;">
+                        $labl='<a href="'.($GLOBALS['goback'] ?? '').'" target="_self" style= "float: left; position: inherit; margin-top: 3px; font-size: 16px; z-index: 199;">
                                 <i class="fas fa-chevron-circle-left" style="color: blue; box-shadow: 3px 3px 1px lightgray;"></i></a>',
-                        $hint= '@Go back to parent folder: '.end(explode('/',$GLOBALS['goback'])) );
+                        $hint= '@Go back to parent folder: '.end(explode('/',$GLOBALS['goback'] ?? '')) );
                 else $goBack='';
-        echo '<th class="'. $filtInit. $pars. $selt. $sort. $colfilt.'" data-placeholder= "'.lang('@Filter...').'" style="width:'.$Body[1].'; '.
+        echo '<th class="'. $filtInit. $pars. ($selt ?? ''). $sort. $colfilt.'" data-placeholder= "'.lang('@Filter...').'" style="width:'.$Body[1].'; '.
              $ØHeaderFont.' text-align:center;">'.$goBack.Lbl_Tip($label,$Body[5].$lblsuff,$tipplc,$h='0px').' </th>';
     }}
     foreach ($RowSuff as $Suff) { dvl_pretty();
@@ -620,10 +627,10 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
     if ($Export) $cvrData= rtrim($cvrData,',')."\n"; 
     
     // arrPrint($resizable_widths,'$resizable_widths');
-    run_Script("widgetOptions: {
+    /* run_Script("widgetOptions: {
       resizable: true,
       resizable_widths = $resizable_widths
-    }");
+    }"); */
     set_Style('','$("#table'.$ØTblIx.'").tablesorter({ widgetOptions { filter_cellFilter: ["'.implode('","',$filter_cellFilter). '"]}}');   // Hide input filter fields fore hidden columns
 
 ### Column-FILTER:   (created of tablesorter, but there are a problem with hidd-fields!) filter-onlyAvail
@@ -693,10 +700,10 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
             ## Fields with data:
             $GotoEdit= ' class="clsFocus" '; // Goto FirstField in created row
             foreach ($RowBody as $Body)
-                if ($ColDrop> 0) {/* Drop Column after colspan */ $ColDrop= $ColDrop-1; $ColIx++;}
+                if ($ColDrop ?? ''> 0) {/* Drop Column after colspan */ $ColDrop= $ColDrop-1; $ColIx++;}
                 else
                 { $ColIx++;    dvl_pretty();
-                    $SelectList= $Body[8];
+                    $SelectList= $Body[8] ?? '';
                     if (is_array($DataRow[$ColIx])) $valu= $DataRow[$ColIx][0];
                     else                            $valu= $DataRow[$ColIx];
                     $sortData= ' data-sort= "'. $RowIx. /*trim($valu,' '). /* */ '" ';   // Used to sort on unformatted raw data
@@ -706,7 +713,7 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                     }
 
             ## Special Output formats:
-                if (!$GLOBALS["Øshow"]>0)
+                if (!($GLOBALS["Øshow"] ?? '')>0)
                     switch ($Body[3]) { # OutFormat
                         case '0d': if ($valu==null) $valu= 0;       else $valu= number_format((float)$valu, 0,',',' '); break;
                         case '1d': if ($valu==null) $valu='';       else $valu= number_format((float)$valu, 1,',',' '); break;
@@ -733,13 +740,13 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                     if ($DataRow[2]=='Operation') { $rowBg=' background-color: lightred; opacity:70%;'; }
                     if ($valu=='') $valu= ' '; // Hide placeholder-text
                 }
-                 if (($fieldHide== true) and ($ColIx>1)) { $valu= ' '; $emptyTD= true; } else $emptyTD= false;
+                 if (($fieldHide ?? '' == true) and ($ColIx>1)) { $valu= ' '; $emptyTD= true; } else $emptyTD= false;
 
             ## ColRules:
-                if (is_string($Body[4][0]))  $txAlign= ' style="text-align:'.$Body[4][0].'; '; else $txAlign= '';
-                if (is_string($Body[4][1]))  $bgColor= ' background-color:'. $Body[4][1].'; '; else $bgColor= '';
-                if (is_string($Body[4][2]))  $fltStyl= ' '.                  $Body[4][2].' ';  else $fltStyl= '';   // i.e.: 'font-style:italic; '
-                if (is_string($Body[4][3]))  $tdColor= ' background-color:'. $Body[4][3].'; '; else $tdColor= '';
+                if (is_string($Body[4][0] ?? ''))  $txAlign= ' style="text-align:'.($Body[4][0] ?? '').'; '; else $txAlign= '';
+                if (is_string($Body[4][1] ?? ''))  $bgColor= ' background-color:'. ($Body[4][1] ?? '').'; '; else $bgColor= '';
+                if (is_string($Body[4][2] ?? ''))  $fltStyl= ' '.                  ($Body[4][2] ?? '').' ';  else $fltStyl= '';   // i.e.: 'font-style:italic; '
+                if (is_string($Body[4][3] ?? ''))  $tdColor= ' background-color:'. ($Body[4][3] ?? '').'; '; else $tdColor= '';
 
             ## Special conditional "row"-formats:
                 if ($MultiList==['','']) $kontotype= '';
@@ -747,10 +754,10 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                 if (is_array($DataRow))
                 if ($ColIx<count($DataRow)) {  //  If colspan is there stopped here, when the row is over
                     // if ($emptyTD== true) $rowField.= '<td>'; else
-                    $rowField.= '<td style="text-align:'.$Body[4][0].'; width:'.$Body[1].'; '.$bgColor.$tdColor.$rowBg.$colsp; //  tablefield-property
+                    $rowField.= '<td style="text-align:'.$Body[4][0].'; width:'.$Body[1].'; '.$bgColor.$tdColor.$rowBg.($colsp ?? ''); //  tablefield-property
 
                 ## Special InputTypes in tablefields:
-                if ($GLOBALS["Øshow"]>0) $Body[2]= 'text';
+                if ($GLOBALS["Øshow"] ?? ''>0) $Body[2]= 'text';
                 if ($emptyTD== true) $rowField.= '">'; else
                 switch ($Body[2]) { # ContType
                     case 'ddwn' : $rowField.= '"'.$sortData.'>'.DropDown($name= $fldNames[$ColIx].'[]', $valu, $list= $SelectList[0], $more= $SelectList[1].'; ');  
@@ -836,7 +843,7 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                     case 'text' :
                     case 'sttu' :   // "unused" Status
                                 { $rowField.= '"'.$sortData.'> <input type= "text" name="'.$fldNames[$ColIx].'[]" value="'.$valu.'" '. //'contentEditable="true" '.
-                                       ' placeholder="'.lang($Body[6]).'"'.$txAlign.$inpBg.$fltStyl.' width:98%;" /> ';  //  font-style:inherit;
+                                       ' placeholder="'.lang($Body[6] ?? '').'"'.$txAlign.$inpBg.$fltStyl.' width:98%;" /> ';  //  font-style:inherit;
                                   break;
                                 }
                     default   : { $rowField.= '"'.$sortData.'> <input type= "text" name="'.$fldNames[$ColIx].'[]" value="'.$valu.' '.$Body[2].'" '.'placeholder="'.lang($Body[6]).'"'.$txAlign.$inpBg.$fltStyl.' width:98%;" /> ';
@@ -848,7 +855,8 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                 if ($Body[2]!='hidd') {
                     if ($Body[0]=='@Order Date') $currDate= date('Y-m-d'); else $currDate='';
                     $newRow.= '<td style="text-align:'.$Body[4][0].'; width:'.$Body[1].';" >'. # ColWidth
-                              '<input type= "text" '.$GotoEdit.' name="'.$fldNames[$ColIx].'[]" value="'.$currDate.'" placeholder="'.lang($Body[6]).'"'.$txAlign.' width: 98%;  background-color: lightyellow; font-style:inherit;" /> </td>';
+                              '<input type= "text" '.$GotoEdit.' name="'.$fldNames[$ColIx].'[]" value="'.$currDate.
+                              '" placeholder="'.lang($Body[6] ?? '').'"'.$txAlign.' width: 98%;  background-color: lightyellow; font-style:inherit;" /> </td>';
                               if (!in_array($Body[2],['show','indx','calc'])) $GotoEdit= '';
                               }
             };  //  foreach $RowBody
@@ -912,7 +920,9 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                 cssStickyHeaders_addCaption : true,
                 filter_hideFilters : true,
                 filter_cellFilter : 'tablesorter-filter-cell',
-                filter_reset : '.reset'
+                filter_reset : '.reset',
+                resizable: true". //,   resizable_widths = $resizable_widths 
+                "
             }
         });
         // https://stackoverflow.com/questions/19413025/use-tablesorter-to-filter-selected-items-in-options-list-chosen
@@ -931,7 +941,6 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
               var Scell = $(cell);  
               return Scell.attr('data-sort') || s; }
         });
-
     ");
 /*
 $(function() {
@@ -982,7 +991,7 @@ if ($CreateRec) {
 } // htm_Table
 
 
-function htm_PanlHead($frmName='', $capt='', $parms='', $icon='', $class='panelWmax', $where='Undefined', $more='', $BookMark='', $panlBg='background-color: white;')
+function htm_PanlHead($frmName='', $capt='', $parms='', $icon='', $class='panelWmax', $where='Undefined', $more='', $BookMark='', $panlBg='background-color: white;', $closWidth='')
 { # MUST be followed of htm_PanlFoot !
     global $ØiconColor, $ØTitleColr, $ØPanlForm, $ØProgRoot, $_assets, $ØPanelIx, $ØPanelBgrd, $GridOn;
     $ØPanelIx++;
@@ -991,19 +1000,20 @@ function htm_PanlHead($frmName='', $capt='', $parms='', $icon='', $class='panelW
                 var h = document.getElementById("HideDiv'.$ØPanelIx.'");
                 var p = document.getElementById("panel'.$ØPanelIx.'");'.        // width = substr($class,-3).'px' panelW560
                 'if (h.style.display === "none")
-                    { h.style.display = "block";  $("table").trigger("applyWidgets");}
-                    else { h.style.display = "none";}
+                    { h.style.display = "block";     p.style.width = "";  $("table").trigger("applyWidgets");}
+                    else { h.style.display = "none"; p.style.width = "'.$closWidth.'"; }
             }'; //
     echo 'function PanelMinimize'.$ØPanelIx.'() {
                 var h = document.getElementById("HideDiv'.$ØPanelIx.'");
                 var p = document.getElementById("panel'.$ØPanelIx.'");
-                h.style.display = "none";
-            }'; // p.style.width = "100%"; }';  //h.style.width = "480px"; }';
+                h.style.display = "none"; 
+                p.style.width = "'.$closWidth.'";'.   // $closWidth = Panel-width when it is closed
+            '}';
     echo 'function PanelMaximize'.$ØPanelIx.'() {
                 var h = document.getElementById("HideDiv'.$ØPanelIx.'");
                 var p = document.getElementById("panel'.$ØPanelIx.'");
                 h.style.display = "block";
-            '.// p.style.width = "100%";
+            '.
             '   $("table").trigger("applyWidgets");
             }'; //  $("table").trigger("applyWidgets"); Refresh the erlier hidden tablesorter objects.
     echo '</script>';
@@ -1298,8 +1308,9 @@ function htm_IconButt($type='submit',$faicon='',$labl='',$title='',$id='',$link=
     return $result;
 }
 
-function htm_LinkButt($labl, $gotoLink, $hint='', $target='_blank') {
-    echo '<a class="button" href="'.$gotoLink.'"  target="'.$target.'" title="'.lang($hint).'">'.lang($labl).'</a>';
+function htm_LinkButt($labl, $gotoLink, $hint='', $target='_blank', $proc=true) {
+    $result= '<a class="button" href="'.$gotoLink.'"  target="'.$target.'" title="'.lang($hint).'">'.lang($labl).'</a>';
+    if ($proc==true) echo $result; else return $result;
 }
 
 function str_WithHint($labl='',$hint='',$icon='') {
@@ -1509,23 +1520,23 @@ switch (strtolower($type)) {  # BG-olors and Hint-prefix:
 }
 
 
-//  $goon= lang('$Fortsæt');   $close= lang('@Luk');
+//  $goon= lang('@Continue');   $close= lang('@Luk');
 ## Almindelige af-arter med kun 1 fortsæt-knap, samt "luk":
-function msg_Error($title='Fejl',     $messg='Besked') {
-//  msg_Dialog('error',   lang('@Fortsæt'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
+function msg_Error($title='Error',     $messg='Message') {
+//  msg_Dialog('error',   lang('@Continue'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
   msg_System($MsgType= 'error', $title,  $reason='', $messg, $actions=['','goon','close']);
 }
-function msg_Info($title='Info',      $messg='Besked') {
-  msg_Dialog('info',    lang('@Fortsæt'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
+function msg_Info($title='Info',      $messg='Message') {
+  msg_Dialog('info',    lang('@Continue'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
 }
-function msg_Warn($title='Advarsel',  $messg='Besked') {    //  msg_Dialog('warn',    lang('@Fortsæt'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
+function msg_Warn($title='Warning',  $messg='Message') {    //  msg_Dialog('warn',    lang('@Continue'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
   $str= '<br>'.  lang($messg);
   msg_System($MsgType= 'warn', $title,  $reason=' ', $messg=$str, $actions=['','goback','close']);
 }
-function msg_Hint($title='Tip',        $messg='Besked') {   //  msg_Dialog('tip',     lang('@Fortsæt'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
+function msg_Hint($title='Tip',        $messg='Message') {   //  msg_Dialog('tip',     lang('@Continue'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
   msg_System($MsgType= 'tip', $title,  $reason=$title, $messg, $actions=['','','close']);
 }
-function msg_Succ($title='Hurra',     $messg='Besked') {      //  msg_Dialog('success', lang('@Fortsæt'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
+function msg_Succ($title='Hurray',     $messg='Message') {      //  msg_Dialog('success', lang('@Continue'),'$(this).dialog("close")','','','','',ucfirst(lang($title)),ucfirst(lang($messg)));  
   msg_System($MsgType= 'success', $title='',  $reason='', $messg, $actions=['','','close']);
 }
 // Afhængig af: msg_lib.css.php   -   Afløser for msg_Dialog()
@@ -1543,23 +1554,23 @@ function msg_System($MsgType= 'error', $title='',  $reason='', $messg='', $actio
 ## CODE: (don't change!)
   switch (strtolower($MsgType)) {  # TEMA-farver og Titel-prefix:
       case "error"  : $headColr= '#FF8888';    # color: red
-                      $pref= ucfirst(lang('@Fejl: '));     
-                      $Capt1= '<div style="font-weight:600;">'.lang('@Sporing').':</div>';
-                      $Capt2= '<div style="font-weight:600;">'.lang('@Forklaring').':</div>'; 
+                      $pref= ucfirst(lang('@Error: '));     
+                      $Capt1= '<div style="font-weight:600;">'.lang('@Tracking').':</div>';
+                      $Capt2= '<div style="font-weight:600;">'.lang('@Explanation').':</div>'; 
                       break;
       case "info"   : $headColr= '#BDE5F8';    # color: blue
                       $pref= ucfirst(lang('@Info: '));                  
                       break;
       case "warn"   : $headColr= '#FEEFB3';    # color: orange
-                      $pref= ' '.ucfirst(lang('@Advarsel: '));
-                      $Capt1= '<div style="font-weight:600;">'.lang('@Hov').':</div>'; 
+                      $pref= ' '.ucfirst(lang('@Warning: '));
+                      $Capt1= '<div style="font-weight:600;">'.lang('@Oops').':</div>'; 
                       break;
       case "tip"    : $headColr= '#88ff22';    # color: green
                       $pref= ucfirst(lang('@Tip: '));   
                       $title='';                      
                       break;
       case "success": $headColr= '#DFF2BF';    # color: light-green
-                      $pref= ucfirst(lang('@Hurra: '));                 
+                      $pref= ucfirst(lang('@Hurray: '));                 
                       break;
       default:  $headColr= $MsgType; $pref= ''; //  Custom color og uden prefix
   } 
@@ -1577,10 +1588,10 @@ function msg_System($MsgType= 'error', $title='',  $reason='', $messg='', $actio
   echo '      <div class="modal__content" style="width:67%; background:lightyellow;">'.$Capt2.'<var>'.$messg.'</var>'.'<br><br></div>';
   echo '    </section> ';
   echo '    <div class="modal__footer" style="background-color: '.$headColr.';">';
-  if (in_array('goback',$actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Luk vinduet og vend tilbage til forrige visning').'">'.lang('@Fortryd').' </label>';
-  if (in_array('goon',  $actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Luk besked-vinduet og fortsæt').'">'.lang('@Fortsæt').' </label>';
-  if (in_array('accept',$actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Bekræft og fortsæt').'">'.lang('@Godkend').' </label>';
-  if (in_array('close', $actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Luk vinduet!').'">'.lang('@Luk')    .' </label>';
+  if (in_array('goback',$actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Close the window and return to the previous screen').'">'.lang('@Undo').' </label>';
+  if (in_array('goon',  $actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Close the message-window and continue').'">'.lang('@Continue').' </label>';
+  if (in_array('accept',$actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Confirm and continue').'">'.lang('@Accept').' </label>';
+  if (in_array('close', $actions)) echo '<label class="modlButt" for="open-modal" title="'.lang('@Close the window!').'">'.lang('@Close')    .' </label>';
 //  echo '      <script> ';
 //  echo '        function goBack() { window.history.back() } ';
 //  echo '        function winclose() { open(location, "_self").close() } ';
@@ -1659,13 +1670,15 @@ function htm_PagePrep($pageTitl='', $ØPageImage='',$align='center',$PgInfo='',$
         stickyHeaders_xScroll: null,        // jQuery selector or object to monitor horizontal scroll position (defaults: xScroll > attachTo > window)
         stickyHeaders_yScroll: null,        // jQuery selector or object to monitor vertical scroll position (defaults: yScroll > attachTo > window)
         stickyHeaders_filteredToTop: true,  // scroll table top into view after filtering
+     /*
      // editable_enterToAccept : true,
-     // editable_validate : function(txt, orig, columnIndex, $element) {
+     // editable_validate : function(txt, orig, columnIndex, $ element) {
      //         // only allow one word
      //         var t = /\s/.test(txt) ? txt.split(/\s/)[0] : txt;
      //         return t || false;
      //     },
      // filter_columnFilters : false,
+     */
         filter_hideFilters : true,
         filter_cellFilter : 'tablesorter-filter-cell',
         filter_reset : '.reset',
@@ -1749,10 +1762,10 @@ function htm_PagePrep($pageTitl='', $ØPageImage='',$align='center',$PgInfo='',$
         // INFO: Indsætter som sidste række, en kopi af 1. række
         // Bedre: Indsætter herunder en kopi, af aktuel række
         // window.alert("Indsætter som sidste række, en kopi af 1. række");
-        if (confirm("'.lang('@Indsæt kopi som sidste række, af kopi af 1. række ?').'") == true) {
+        if (confirm("'.lang('@Insert copy as the last row, a copy of 1. row ?').'") == true) {
             $(".txtbox", clone);
         }
-	});
+    });
   
     function removeRow() {'.
 //      if (confirm("'.lang('@Are You Sure to Remove This Row?').'") == true) {
@@ -1997,7 +2010,8 @@ echo "
     </style>   <!-- \"popMnu_.css\"> -->
 ";
 
-echo "
+?>
+
 <script>    /* popMnu_: if externel: <script: src=\"popMnu_.js\"> */
     class popMnu_{
         /**
@@ -2066,32 +2080,44 @@ echo "
         constructor(opts){
             switch(opts.type){
                 case 'seperator':
-                    this.element = popMnu_Core.CreateEl('<li class=\"popMnu_Js popMnu_MenuSeperator\"><div></div></li>');
+                    this.element = popMnu_Core.CreateEl('<li class="popMnu_Js popMnu_MenuSeperator"><div></div></li>');
                     break;
                 case 'custom':
                 case 'submenu':
                 case 'normal':
                 default:
-                    this.element = popMnu_Core.CreateEl( 
-                    `   <li class='popMnu_Js' ${'opts.popHint' != 'undefined' ? 'data-title=\"".lang(opts.popHint)."\"' : ''}>
-                            <div class='popMnu_Js popMnu_MenuItem high-light_size' style=\"${'opts.custAttr' == 'undefined' ? '' : 'opts.custAttr'}\">
-                                ${'opts.imgIcon' != 'undefined' ? `<img src=\"${'opts.imgIcon'}\" class='popMnu_Js popMnu_MenuItemIcon'/>` :
-                                    `<div class='popMnu_Js popMnu_MenuItemIcon ${'opts.cssIcon' != 'undefined' ? 'opts.cssIcon' : ''}'></div>`
+                    this.element = popMnu_Core.CreateEl( `
+                       <li class='popMnu_Js' 
+                            ${opts.popHint != undefined ? 
+                            'data-title= lang(opts.popHint)' : 
+                            ''}>
+                            <div class='popMnu_Js popMnu_MenuItem high-light_size' style='${opts.custAttr == undefined ? '' : opts.custAttr}'>
+                                ${'opts.imgIcon' != 'undefined' ? 
+                                    '<img src= ${'opts.imgIcon'} class="popMnu_Js popMnu_MenuItemIcon"/>' :
+                                    '<div class='popMnu_Js popMnu_MenuItemIcon ${'opts.cssIcon' != 'undefined' ? 'opts.cssIcon' : ''}'></div>'
                                 }
-                                <span class='popMnu_Js popMnu_MenuItemLabel'>${'opts.label' == 'undefined' ? lang('@No label') : lang('opts.label')}</span>
-                                <span class='popMnu_Js popMnu_MenuItemOverflow ${'opts.type' === 'submenu' ? '' : 'hidden' }' title=\"".lang('@Go to submenu')."\">
-                                    <span class='popMnu_Js fas fa-bars colgray font18'></span>
+                                <span class="popMnu_Js popMnu_MenuItemLabel">
+                                ${opts.label == undefined ? 
+                                    lang('@No label') : 
+                                    lang('opts.label')}
                                 </span>
-                                <span class='popMnu_Js popMnu_MenuItemShort'>${'opts.shortcut' == 'undefined' ? '' : 'opts.shortcut'}</span>
+                                <span class="popMnu_Js popMnu_MenuItemOverflow 
+                                    ${'opts.type' === 'submenu' ?
+                                    '' : 
+                                    'hidden' } " title="<?= lang('@Go to submenu'); ?>">
+                                    <span class="popMnu_Js fas fa-bars colgray font18"></span>
+                                </span>
+                                <span class="popMnu_Js popMnu_MenuItemShort" ${'opts.shortcut' == 'undefined' ? '' : 'opts.shortcut'}></span>
                             </div>
                             <ul class='popMnu_Js popMnu_SubMenu popMnu_MenuHidden'>
-                                <li class=\"popMnu_Js popMnu_Header popMnu_SubMenuClose\" title=\"<? echo lang('@Go back to previous menu'); ?>\">
+                                <li class="popMnu_Js popMnu_Header popMnu_SubMenuClose" title="<? echo lang('@Go back to previous menu'); ?>">
                                     <input type='button' value='<' class='popMnu_Js' />
-                                    <span class='popMnu_Js '>${'opts.label' != 'undefined' ? lang('opts.label') : lang('@No label')}</span>
+                                    <span class="popMnu_Js" ${'opts.label' != 'undefined' ? lang('opts.label') : lang('@No label')}></span>
                                 </li>
                             </ul>
-                        </li>
-                    ` );
+                        </li> `
+                    );
+        
 
                     let childMenu = this.element.querySelector('.popMnu_SubMenu'),
                         menuItem = this.element.querySelector('.popMnu_MenuItem');
@@ -2158,7 +2184,8 @@ echo "
         }
     };
 </script> <!-- \"popMnu_.js\" -->
-";
+
+<?
 
 function MakePop($lbl='',$tip='',$icon='',$type='',$id='',$click='',$sep=',') {
     $result= 'new popMnu_Item({label: \''.lang($lbl).'\', popHint: \''.lang($tip).'\', cssIcon: \''.$icon.'\', shortcut: ';
@@ -2221,6 +2248,14 @@ tfoot input {
 .tablesorter .tablesorter-filter-row {
     background-color: #DFF;
     height: 10px;
+}
+/* .tablesorter thead .disabled {display: none} */
+.tablesorter .tablesorter-filter-row .disabled {
+    display: none;
+}
+
+.sortPrefix {
+    display: none;
 }
 
 </style>
@@ -2538,7 +2573,7 @@ run_Script("function toast(txt, bgcolr='#333', fgcolr='#fff') {
     //echo '<script defer src="'.$_assets.'font-awesome5/fontawesome-free-5.0.2/svg-with-js/js/fontawesome-all.js"></script>';   //   topic= "ICON-system" version 5
 
 
-    $ØPageLogo= $ØProgRoot.'21997911.png';
+    $ØPageLogo= $ØProgRoot.'_assets/images/21997911.png';
 
     echo $CSS_system;    // Activate the system style
 //  echo '<style type="text/css"> <!--  @font-face { font-family: barcode; src: url('.$ØProgRoot.'_assets/fonts/barcode.ttf); } --> </style>';
@@ -2722,12 +2757,13 @@ function fromFile ($dPath, $arrNames) {
 
 if (!function_exists('lang')) {
     function lang($txt) {                # lang() is used to translate all hard-coded program-text.
-        global $lang, $transTable;
+        global $lang, $transTable, $englishOnly;
         // return trim($txt,"@");
 
         if (!strlen($lang)) $lang = 'en';
         $transTable['en']['AppName'] = 'PHP to HTML';   // English Language:
-    //  $allLang = sys_get_translations($transTable);
+        if (!$englishOnly)
+            $allLang = sys_get_translations($transTable);
         //$transTable == $allLang ? $allLang : $transTable;
         $transTable = $allLang;
         if (isset($transTable[$lang][$txt]))     return sys_enc($transTable[$lang][$txt]);  // National
@@ -2752,18 +2788,20 @@ function sys_enc($text) {
  * @return array
  */
 function sys_get_translations($transTable) { global $lang_list;
+    if (isset($_POST['alllang'])) { $alllang = $_POST['alllang']; }
+    if ($lang_list == null)     // Prevent repeating calls
     try {
-        $content = file_get_contents('../.sys_trans.json');
+        $content = file_get_contents('.sys_trans.json');
         if($content !== FALSE) {
-            $lng = json_decode($content, TRUE);        // arrPrint($lng,'$lng');
+            $lng = json_decode($content, TRUE);
             foreach ($lng["language"] as $key => $value)
-            if ($value["translation"])  // Only if translation exists for that language
-            {   $lang_rec["code"]        = $value["code"];           // $value["code"];
-                $lang_rec["name"]        = $value["name"];           // $value["name"];      Name in english
-                $lang_rec["native"]      = $value["native"];         // $value["native"];    Name translated from english
-                $lang_rec["author"]      = $value["author"];         // $value["author"];
-                $lang_rec["note"]        = $value["note"];           // $value["note"];
-                $lang_rec["DateTime"]    = $value["DateTime"];       // $value["DateTime"]; // setlocale(LC_TIME, 'da_DK','da','da_DK.utf8'); ?
+            if ((!$value["translation"] == null) or ($alllang == 'All'))   // Only if translation exists for that language
+            {   $lang_rec["code"]        = $value["code"];                  // $value["code"];
+                $lang_rec["name"]        = $value["name"];                  // $value["name"];      Name in english
+                $lang_rec["native"]      = $value["native"];                // $value["native"];    Name translated from english
+                $lang_rec["author"]      = $value["author"];                // $value["author"];
+                $lang_rec["note"]        = $value["note"];                  // $value["note"];
+                $lang_rec["DateTime"]    = $value["DateTime"];              // $value["DateTime"]; // setlocale(LC_TIME, 'da_DK','da','da_DK.utf8'); ?
                 $lang_rec["translation"] = $value["translation"];
 
                 $lang_list[]= $lang_rec;
@@ -3212,7 +3250,7 @@ $CSS_system = '
     border-radius: 5px;
     border: 1px solid var(--FieldBord); /* border: none; */
     background-color: var(--FieldBgrd); /* background-color: transparent; */
-                                        /* background-image: url(\'_background.png\'); */
+                                        /* background-image: url(\'_assets/images/_background.png\'); */
     position: relative;
     /* text-align: right; */
     margin:3px;                         /* margin: 0; */
@@ -3335,8 +3373,8 @@ input[type="date"]::-webkit-inner-spin-button {
 abbr.hint data-hint {
     display: none;
     position: relative;
-    /* left: 50%; */
     left: 50px;
+    top: 35px;
 }
 abbr.hint:hover {
     cursor: pointer;
@@ -3427,7 +3465,7 @@ input { border: 0; }
     display: grid;
     grid-template-columns: 35% 30% 35% ;
     /* background-color: LightYellow; */
-    background-image: url("'.$ØProgRoot.'_background.png");
+    background-image: url("'.$ØProgRoot.'_assets/images/_background.png");
     padding: 10px;
     grid-gap: 10px;
     text-align: center;
@@ -3525,6 +3563,10 @@ if (is_readable($custFile= '../customLib.inc.php')) require_once($custFile);
 // Edit > BLANK Operations > Remove preceeded and subordinate SPACES
 // Repeat - Find: SPACESPACESPACE Replace to:SPACESPACE until not found
 // Save lib-file as minimized file .min.
+
+// Searc for all external called files.
+// Find:
+// ([\/\.\-_a-z0-9]*\.css")|([\/\.\-_a-z0-9]*\.js")|([\/\.\-_a-z0-9]*\.png")|([\/\.\-_a-z0-9]*\.ico")|([\/\.\-_a-z0-9]*\.jpg")|(src=)|(rel=)
 
 // Now lib-file is ready for removing unused functions....
 //      Search:'function'   Put 'funcName' in array
