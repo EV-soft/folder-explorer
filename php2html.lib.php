@@ -1,4 +1,4 @@
-<?   $DocFile='../Proj1/php2html.lib.php';    $DocVers='1.0.0';    $DocRev1='2020-11-18';     $DocIni='evs';  $ModulNo=0; ## File informative only
+<?   $DocFile='../Proj1/php2html.lib.php';    $DocVers='1.0.0';    $DocRev1='2020-12-18';     $DocIni='evs';  $ModulNo=0; ## File informative only
 
 #   PHP to HTML generator
 #   If you program html output in php, you can use this library's routines to generate the html code.
@@ -55,7 +55,7 @@ $GridOn= true;                      # Use grid to place objects in rows / colums
 if (is_null($rowHtml ?? '')) $rowHtml= '';
 
 # PATHS:
-if ($GLOBALS["ØProgRoot"]) $ØProgRoot= $GLOBALS["ØProgRoot"]; else
+if ($GLOBALS["ØProgRoot"] ?? '') $ØProgRoot= $GLOBALS["ØProgRoot"]; else
   $ØProgRoot=  './';                 # $ØProgRoot=   "./../";  // "../";        //  Relative in 1. subniveau    #-$ØProgRoot= "./../../";   //  Relative in 2. subniveau
 $_assets=     $ØProgRoot.'_assets/';
 //$_images=     $ØProgRoot.'_assets/images/';
@@ -292,8 +292,9 @@ function htm_Input(# $type='',$name='',$valu='',$labl='',$hint='',$plho='@Enter.
         case 'rado' : $result.= // RADIO:
                             '<span class="fieldContent boxStyle" style="'.$bord.'"><small>';
                             foreach ($list as $rec) { // $list= [[0:'value',1:'Label',2:'@ToolTip',3:'checked'], ['Label','@ToolTip'],...]
-                                if ($valu==$rec[0]) $chk= ' checked '; else $chk= '';
-                                    $result.= '<input type= "radio" id="'.$rec[0].'" name="'.$name.'" value="'.$rec[0].'" '.$chk.$rec[3]. ' '.$more.' style="width: 20px; box-shadow: none;">'.
+                                if ($valu==$rec[0]) $chk= ' checked '; else $chk= ' ';
+                                    $result.= '<input type= "radio" id="'.$rec[0].'" name="'.$name.'" value="'.$rec[0].'" '.
+                                        $chk.($rec[3] ?? ''). ' '.$more.' style="width: 20px; box-shadow: none;">'.
                                      '<label for="'.$rec[0].'" style="position: relative; top: -2px;">'. Lbl_Tip($rec[1],$rec[2],'','12px; box-shadow: none; ').'</label>';
                                 if ($rows=='1') $result.= '&nbsp;'; else $result.= '<br>';
                             }   $result.= '</small></span>';  break;
@@ -494,7 +495,7 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
     }
 
     $Width= '98%';
-    echo '<span class="tableStyle" name="tblSpan" style="width:'.($width ?? '').'; padding: 8px; '.$TblStyle.'">';
+    echo '<span class="tableStyle" name="tblSpan" id="tblSpan" style="width:'.($width ?? '').'; padding: 8px; '.$TblStyle.' ">';
 ### Caption line:
     if ($TblCapt[0][0]>'') {    dvl_pretty();    // htm_nl(1);
         if ($TblCapt) foreach ($TblCapt as $Capt) { // $Capt[x]: 0:Label 1:width 2:type 3:name 4:align 5:titletip 6:default 7:value
@@ -565,7 +566,7 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
     $hiddcount= 0;
     $datCount= 0;
 
-    if (is_array($TblData[0])) $datCount= count($TblData[0]); else $datCount= count($TblData);
+    if (is_array($TblData[0] ?? '')) $datCount= count($TblData[0]); else $datCount= count($TblData);
     $fldCount= count($fldNames);
     // if ($datCount!= $fldCount)  echo '<div style="color:red;"> DataError! '.$datCount.'(data)/'. $fldCount.'(flds)<div>';
     // toast('<div style="color:red;"> DataError! '.$datCount.'(data)/'. $fldCount.'(flds)<div>');
@@ -608,14 +609,15 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                 }
                 // if ($Body[3]=='2d') $sort.= ' sorter-currency sorter-digit ';  // '3:OutFormat'
                 if ($Body[4][3] ?? ''===false) $sort= ' sorter-false '; // '4:[horJust_etc]
-                if ($Body[5]=='@The name of file or directory') // GoBack in file/folder explorers header:
-                    $goBack= str_WithHint(
-                        $labl='<a href="'.($GLOBALS['goback'] ?? '').'" target="_self" style= "float: left; position: inherit; margin-top: 3px; font-size: 16px; z-index: 199;">
+                if (($Body[5]=='@The name of file or directory') // goUp in file/folder explorers header:
+                    and ($GLOBALS['goUp']!=''))
+                    $goUp= str_WithHint(
+                        $labl='<a href="'.($GLOBALS['goUp'] ?? '').'" target="_self" style= "float: left; position: inherit; margin-top: 3px; font-size: 16px; z-index: 199;">
                                 <i class="fas fa-chevron-circle-left" style="color: blue; box-shadow: 3px 3px 1px lightgray;"></i></a>',
-                        $hint= '@Go back to parent folder: '.end(explode('/',$GLOBALS['goback'] ?? '')) );
-                else $goBack='';
+                        $hint= '@Go up to parent folder: '.end(explode('/',$GLOBALS['goUp'] ?? '')) );
+                else $goUp='';
         echo '<th class="'. $filtInit. $pars. ($selt ?? ''). $sort. $colfilt.'" data-placeholder= "'.lang('@Filter...').'" style="width:'.$Body[1].'; '.
-             $ØHeaderFont.' text-align:center;">'.$goBack.Lbl_Tip($label,$Body[5].$lblsuff,$tipplc,$h='0px').' </th>';
+             $ØHeaderFont.' text-align:center;">'.$goUp.Lbl_Tip($label,$Body[5].$lblsuff,$tipplc,$h='0px').' </th>';
     }}
     foreach ($RowSuff as $Suff) { dvl_pretty();
         $resizable_widths[]= $Suff[1];
@@ -682,8 +684,9 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
             $DataRow= array_values($DataRow);
             $RowIx++; dvl_pretty();
             //echo '<tr class="row" id="row_'.$RowIx.'">';  //  Tablesorter with Zebra-striped background
+            $extra= 'style= "cursor: alias;" title= "'.lang('@RightClick for table-row MENU').'"';
             if (count($RowBody)>0)
-            echo '<tr class="row">';  //  Tablesorter with Zebra-striped background
+            echo '<tr class="row" id="tabl_row'.$RowIx.'" '.$extra.'>';  //  Tablesorter with Zebra-striped background
             ## Fields before data-fields:
             foreach ($RowPref as $Pref) {
                 $rowField.= '<td style="width:'.$Pref[1].'; text-align:'.$Pref[4][0].'; ">'.lang($Pref[6]).' </td>';
@@ -1605,6 +1608,38 @@ function msg_System($MsgType= 'error', $title='',  $reason='', $messg='', $actio
   return $result;
 }
 
+function Pmnu_Item($type='',$lbl='',$tip='',$icon='',$id='',$click='',$attr='',$sep=',') {
+    $result= "\n new popMnu_Item({label: '".lang($lbl)."', popHint: '".lang($tip)."', cssIcon: '".$icon."'";    // or imgIcon !
+    if ($click > '')
+        switch ($type) {
+            case 'plain': $result.= ', shortcut: \'<input type="button" id="'.$id.'" name="'.$id.'" value=">" onclick="'.$click.'" >\''; break;
+            case 'custo': $result.= ', shortcut: \'<input type="checkbox" id="'.$id.'" name="'.$id.'" onclick="'.$click.'" >\''; break;
+            default:      $result.= 'Type parameter ERROR';
+        }
+        if ($attr > '' ) {$result.= ', custAttr: "'.$attr.'"';}
+    $result.= '})'.$sep;
+    return $result;
+}
+
+function Pmnu_Sepe() { return 
+"\n new popMnu_Item({type: 'seperator'}),";
+}
+function Pmnu_Prepare($id='id',$widt='260px',$stick='false') { return
+"\n   let ".$id." = document.getElementById(\"".$id."\");
+          ".$id.".addEventListener('contextmenu', event => {    // Activate RightClick
+            event.preventDefault();                             // Deactivate LeftClick
+            new popMnu_({
+                isSticky: ".$stick.",
+                width: '".$widt."',
+                items: [   /* ITEMS */ ";
+}
+function Pmnu_Finish() { return 
+"\n          ]   /* ITEMS */
+        });
+    });
+";
+}
+
 function htm_PagePrep($pageTitl='', $ØPageImage='',$align='center',$PgInfo='',$PgHint='',$headScript='') { # Prepare / initialize a page
     global $ØProgRoot, $CSS_system, $ØTitleColr, $panelCount;                                              # Must be followed of htm_PageFina() to finalise the page
 
@@ -1853,12 +1888,13 @@ function htm_PagePrep($pageTitl='', $ØPageImage='',$align='center',$PgInfo='',$
 
 </script>"; // $jsScripts
 
-echo "
+// echo "
+$popScripts= "
     <style>    /* popMnu_: if externel: <link rel=\"stylesheet\" type=\"text/css\" href=\"popMnu_.theme.css\"> */
         :root{
             --popMnu_MenuBg:        rgb(237, 237, 238);
             --popMnu_MenuShadow:    1px 1px 10px #000;
-            --popMnu_MenuRadius:    3px;
+            --popMnu_MenuRadius:    8px;
             --popMnu_MenuText:      black; /* #cccccc; */
             --popMnu_SubMenuBg:     lightgray; /* rgb(127, 127, 128); */
             --popMnu_Hover:         white; /* #080a79; */
@@ -1901,7 +1937,7 @@ echo "
         .popMnu_Menu{    /* Main context menu outer */
             position: absolute;
             top: 300px;
-            padding: 8px 0;
+            padding: 0;
             background: var(--popMnu_MenuBg);
             box-shadow: var(--popMnu_MenuShadow);
             border-radius: var(--popMnu_MenuRadius);
@@ -2008,10 +2044,11 @@ echo "
             left: 100% !important;
         }
     </style>   <!-- \"popMnu_.css\"> -->
-";
+";  // $popScripts
 
 ?>
 
+    
 <script>    /* popMnu_: if externel: <script: src=\"popMnu_.js\"> */
     class popMnu_{
         /**
@@ -2071,8 +2108,8 @@ echo "
          * @param {string}              [opts.type]
          * @param {Array:popMnu_Item}   [opts.submenu]
          * @param {string}              [opts.customMarkup]
-         * @param {string}              [opts.imgIcon]
-         * @param {string}              [opts.cssIcon]
+         * @param {string}              [opts.imgIcon]      // Prepared !
+         * @param {string}              [opts.cssIcon]  
          * @param {string}              [opts.custAttr]
          * @param {string}              [opts.shortcut]
          * @param {void}                [opts.onClick]
@@ -2080,43 +2117,39 @@ echo "
         constructor(opts){
             switch(opts.type){
                 case 'seperator':
-                    this.element = popMnu_Core.CreateEl('<li class="popMnu_Js popMnu_MenuSeperator"><div></div></li>');
+                    this.element = popMnu_Core.CreateEl('<li class= "popMnu_Js popMnu_MenuSeperator"><div></div></li>');
                     break;
                 case 'custom':
                 case 'submenu':
                 case 'normal':
-                default:
-                    this.element = popMnu_Core.CreateEl( `
-                       <li class='popMnu_Js' 
-                            ${opts.popHint != undefined ? 
-                            'data-title= lang(opts.popHint)' : 
-                            ''}>
-                            <div class='popMnu_Js popMnu_MenuItem high-light_size' style='${opts.custAttr == undefined ? '' : opts.custAttr}'>
-                                ${'opts.imgIcon' != 'undefined' ? 
-                                    '<img src= ${'opts.imgIcon'} class="popMnu_Js popMnu_MenuItemIcon"/>' :
-                                    '<div class='popMnu_Js popMnu_MenuItemIcon ${'opts.cssIcon' != 'undefined' ? 'opts.cssIcon' : ''}'></div>'
-                                }
-                                <span class="popMnu_Js popMnu_MenuItemLabel">
-                                ${opts.label == undefined ? 
-                                    lang('@No label') : 
-                                    lang('opts.label')}
+                default:        /* <abbr class= "hint"> <div>'.Slabel.'</div><data-hint>'.Stitle.'</data-hint></abbr> */
+                    this.element = popMnu_Core.CreateEl(`
+                        <abbr class= "popMnu_Js hint" ${opts.popHint != undefined ? ' title= "'+ opts.popHint+'"' : ''}>
+                            <div class= "popMnu_Js popMnu_MenuItem high-light_size" style= ${opts.custAttr == undefined ? '' : opts.custAttr} >
+                                    ${opts.imgIcon != undefined ? 
+                                        '<img class= "popMnu_Js popMnu_MenuItemIcon" src= '+ opts.imgIcon + ' />' : 
+                                        '<div class= "popMnu_Js popMnu_MenuItemIcon '+ (opts.cssIcon != undefined ? opts.cssIcon : ' ' ) +'"></div>'}
+                                <span class= "popMnu_Js popMnu_MenuItemLabel">
+                                    ${opts.label == undefined ? 'No label' : opts.label }
                                 </span>
-                                <span class="popMnu_Js popMnu_MenuItemOverflow 
-                                    ${'opts.type' === 'submenu' ?
-                                    '' : 
-                                    'hidden' } " title="<?= lang('@Go to submenu'); ?>">
-                                    <span class="popMnu_Js fas fa-bars colgray font18"></span>
+                                    ${opts.popHint != '' ? 
+                                        '<data-hint>'+opts.popHint+ '</data-hint>' : ''}
+                                <span class= "popMnu_Js popMnu_MenuItemOverflow ${'opts.type' === 'submenu' ? '' : 'hidden' } " 
+                                    title="<?= lang('@Go to submenu'); ?>">
+                                    <span class= "popMnu_Js fas fa-bars colgray font18"></span>
                                 </span>
-                                <span class="popMnu_Js popMnu_MenuItemShort" ${'opts.shortcut' == 'undefined' ? '' : 'opts.shortcut'}></span>
+                                <span class= "popMnu_Js popMnu_MenuItemShort"> 
+                                    ${opts.shortcut == undefined ? '' : opts.shortcut}
+                                </span>
                             </div>
-                            <ul class='popMnu_Js popMnu_SubMenu popMnu_MenuHidden'>
-                                <li class="popMnu_Js popMnu_Header popMnu_SubMenuClose" title="<? echo lang('@Go back to previous menu'); ?>">
-                                    <input type='button' value='<' class='popMnu_Js' />
-                                    <span class="popMnu_Js" ${'opts.label' != 'undefined' ? lang('opts.label') : lang('@No label')}></span>
+                            <ul class= "popMnu_Js popMnu_SubMenu popMnu_MenuHidden">
+                                <li class= "popMnu_Js popMnu_Header popMnu_SubMenuClose" title="<?= lang('@Go back to previous menu'); ?>">
+                                    <input type= 'button' value='<' class= 'popMnu_Js' />
+                                    <span class= "popMnu_Js" ${opts.label != 'undefined' ? opts.label : <?= '"'.lang('@No label').'"' ?>}></span>
                                 </li>
                             </ul>
-                        </li> `
-                    );
+                        </abbr> 
+                    `);
         
 
                     let childMenu = this.element.querySelector('.popMnu_SubMenu'),
@@ -2154,20 +2187,20 @@ echo "
         PositionMenu: (docked, el, menu) => {
             if (docked){
                 menu.style.left = ((el.target.offsetLeft + menu.offsetWidth) >= window.innerWidth) ?
-                         ((el.target.offsetLeft - menu.offsetWidth) + el.target.offsetWidth)+\"px\"
-                        : (el.target.offsetLeft)+\"px\";
+                         ((el.target.offsetLeft - menu.offsetWidth) + el.target.offsetWidth)+"px"
+                        : (el.target.offsetLeft)+"px";
 
                 menu.style.top = ((el.target.offsetTop + menu.offsetHeight) >= window.innerHeight) ?
-                          (el.target.offsetTop - menu.offsetHeight)+\"px\"
-                        : (el.target.offsetHeight + el.target.offsetTop)+\"px\";
+                          (el.target.offsetTop - menu.offsetHeight)+"px"
+                        : (el.target.offsetHeight + el.target.offsetTop)+"px";
             } else {
                 menu.style.left = ((el.clientX + menu.offsetWidth) >= window.innerWidth) ?
-                          (el.clientX + window.pageXOffset - 10     - menu.scrollWidth)+\"px\"  /* 10px distance from cursor */
-                        : (el.clientX + window.pageXOffset + 10)+\"px\";
+                          (el.clientX + window.pageXOffset - 10     - menu.scrollWidth)+"px"  /* 10px distance from cursor */
+                        : (el.clientX + window.pageXOffset + 10)+"px";
 
                 menu.style.top = ((el.clientY  + menu.scrollHeight) >= window.innerHeight) ?
-                          (el.clientY + window.pageYOffset - 10  - menu.scrollHeight)+\"px\"
-                        : (el.clientY + window.pageYOffset + 10) +\"px\";
+                          (el.clientY + window.pageYOffset - 10  - menu.scrollHeight)+"px"
+                        : (el.clientY + window.pageYOffset + 10) +"px";
             }
         },
         
@@ -2187,15 +2220,6 @@ echo "
 
 <?
 
-function MakePop($lbl='',$tip='',$icon='',$type='',$id='',$click='',$sep=',') {
-    $result= 'new popMnu_Item({label: \''.lang($lbl).'\', popHint: \''.lang($tip).'\', cssIcon: \''.$icon.'\', shortcut: ';
-    switch ($type) {
-        case 'radio': $result.= '\'<input type="radio" id="'.$id.'" name="'.$id.'" onclick="'.$click.'" >\''; break;
-        default:    $result.= 'Parameter ERROR';
-    }
-    $result.= '})'.$sep;
-    return $result;
-}
 
 echo "
 <style>
@@ -2600,7 +2624,11 @@ run_Script("function toast(txt, bgcolr='#333', fgcolr='#fff') {
             $PgHint.'</div>';
     // echo '<div class="ver_right"; style="color:red;">[[[[[[[[[HHHHH__HHHHHH]]]]]]]]]]</div>';
 
+    // echo '$(document).ready(function(){';
     echo $jsScripts;
+    // echo '}';
+    
+    echo $popScripts;
     
     echo "\n</head>\n
              <body>\n"; 
@@ -2638,7 +2666,7 @@ function htm_PageFina() { global $ØPanelIx, $panelCount, $ØProgRoot, $jsScript
     </script>";
     
     if (DEBUG) run_Script('header("Server-Timing: ".$Timers->getTimers()); ');
-//  include($ØProgRoot.'../spormig.php');
+    include($ØProgRoot.'./../spormig.php');
     htm_nl(1);
     echo "\n  </body>"; // Started in htm_PagePrep()
     echo '</html>';
@@ -2788,10 +2816,10 @@ function sys_enc($text) {
  * @return array
  */
 function sys_get_translations($transTable) { global $lang_list;
-    if (isset($_POST['alllang'])) { $alllang = $_POST['alllang']; }
+    if (isset($_POST['alllang']))  $alllang = $_POST['alllang']; else $alllang = '';
     if ($lang_list == null)     // Prevent repeating calls
     try {
-        $content = file_get_contents('.sys_trans.json');
+        $content = file_get_contents('_sys_trans.json');
         if($content !== FALSE) {
             $lng = json_decode($content, TRUE);
             foreach ($lng["language"] as $key => $value)
