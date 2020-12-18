@@ -609,8 +609,9 @@ function htm_Table(# $TblCapt,$RowPref,$RowBody,$RowSuff,$TblNote,&$TblData,$Fil
                 }
                 // if ($Body[3]=='2d') $sort.= ' sorter-currency sorter-digit ';  // '3:OutFormat'
                 if ($Body[4][3] ?? ''===false) $sort= ' sorter-false '; // '4:[horJust_etc]
+                
                 if (($Body[5]=='@The name of file or directory') // goUp in file/folder explorers header:
-                    and ($GLOBALS['goUp']!=''))
+                    and ($GLOBALS['goUp'] ?? '' !=''))
                     $goUp= str_WithHint(
                         $labl='<a href="'.($GLOBALS['goUp'] ?? '').'" target="_self" style= "float: left; position: inherit; margin-top: 3px; font-size: 16px; z-index: 199;">
                                 <i class="fas fa-chevron-circle-left" style="color: blue; box-shadow: 3px 3px 1px lightgray;"></i></a>',
