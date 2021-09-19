@@ -1,4 +1,4 @@
-<? $DocFile='../Proj1/translate.inc.php';    $DocVers='1.0.0';    $DocRev1='2020-11-30';     $DocIni='evs';  $ModulNo=0; ## File informative only
+<? $DocFile='../Proj1/translate.inc.php';    $DocVers='1.0.0';    $DocRev1='2021-09-19';     $DocIni='evs';  $ModulNo=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-2020 EV-soft *** See the file: LICENSE';
 
 require_once ('filedata.inc.php');
@@ -67,8 +67,8 @@ function scannLngStrings($code= 'dk') {
     $lngArr = sys_get_translations(['']);  //  All existing lng in /sys_trans.json
     $lang= 'en';    //  System
     //$code= 'de';  //  Analyse
-    $name= $lang_list[$code];
-    $nati= $_SESSION['currLang']['native']; // Update problem ! FIXIT
+    $name= $lang_list[$code] ?? '';
+    $nati= $_SESSION['currLang']['native'] ?? 'en'; // Update problem ! FIXIT
     // $nati= $lang_list[$code]['native'];
     // arrPrint($_SESSION['currLang'],'$_SESSION["currLang"]');
     if(array_key_exists('en',$lang_list)) {echo 'Data: '.$lang_list['en']; }

@@ -1,4 +1,4 @@
-<?php   $DocFil= './Proj1/translate.page.php';    $DocVer='5.0.0';    $DocRev='2020-11-30';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= './Proj1/translate.page.php';    $DocVer='5.0.0';    $DocRev='2021-09-19';     $DocIni='evs';  $ModulNr=0; ## File informative only
 ## 𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-2020 EV-soft *** 
 require_once ('php2html.lib.php');
 // require_once ('menu.inc.php');
@@ -43,9 +43,9 @@ htm_PagePrep($pageTitl='translate.page.php', $ØPageImage='_assets/images/_backg
     htm_PanlHead($frmName='lang', $capt='@Select a language:', $parms='', $icon='fas fa-wrench', $class='panelW560', $func='Undefined', $more='', 
                 $BookMark='blindAlley.page.php',$panlBg='background-color: white;');
     echo '<div style="text-align: center; margin: 20px;">';  
-    echo lang('The actual language is').'<b> '.$App_Conf['language'].' / '.$_SESSION['currLang']['native'].' </b><br><br>';
+    echo lang('The actual language is').'<b> '.$App_Conf['language'].' / '.($_SESSION['currLang']['native'] ?? '').' </b><br><br>';
     # $type='',$name='',$valu='',$labl='',$hint='',$plho='@Enter...',$wdth='',$algn='left',$unit='',$disa=false,$rows='2',$step='',$more='',$list=[],$llgn='R',$bord='',$proc=true);
-    htm_Input($type='rado',$name='alllang',$valu=$alllang,$labl='@Filter',$hint='@Hide/show some (empty) languages in the language selector',$plho='Enter...',$wdth='110px',
+    htm_Input($type='rado',$name='alllang',$valu=$alllang ?? '',$labl='@Filter',$hint='@Hide/show some (empty) languages in the language selector',$plho='Enter...',$wdth='110px',
               $algn='left',$unit='',$disa=true,$rows='2',$step='',$more='onclick="this.form.submit();"',$list= [
     ['All','All','@Show the complete list','checked'],
     ['Som','Some','@Hide all empty languages'],
