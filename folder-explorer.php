@@ -1,10 +1,20 @@
-<?php   $DocFil= '\Proj1\folder-explorer.php';    $DocVer='1.0.0';    $DocRev='2020-12-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.2.0';    $DocRev='2022-10-07';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-2020 EV-soft *** See the file: LICENSE';
 
 // error_reporting(E_ERROR);
 
 $GLOBALS["ØProgRoot"]= './';
 require_once ('./php2html.lib.php');    // Creating HTML-functions
+
+
+## Speedup page-loading, if some libraryes is not needed:
+//      ConstName:          ix:   LocalPath:                 CDN-path:
+define('LIB_JQUERY',        [1, '_assets/jquery/',          'https://cdnjs.cloudflare.com/ajax/libs/']);
+define('LIB_TABLESORTER',   [1, '_assets/tablesorter/js/',  'https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.30.1/js/']);
+define('LIB_POLYFILL',      [0, '_assets/',  '']);
+define('LIB_POPSCRIPTS',    [0, '_assets/',  '']);
+define('LIB_FONTAWESOME',   [1, '_assets/font-awesome6/',   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome6/']);
+// Set ix 0:deactive  1:Local-source  2:WEB-source-CDN
 
 
 
@@ -25,15 +35,43 @@ define ('p2h_READONLY', $p2h_AppConf['use_auth'] ?? ''
             && isset($_SESSION[p2h_SESSION_ID]['logged']) 
             && in_array($_SESSION[p2h_SESSION_ID]['logged'], 
             $p2h_AppConf['readonly_users']));
-// define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
 define ('p2h_USER_PATH', $p2h_AppConf['myPlace']?? '');
 define ('MAX_UPLOAD_SIZE', $p2h_AppConf['max_upload_size_bytes']?? '');
+
+
+
+function hex_dump($string, $line_sep='\n',$bytes_per_line=16,$pad_char='·',$want_array=false) { // https://stackoverflow.com/questions/1057572/how-can-i-get-a-hex-dump-of-a-string-in-php
+    if (!is_scalar($string)) throw new InvalidArgumentException('$string argument must be a string');
+    $text_lines = str_split($string, $bytes_per_line);
+    $hex_lines  = str_split(bin2hex($string), $bytes_per_line * 2);
+    $offset = 0;
+    $output = [];
+    $bytes_per_line_div_2 = (int)($bytes_per_line / 2);
+    foreach ($hex_lines as $i => $hex_line) {
+        $text_line = $text_lines[$i];
+        $output []=
+            sprintf('%08X',$offset) . '  ' .
+            str_pad(
+                strlen($text_line) > $bytes_per_line_div_2
+                ?   implode(' ', str_split(substr($hex_line,0,$bytes_per_line),2)) . '&nbsp;&nbsp;' .
+                    implode(' ', str_split(substr($hex_line,$bytes_per_line),2))
+                :   implode(' ', str_split($hex_line,2))
+            , $bytes_per_line * 3) .
+            '  |' . preg_replace('/[^\x20-\x7E]/', $pad_char, $text_line) . '|';
+        $offset += $bytes_per_line;
+    }
+    $output []= sprintf('%08X', strlen($string));
+    return @$want_array ? $output : join($line_sep, $output) . $line_sep;
+}
+
+
+
 
 // if (!isset($path)) $path= '';
 //$localVars=[$path, $breadcrumbs ];
 //foreach ($localVars as $var)
 //    if (!isset($var)) $var= '';
-if (!isset($quickView)) $quickView= false;
+if (!isset($quickView)) $quickView= true;
 
 /*
 // PAFM:
@@ -133,40 +171,42 @@ function p2h_nice_filesize($size)    // Output nice rounded filesize
 }
 
 function p2h_get_file_icon_class($path) { // Get CSS classname for file
+    global $is_archive;   $is_image;   $is_audio;   $is_video;   $is_text;
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $icoc = '';     $showType = 'File'; // default
     if (in_array($ext,['ico','gif','jpg','jpeg','jpc','jp2','jpx','xbm','wbmp','png','bmp','tif','tiff','ttf','eot','woff','woff2','svg']) )
-                                                                    $icoc = 'far fa-file-image colr1';
-    elseif (in_array($ext,['passwd','ftpquota','sql','js','json','sh','config','twig','tpl','md','gitignore','c','cpp','cs','yml','py','map','lock','dtd']) )
-                                                                    $icoc = 'far fa-file-code colr3';
-    elseif (in_array($ext,['txt','ini','conf','log','htaccess']))   $icoc = 'far fa-file-alt colr4';
-    elseif (in_array($ext,['css','less','sass','scss']))            $icoc = 'fab fa-css3-alt colr8';
-    elseif (in_array($ext,['zip','rar','gz','tar','7z']))           $icoc = 'far fa-file-archive colr2';
-    elseif (in_array($ext,['php','php4','php5','phps','phtml']))    $icoc = 'far fa-file-code colr3';
-    elseif (in_array($ext,['htm','html','shtml','xhtml']))          $icoc = 'fab fa-html5 colr5';
-    elseif (in_array($ext,['xml','xsl']))                           $icoc = 'far fa-file-excel colr6';
-    elseif (in_array($ext,['wav','mp3','mp2','m4a','aac','ogg','oga','wma','mka','flac','ac3','tds']))
-                                                                    $icoc = 'far fa-music';
-    elseif (in_array($ext,['m3u','m3u8','pls','cue']) )             $icoc = 'far fa-headphones';
-    elseif (in_array($ext,['avi','mpg','mpeg','mp4','m4v','flv','f4v','ogm','ogv','mov','mkv','3gp','asf','wmv']))
-                                                                    $icoc = 'far fa-file-video';
-    elseif (in_array($ext,['eml','msg']) )                          $icoc = 'far fa-envelope';
-    elseif (in_array($ext,['xls','xlsx','ods']) )                   $icoc = 'far fa-file-excel colr6';
-    elseif (in_array($ext,['db','odb']) )                           $icoc = 'fas fa-database';
-    elseif (in_array($ext,['csv']) )                                $icoc = 'far fa-file-alt colr4';
-    elseif (in_array($ext,['bak']) )                                $icoc = 'far fa-clipboard';
-    elseif (in_array($ext,['doc','docx','odt']) )                   $icoc = 'far fa-file-word';
-    elseif (in_array($ext,['ppt','pptx','odp']) )                   $icoc = 'far fa-file-powerpoint colr7';
-    elseif (in_array($ext,['ttf','ttc','otf','woff','woff2','eot','fon']) ) $icoc = 'far fa-font';
-    elseif (in_array($ext,['pdf']) )                                $icoc = 'far fa-file-pdf';
-    elseif (in_array($ext,['psd','ai','eps','fla','swf']) )         $icoc = 'far fa-file-image colr1';
-    elseif (in_array($ext,['exe','msi']) )                          $icoc = 'far fa-file';
-    elseif (in_array($ext,['bat']) )                                $icoc = 'far fa-terminal';
-    else                                                            $icoc = 'fas fa-info-circle';
-    return $icoc;
+                                                                    { $icoc = 'far fa-file-image colr1';        $showType = 'Image';    $is_image= true; }
+    elseif (in_array($ext,['passwd','ftpquota','sql','js','sh','config','twig','tpl','md','gitignore','c','cpp','cs','yml','py','map','lock','dtd']) )
+                                                                    { $icoc = 'far fa-file-code colr3';         $showType = 'Code'; }
+    elseif (in_array($ext,['txt','ini','conf','log','htaccess']))   { $icoc = 'far fa-file-alt colr4';          $showType = 'Text';     $is_text= true; }
+    elseif (in_array($ext,['css','less','sass','scss']))            { $icoc = 'fab fa-css3-alt colr8';          $showType = 'Class'; }
+    elseif (in_array($ext,['zip','rar','gz','tar','7z']))           { $icoc = 'far fa-file-archive colr2';      $showType = 'Archive';  $is_archive= true; }
+    elseif (in_array($ext,['php','php4','php5','phps','phtml']))    { $icoc = 'far fa-file-code colr3';         $showType = 'Code'; }
+    elseif (in_array($ext,['htm','html','shtml','xhtml']))          { $icoc = 'fab fa-html5 colr5';             $showType = 'Html'; }
+    elseif (in_array($ext,['xml','xsl']))                           { $icoc = 'far fa-file-excel colr6';        $showType = 'Spreadsheet'; }
+    elseif (in_array($ext,['wav','mp3','mp2','m4a','aac','ogg','oga','wma','mka','flac','ac3','tds']))  
+                                                                    { $icoc = 'far fa-music';                   $showType = 'Audio';    $is_audio= true; }
+    elseif (in_array($ext,['m3u','m3u8','pls','cue']) )             { $icoc = 'far fa-headphones';              $showType = 'Audio';    $is_audio= true; }
+    elseif (in_array($ext,['avi','mpg','mpeg','mp4','m4v','flv','f4v','ogm','ogv','mov','mkv','3gp','asf','wm']))
+                                                                    { $icoc = 'far fa-file-video';              $showType = 'Video';    $is_video= true; }
+    elseif (in_array($ext,['eml','msg']) )                          { $icoc = 'far fa-envelope';                $showType = 'Mail'; }
+    elseif (in_array($ext,['xls','xlsx','ods']) )                   { $icoc = 'far fa-file-excel colr6';        $showType = 'Spredsheet'; }
+    elseif (in_array($ext,['db','odb']) )                           { $icoc = 'fas fa-database';                $showType = 'Database'; }
+    elseif (in_array($ext,['json','csv']) )                         { $icoc = 'far fa-file-alt colr4';          $showType = 'Data'; }
+    elseif (in_array($ext,['bak']) )                                { $icoc = 'far fa-clipboard';               $showType = 'Backup'; }
+    elseif (in_array($ext,['doc','docx','odt']) )                   { $icoc = 'far fa-file-word';               $showType = 'Word'; }
+    elseif (in_array($ext,['ppt','pptx','odp']) )                   { $icoc = 'far fa-file-powerpoint colr7';   $showType = 'PPT'; }
+    elseif (in_array($ext,['ttf','ttc','otf','woff','woff2','eot','fon']) ) {$icoc = 'far fa-font';             $showType = 'Font'; }
+    elseif (in_array($ext,['pdf']) )                                { $icoc = 'far fa-file-pdf';                $showType = 'PDF'; }
+    elseif (in_array($ext,['psd','ai','eps','fla','swf']) )         { $icoc = 'far fa-file-image colr1';        $showType = 'Image'; }
+    elseif (in_array($ext,['exe','msi']) )                          { $icoc = 'far fa-file';                    $showType = 'Execute'; }
+    elseif (in_array($ext,['bat']) )                                { $icoc = 'far fa-terminal';                $showType = 'Batch'; }
+    else                                                            { $icoc = 'fas fa-info-circle';             $showType = 'File'; }
+    return [$icoc,$showType];
 }
 
 $p2h_Style = '
-<style>  // ICON-colors: colrx used in icon class $icoc:
+<style>  /* ICON-colors: colrx used in icon class $icoc: */
     .colr0 { color: #0157b3;    }  /* fa-folder          */
     .colr1 { color: #26b99a;    }  /* fa-file-image      */
     .colr2 { color: #E16666;  background-color: gold;  }  /* fa-file-archive    */
@@ -206,8 +246,6 @@ $p2h_Style = '
         font-style: italic;      
     }
 
-
-
 .modal {            /* The Modal (background) */
   display: none;    /* Hidden by default */
   position: fixed;  /* Stay in place */
@@ -221,7 +259,6 @@ $p2h_Style = '
   background-color: rgb(0,0,0);         /* Fallback color */
   background-color: rgba(0,0,0,0.4);    /* Black w/ opacity */
 }
-
 
 /* Modal Header */
 .modal-header {
@@ -280,7 +317,8 @@ $p2h_Style = '
   border: 1px solid green;
   cursor: pointer;
 }
-.dropbtn:hover, .dropbtn:focus {    /*  Dropdown button on hover & focus  */
+.dropbtn:hover, 
+.dropbtn:focus {    /*  Dropdown button on hover & focus  */
   background-color: #3e8e41; 
   color: black;
 }
@@ -333,7 +371,8 @@ $p2h_Style = '
     display:block;
 }
 
-</style>';
+
+</style>'; // $p2h_Style
 
 
 function p2h_get_mime_type($file_path) { // Get file mime type
@@ -348,44 +387,6 @@ function p2h_get_mime_type($file_path) { // Get file mime type
         $mime = shell_exec('file -bi '. $file);
         return $mime; } 
     else { return '--'; }
-}
-
-function p2h_test_archive($ext) // Test archive file extensions
-{ global $view_title, $is_archive;
-  if (in_array($ext,['tar', 'zip'])) 
-    { $is_archive = true; $view_title= lang('Archive'); }
-    else $is_archive = false;
-}
-
-function p2h_test_image($ext) // Test image file extensions
-{ global $view_title, $is_image;
-  if (in_array($ext,['ico', 'gif', 'jpg', 'jpeg', /* 'jpc', 'jp2', 'jpx', 'xbm', 'wbmp', 'psd', */ 'png', 'bmp', 'tif', 'tiff', 'svg'])) 
-    { $is_image = true; $view_title= lang('Image'); }
-    else $is_image = false;
-}
-
-function p2h_test_video($ext) // Test video file extensions
-{ global $view_title, $is_video;
-  if (in_array($ext,['avi', 'webm', 'wmv', 'mp4', 'm4v', 'ogm', 'ogv', 'mov', 'mkv'])) 
-    { $is_video = true; $view_title= lang('Video'); }
-    else $is_video = false;
-}
-
-function p2h_test_audio($ext) // Test audio file extensions
-{ global $view_title, $is_audio;
-  if (in_array($ext,['wav', 'mp3', 'ogg', 'm4a'])) 
-    { $is_audio = true; $view_title= lang('Audio'); }
-    else $is_audio = false;
-}
-
-function p2h_test_text($ext) // Test text file extensions
-{ global $view_title, $is_text;
-  if (in_array($ext,['txt', 'css', 'ini', 'conf', 'log', 'htaccess', 'passwd', 'ftpquota', 'sql', 'js', 'json', 'sh', 'config',
-        'php', 'php4', 'php5', 'phps', 'phtml', 'htm', 'html', 'shtml', 'xhtml', 'xml', 'xsl', 'm3u', 'm3u8', 'pls', 'cue',
-        'eml', 'msg', 'csv', 'bat', 'twig', 'tpl', 'md', 'gitignore', 'less', 'sass', 'scss', 'c', 'cpp', 'cs', 'py','yml',
-        'map', 'lock', 'dtd', 'svg', 'scss', 'asp', 'aspx', 'asx', 'asmx', 'ashx', 'jsx', 'jsp', 'jspx', 'cfm', 'cgi'])) 
-    { $is_text = true; $view_title= lang('Text'); }
-    else $is_text = false;
 }
 
 /*
@@ -429,7 +430,7 @@ function archList($arrRow,$part='Body') {
              '  <td class="tblcol" style="width: 50px;">'. $arrRow['index'].   '</td>'.
              '  <td class="tblcol" style="text-align: left;">'. $path. '</td>'.
              '  <td class="tblcol" style="text-align: left;">'. $name.  '</td>'.       //' <td class="tblcol">'. pathinfo($arrRow['name'], PATHINFO_EXTENSION). '</td>'.  //' <td class="tblcol">'. $arrRow['crc']. '</td>'.
-             '  <td class="fsize" >'. $size. '</td>'.
+             '  <td class="fsize"  style="font-family: monospace;">'. $size. '</td>'.
              '  <td class="tblcol">'. date('Y-m-d H:i', $arrRow['filetime']). '</td>'. //' <td class="tblcol">'. $arrRow['comp_method'].                             '</td>'.
              '  <td class="fsize" >'. $comp. '</td>'.
              '  <td class="tblcol">'. $rate. '</td>'.
@@ -526,15 +527,7 @@ $result= '
             lang('@Full path').': '. p2h_enc(p2h_convert_win($file_path)). '<br>'.
             lang('@File size').': '. p2h_nice_filesize($filesize_raw); if ($filesize_raw >= 1000) ( $result.= ' / '.sprintf( '%s bytes', $filesize_raw) );
             $result.= '<br> MIME-type: '.$mime_type. '<br>';
-            //<?
-            $view_title= '';
-            $ext= ltrim($ext,'.');
-            p2h_test_archive($ext);
-            p2h_test_image($ext);
-            p2h_test_video($ext);
-            p2h_test_audio($ext);
-            p2h_test_text($ext);
-            if ($view_title=='') $view_title= 'Unknown file type: '.$ext;
+
             // ZIP info: $is_archive
             if (($is_zip || $is_gzip) && $filenames !== false) {
                 $total_files = 0;
@@ -575,12 +568,15 @@ $result= '
     <p>
         <b>'; 
         $lnk= '<a '.urlQuery(p2h_PATH,'dl',$file). ' data-title="'. lang('@Get a copy locally').'"> ';
-        $result.= $lnk.
-        ' <i class="fa fa-download colrDwn fa-sm"></i> '; $result.= lang('@Download'); '</a></b> &nbsp;';
+        $result.= $lnk. ' <i class="fa fa-download colrDwn fa-sm"></i> '; 
+        $result.= lang('@Download'); '</a></b> &nbsp;';
         if (!p2h_READONLY) { // prevent "File not found!" 
-            '<b><a href="'; $lnk= p2h_enc($file_url). '" target="_blank" data-title="'; $tit= lang('@View the file content') .'">';
-            $result.= $lnk. $tit. ' 
-                <i class="fa fa-external-link-square-alt colrShw fa-sm"></i> '; $result.= lang('@Open'). '</a></b> &nbsp;';
+            '<b><a href="'; 
+            $lnk= p2h_enc($file_url). ' target="_blank" '; 
+            $tit= 'data-title="'.lang('@View the file content') .'">';
+            $result.= $lnk. $tit. ' <i class="fa fa-external-link-square-alt colrShw fa-sm"></i> '; 
+            $result.= lang('@Open'). 
+            '</a></b> &nbsp;';
         }
 /*
         // ZIP actions
@@ -609,6 +605,34 @@ $result= '
     return $result;
 } // p2h_fileView()
 
+function p2h_folders($path)
+{   $objects = is_readable($path) ? scandir($path) : array();
+    foreach ($objects as $obj) {
+    if ($obj == '.' || $obj == '..') { continue; }   // System folder
+  //if (substr($obj, 0, 1)   == '.') { continue; }   // Hidden file
+    $pathName = $path. '/'. $obj;
+    if     (@is_file($pathName))                                   { $files[]   = $obj; } 
+    elseif (@is_dir($pathName) && ($obj != '.') && ($obj != '..')) { $folders[] = $obj; echo ' '.$obj; }
+    }
+    //foreach ($folders as $fold) echo $fold;
+}
+
+function listFolders($dir,$currentDir='') {
+    $arrItems = scandir($dir);
+    unset($arrItems[array_search('.', $arrItems, true)]);    unset($arrItems[array_search('..', $arrItems, true)]);
+    if (count($arrItems) < 1) return;    // prevent empty elements
+    $file= 0;
+    echo '<ul>';
+        foreach($arrItems as $item){
+            if(is_dir($dir.'/'.$item)) 
+            {   echo '├ '.($currentDir==$item?'<b>':'').
+                      $item.($currentDir==$item?'</b>':'').'/'; 
+                listFolders($dir.'/'.$item,$currentDir);
+            } else $file++;
+        }
+    echo '</ul>';
+}
+
 function p2h_fileExplore($path,$parentDir) {
     global $calc_folder, $totFolds, $totFiles, $totSize, $filesIncurrent, $locSize, $filesize_raw, $view_title, $currentPath, $arrNames, $quickView, $Context_Row, $ix;
     $objects = is_readable($path) ? scandir($path) : array();
@@ -623,7 +647,9 @@ function p2h_fileExplore($path,$parentDir) {
             elseif (@is_dir($pathName) && ($obj != '.') && ($obj != '..')) { $folders[] = $obj; }
         }
     }
+    
     $maxsize= 0;    $foldsize= 0;   $filesIncurrent= 0; $ix = 1000;     $arrNames= [];   $Context_Row= ''; //  folder checkbox id
+    
     if ($calc_folder == true) {
         foreach ($files as $fld) {
             $maxsize+= p2h_get_size($path. '/'. $fld); 
@@ -702,7 +728,7 @@ function p2h_fileExplore($path,$parentDir) {
              str_WithHint($labl='<a href="'.basename(__FILE__). '?show='.$path.'/'.$fld. '" class="txtbutt">&nbsp;'. $fld.'</a>', 
              $hint=lang('@Show content in subfolder: <b>').$fld.'</b>').'</div>'. $buttns. '</div>';
         $rec['ext']= $ext;
-        $rec['size']= $sortsize.'<div title="'.number_format((float)$foldsize, 0,',',' ').' Bytes">'.$showsize.'</div>';
+        $rec['size']= $sortsize.'<div title="'.number_format((float)$foldsize, 0,',',' ').' Bytes" style="font-family:monospace; color:green;">'.$showsize.'</div>';
         $rec['modifyed']= $sorttime.$modif;
         $rec['perms']= $perms;
         $rec['owner']= $owner['name'];      //$rec['group']= $group['name'];
@@ -711,25 +737,28 @@ function p2h_fileExplore($path,$parentDir) {
                         <small style="width: 40px; text-align: right;">'.number_format($meter*100,2).' %</small>';
         $foldRecords[]= $rec;
         $Context_Row.=
-        "<script>".
-        Pmnu_Prepare($id='tabl_row'.($ix-1000),$widt='260px').
-            Pmnu_Item($type='custo',$lbl='@Regarding folder: <br><b>'.$fld.'</b>', $tip='', $icon='far fa-folder colr0 bgclgold',   $id='cust',$click='',
-                      $attr="'background-color: white; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-top: 10px;'' ").
-            Pmnu_Item($type='plain',$lbl='@Rename folder',  $tip='@Give another name',    $icon='fas fa-pen-square colgray',  $id='renm',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Delete folder',  $tip='@Erase the folder',     $icon='fas fa-trash-alt colgray',  $id='dele',$click='cssTogg(\$infVisi,vis_ful)').
-                      
-            Pmnu_Sepe().
-            Pmnu_Item($type='plain',$lbl='@Copy folder',    $tip='@Make a copy with a new name', $icon='fas fa-copy colgray', $id='dnld',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Create ZIP',     $tip='@Make a compressed file with the content of this subfolder',  $icon='far fa-file-archive colgray',  $id='crea',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Syncronize',     $tip='@Create a ZipClone/backup of this folder with another selected...',  $icon='fas fa-sync colgray',  $id='crea',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Go to',          $tip='@Look at this subfolder',      $icon='fas fa-chevron-right colgray',      $id='upld',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Folder property',$tip='@Look at the folder property', $icon='fas fa-info colgray',   $id='prop',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Sepe().
-            Pmnu_Item($type='plain',$lbl='@Create folder',  $tip='@Make a new folder', $icon='fas fa-plus colgray', $id='dnld',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='custo',$lbl='@Inactive DEMO',  $tip='@Click outside menu to close', $icon='fas fa-info fa-sm',   $id='cust',$click='',
-                      $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-bottom: 0; padding-top: 10px;' ",$sep=' ').
-        Pmnu_Finish().
-        "</script>";
+        //  "<script>".  
+        Pmnu_0($elem='tabl_row'.($ix-1000),$capt='@Regarding FOLDER:<br>'.
+                                                // '<i class="'.$icoc.' fa-sm"></i>&nbsp;'. // Fails
+                                                 '<b>'.$fld.'</b>',
+                                                 $wdth='260px', icon:'', stck:'false', attr:'background-color:lightcyan; height: 30px;', cntx:true, rtrn:true).
+       // Pmnu_0($elem='tabl_row'.($ix-1000),$capt='@Regarding FOLDER:',$wdth='260px',$icon='far fa-folder colr0 bgclgold',$stck='false',$attr='background-color:lightcyan;',$cntx=true,$rtrn=true).
+       //     Pmnu_Item($labl='<b>'.$fld.'</b><br>', $icon='far fa-folder colr0 bgclgold',   $hint='', $type='custom',  $name='cust',$clck='', $attr="'background-color: white; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-top: 10px;'' ",$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Rename folder',       $icon='fas fa-pen-square colrorange',  $hint='@Give another name',        $type='plain',  $name='renm',$clck='console.log(\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Delete folder',       $icon='fas fa-trash-alt colrred',      $hint='@Erase the folder',         $type='plain',  $name='dele',$clck='console.log(\''.$labl.'\')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
+                            
+            Pmnu_Item($labl='',                     $icon='',                               $hint='',                                                                  $type='separator',rtrn:true).
+            Pmnu_Item($labl='@Copy folder',         $icon='fas fa-copy colrbrown',          $hint='@Make a copy with a new name',                                      $type='plain',  $name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Create ZIP',          $icon='far fa-file-archive colrbrown',  $hint='@Make a compressed file with the content of this subfolder',        $type='plain',  $name='crea',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Syncronize',          $icon='fas fa-sync colrbrown',          $hint='@Create a ZipClone/backup of this folder with another selected...', $type='plain',  $name='crea',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Go to',               $icon='fas fa-chevron-right colrblack', $hint='@Look at this subfolder',                                           $type='plain',  $name='upld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Folder property',     $icon='fa-solid fa-binoculars colrblue',$hint='@Look at the folder property',                                      $type='plain',  $name='prop',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='',                     $icon='',                               $hint='',                                                                  $type='separator',rtrn:true).
+            Pmnu_Item($labl='@Create new folder',   $icon='fas fa-plus colrgray',           $hint='@Make a new folder',                                                $type='plain',  $name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Still an inactive DEMO', $icon='fas fa-info-circle colrred fa-sm',     $hint='@Click outside menu to close',                                      $type='custom',  $name='cust',$clck='',
+                      $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-bottom: 0; padding-top: 10px;' ",$akey='',$enabl='true',$rtrn=true).
+        Pmnu_00($labl='',$hint='',$attr='',$rtrn=true);
+        // "</script>"; 
         flush();
         $ix++;
     }
@@ -740,7 +769,10 @@ function p2h_fileExplore($path,$parentDir) {
             $fileRef[]= $file_path;
         $is_link = is_link($file_path);
         $ext = pathinfo($fld, PATHINFO_EXTENSION);
-        $icoc = $is_link ? 'far fa-file-alt colr4' : p2h_get_file_icon_class($file_path);
+        $arrAbout= p2h_get_file_icon_class($file_path);
+        $icoc = $is_link ? 'far fa-file-alt colr4' : $arrAbout[0];
+        $showType= $arrAbout[1];
+        $view_title= $showType;
         $ftime = filemtime($file_path); //  Sort criteria
         $modif = date('Y-m-d H:i', $ftime);
         $sorttime = '<span class="sortPrefix">'.$ftime.'</span>';
@@ -767,10 +799,12 @@ function p2h_fileExplore($path,$parentDir) {
         if ($calc_folder) {
             $meter= $filesize_raw / $maxsize;
             $mime_type = p2h_get_mime_type($file_path);
-            if(!$quickView) $fileInfo= p2h_fileView($view_title, $fld, $ext, $file_path, $filesize_raw, $mime_type);
+            // if(!$quickView) 
+                $fileInfo= p2h_fileView($view_title, $fld, $ext, $file_path, $filesize_raw, $mime_type);
+            // else $fileInfo= '';
             $nameFld= '<div class="file-name-div" title="File content: '.$view_title./* ' '.$fileInfo. */'">'.'<i class="'.$icoc.'"></i>&nbsp;'. $fld.'</div>';
             if ($ix < 1500) // Max 500 previews on one page
-            $nameFld.= '<div class="live-preview-img file-name-div"> <img src="'. p2h_enc($currentPath. $fld). '" alt="">'.$fileInfo.'</div>';
+            $nameFld.= '<div class="live-preview-img file-name-div"> <img src="'. p2h_enc($currentPath. $fld). '" alt="'.$view_title.'">'.$fileInfo.'</div>';
         } else
             $nameFld= '<i class="'.$icoc.'"></i>&nbsp;'. $fld;
             // $meter= 0;
@@ -788,23 +822,24 @@ function p2h_fileExplore($path,$parentDir) {
         $fileRecords[]= $rec;
 
     $Context_Row.=
-        "<script>".
-        Pmnu_Prepare($id='tabl_row'.($ix-1000),$widt='260px').
-            Pmnu_Item($type='custo',$lbl='@Regarding file: <br><b>'.$fld.'</b>', $tip='', $icon= $icoc.' fa-sm',   $id='cust',$click='',
-                      $attr="'background-color: white; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;'' ").
-            Pmnu_Item($type='plain',$lbl='@Preview',        $tip='@Look at content in viewer', $icon='far fa-eye colgray', $id='view',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Edit content',   $tip='@Open file in editor',    $icon='far fa-edit colgray',  $id='edit',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Rename file',    $tip='@Give another name',      $icon='fas fa-pen-square colgray',  $id='renm',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Delete file',    $tip='@Erase the file',         $icon='fas fa-trash-alt colgray',  $id='dele',$click='cssTogg(\$infVisi,vis_ful)').
+        // "<script>".
+        Pmnu_0($elem='tabl_row'.($ix-1000),$capt='@Regarding FILE:<br>'.
+                                                // '<i class="'.$icoc.' fa-sm"></i>&nbsp;'. // Fails
+                                                 '<b>'.$fld.'</b>',
+                                                 $wdth='260px', icon:'', stck:'false', attr:'background-color:lightcyan; height: 30px;', cntx:true, rtrn:true).
+            Pmnu_Item($labl='@Preview',        $icon='far fa-eye colrblack',         $hint='@Look at content in viewer',     $type='plain',$name='view',$clck='console.log(\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Edit content',   $icon='far fa-edit colrgreen',        $hint='@Open file in editor',           $type='plain',$name='edit',$clck='window.open(\'TEST\',\'_self\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Rename file',    $icon='fas fa-pen-square colrorange', $hint='@Give another name',             $type='plain',$name='renm',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Delete file',    $icon='fas fa-trash-alt colrred',     $hint='@Erase the file',                $type='plain',$name='dele',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
                                   
-            Pmnu_Sepe().
-            Pmnu_Item($type='plain',$lbl='@Copy file',      $tip='@Make a copy with a new name', $icon='fas fa-copy colgray', $id='dnld',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Download',       $tip='@Download to local storage',  $icon='fas fa-download colgray', $id='dnld',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@File property',  $tip='@Look at the files property', $icon='fas fa-info colgray',   $id='prop',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='custo',$lbl='@Inactive DEMO',  $tip='@Click outside menu to close', $icon='fas fa-info fa-sm',   $id='info',$click='',
-                      $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$sep=' ').
-        Pmnu_Finish().
-        "</script>";
+            Pmnu_Item($labl='',                $icon='',$hint='',$type='separator',rtrn:true).
+            Pmnu_Item($labl='@Copy file',      $icon='fas fa-copy colrbrown',           $hint='@Make a copy with a new name or in another folder',  $type='plain',$name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Create ZIP',     $icon='far fa-file-archive colrbrown',   $hint='@Make a compressed file with the content of this file',        $type='plain',  $name='crea',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Download',       $icon='fas fa-download colrbrown',       $hint='@Download to local storage',    $type='plain',$name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@File properties',$icon='fa-solid fa-binoculars colrblue', $hint='@Look at the files properties', $type='plain',$name='prop',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Still an inactive DEMO',  $icon='fas fa-info-circle colrred fa-sm', $hint='@Click outside menu to close',  $type='custom',$name='info',$clck='', $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$attr='',$akey='',$enabl='true',$rtrn=true).
+        Pmnu_00($labl='',$hint='',$attr='',$rtrn=true);
+        // "</script>";
         $ix++; 
         $fileRecordsIncurrent= $ix-$filesInsub;
     }
@@ -892,13 +927,14 @@ function p2h_getFileList($dir, $recurse=false, $depth=false)    // Create list o
 function SearchSub(&$arrNames) { global $calc_folder;
 $result= '
 <div class="dropdown" title="'.($calc_folder== true ? lang('@Enter search string...') : lang('@Only active in advanced mode!') ). '">'.
-    htm_Input($type='html',$name='fsearch',
+    htm_Input($labl='Search',$plho='@Enter...',$icon='',$hint='@Search for a file in sub-folders, and open that folder',
+              $type='html',$name='fsearch',
               $valu='<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
-              $labl='Search',$hint='@Search for a file in sub-folders, and open that folder',
-              $plho='@Enter...',$wdth='200px',$algn='left',$unit='',$disa=false,
-              $rows='0',$step='',$more='onclick="ToggShow()" class="dropbtn" ',$list=[],$llgn='R',$bord='',$proc=false).
-    '<div id="FileSearch" class="dropdown-content" 
-        title="'. lang('@Click to open this folder') .'">
+              $form= '', $wdth='200px',$algn='left',$attr='onclick="ToggShow()" class="dropbtn" ',$rtrn=true,
+              $unit='',$disa=($_POST['prgMode'] ?? '' != 'mode_A'),$rows='0',$step='',$list=[],$llgn='R',$bord='',$ftop='20px')
+              . '
+    <div id="FileSearch" class="dropdown-content" 
+        title="'. lang('@Click to open this files folder') .'">
         <input type="text" placeholder="Search.." id="searchInput" onkeyup="filterFunction()" 
             title="'. lang('@Type a search string: Part of the file- / folder-name').'"
             style="width:200px; text-align:left; border: 1px solid black;">';
@@ -908,7 +944,7 @@ $result= '
             $dir= substr($file,0,$pos);
             $fil= substr($file,$pos);
             $name_list .= '<a href="'. basename(__FILE__). '?show='.$dir.'" >'.
-                        '<span class="colgray">'.(strlen($dir) > 32 ? '...'.substr($dir,-32) : $dir).':</span> '. $fil.'</a>';
+                        '<span class="colrgray">'.(strlen($dir) > 32 ? '...'.substr($dir,-32) : $dir).':</span> '. $fil.'</a>';
             }
             $result.= '<div style= "text-align:left;">'.$name_list.'</div>';
     $result.= "
@@ -972,17 +1008,42 @@ function doAuth() {
 }
 */
  
+ 
+ // $p2h_Style= '';
+ 
 ##### SCREEN OUTPUT:  -  generated by PHP2HTML functions !
 #!!!: Remember no OUTPUT to screen, before htm_PagePrep() output
-
-htm_PagePrep($pageTitl='Folder-explorer', $ØPageImage='./_assets/images/_background.png',$align='center',$PgInfo=lang(''),$PgHint=lang('@Tip: Toggle fullscreen-mode with function key: F11'),$headScript=$p2h_Style);
+            # titl:'', hint:'', info:'', inis:'', algn:'center', gbl_Imag:'', attr:'', gbl_Bord:true) 
+htm_Page_0($titl='Folder-explorer', $hint=lang('@Tip: Toggle fullscreen-mode with function key: F11'),$info=lang(''), $inis=$p2h_Style, 
+           $algn='center', $gbl_Imag='./_accessories/_background.png',$attr='', $gbl_Bord=true );
     // print_r($tabldata);
-    htm_Caption($labl='Folder-explorer',$style='color:'.$ØTitleColr.'; font-weight:600; font-size: 18px; padding: 4px;',$align='center',
-        $hint='The advanced file-explorer with focus on folders and space taken up of files.');
+    htm_Caption($labl='Folder-explorer',$icon='',$hint='The advanced file-explorer with focus on folders and space taken up of files.',
+                $algn='center',$style='color:'.$gbl_TitleColr.'; font-weight:600; font-size: 18px; padding: 4px;' );
     htm_nl(1);
-    htm_Caption($labl='Build with PHP2HTML',$style='color: gray;; font-weight:400; font-size: 12px;',$align='center',
-        $hint='The shortcut to structured and compact code<br>Created by EV-soft.');
+    htm_Caption($labl='Build with PHP2HTML v2',$icon='',$hint='The shortcut to structured and compact code<br>Created by EV-soft.',
+                $algn='center',$style='color: gray;; font-weight:400; font-size: 12px;');
     htm_nl(1);
+    htm_Panel_0($capt='Folder-Tree',$icon='fas fa-sitemap',$hint= '',$form='',$acti='',$clas='panelW800',
+                $wdth='',$styl='background-color: white; ',$attr='text-align: left; padding:8px; ',$show = true,$head = '');
+        htm_wrapp_0($ViewHeight='300px; text-align:left; ');
+
+        // $base= $_SERVER['DOCUMENT_ROOT'];        // $base= substr($base,0,-13);
+        $base= __DIR__;        // $base= substr($base,0,-13);
+                    # $body,$algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; ',$attr='background-color: white; ');
+        htm_TextDiv($body='BASE: <big><b>'.$base.'</b>/'.'</big><br>All folders with name="'.$currentDir.'" (current folder), are marked with bold text.',
+                    $algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
+        echo '<style> ul { padding-left: 50px; line-height: 1.2; } </style>';
+        listFolders($base,$currentDir);
+
+        htm_wrapp_00();
+    htm_Panel_00($labl='', $icon='',  $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    htm_nl(1);
+    
+run_Script('function fileview(path, fld) {
+        alert("FILE: " + path + fld);
+    }'
+);
+
     // exit('<!DOCTYPE html>');
 ?>
 <!--
@@ -1004,134 +1065,205 @@ htm_PagePrep($pageTitl='Folder-explorer', $ØPageImage='./_assets/images/_backgr
     </div>
     -->
 <?
-
+    htm_Panel_0($capt='Folder-Details',$icon='fas fa-info',$hint= '',$form='',$acti='',$clas='panelWmax',
+                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
     echo '<small>';
     htm_Table(
         $TblCapt= array( //#['0:Label', '1:Width', '2:Type', '3:OutFormat', '4:horJust', '5:Tip', '6:placeholder', '7:Content';], ...
-          ['<big>Showing: ', '90%','html','','left','@Tip','?', $_SERVER['SERVER_NAME'].' // '.$breadcrumbs.'</big><br>'],
-          ['<span style="white-space: nowrap; display: inline-block;">'.
-          '<span title="'.lang('@Space meaning file-space in local folder / total in subfolders').'">'.
-           ($calc_folder == true ? 
-          'Content: Folders: '.$totFolds.' - Files: '.markAllChars($filesIncurrent.'/','i','style="opacity:0.5;"').$totFiles. ' - ' : '' ).
-           'Space: '.markAllChars(p2h_nice_filesize($locSize).'/','i','style="opacity:0.5;"').p2h_nice_filesize($totSize).
-           ' - Free: '.   p2h_nice_filesize(disk_free_space( __FILE__ )).
-           ' of total: '. p2h_nice_filesize(disk_total_space( __FILE__ )). 
-           '</span>'.
-           ' '.           SearchSub($arrNames).
-           ' '. //'<span style="display: inline-block;">'.
+          ['<span style="float:left;" title="'.lang('@RightClick for program MENU').'">
+            <big><i>Showing:</i> ', '90%','html','','left','@Tip','?', $_SERVER['SERVER_NAME'].' // '.$breadcrumbs.'</big></span>'],
+          ['<span style="float:right; white-space: nowrap; display: inline-block;">'.
+               '<span title="'.lang('@Space meaning file-space in local folder / total in subfolders').'">'.
+               ($calc_folder == true ? 
+               '<i>Content:</i> Folders: '.$totFolds.' - Files: '.markAllChars($filesIncurrent.'/','i','style="opacity:0.5;"').$totFiles. ' - ' : '' ).
+               'Space: '.markAllChars(p2h_nice_filesize($locSize).'/','i','style="opacity:0.5;"').p2h_nice_filesize($totSize).
+               ' - Free: '.   p2h_nice_filesize(disk_free_space( __FILE__ )).
+               ' of total: '. p2h_nice_filesize(disk_total_space( __FILE__ )). 
+               '</span>'.
+           '</span> <br> 
+            <div style="width: 500px; margin: auto; ">'. SearchSub($arrNames). ' '. 
                 '<form method="post" name= "frmMode" style="display:inline;">'.
                 str_sp(2).
-                htm_Input($type='opti',$name='prgMode',$valu= ($calc_folder == true ? 'mode_A' : 'mode_S'), $labl='@Select Mode',
+                # $labl='',$plho='@Enter...',$icon='',$hint='',$type= 'text',$name='',$valu='',$form='',$wdth='',$algn='left',$attr='',$rtrn=false,$unit='',$disa=false,$rows='2',$step='',$list=[],$llgn='R',$bord='',$ftop='');
+                htm_Input($labl='@Mode',$plho='@Select...',$icon='',
                           $hint='@The program mode.<br>Speedup by deactivating calculating content in subfolders using "Simple mode"',
-                          $plho='@Select...',$width='',$algn='left',$unit='',$disa=false,
-                          $rows='1',$step='',$more='',$list= [
-                    ['mode_S','Simple','@Do not spend time on calulating subfolders'],
-                    ['mode_A','Advanced','@Advanced mode exploring all subfolders']
-                    ],'','', $proc= false,$form='').
-                    '<input type="submit" value="'.lang('@Set Mode').'" class="txtbutt">'.
+                          $type='opti',$name='prgMode',$valu= ($calc_folder == true ? 'mode_A' : 'mode_S'), $form='',
+                          $wdth='',$algn='left',$attr='',$rtrn=true,$unit='',$disa=false,$rows='1',$step='',$list=[
+                            ['mode_S','Simple','@Do not spend time on calulating subfolders'],
+                            ['mode_A','Advanced','@Advanced mode exploring all subfolders']
+                          ],$llgn='R',$bord='',$ftop='').
+                    '<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" title="Analyse sub-folders in advanced mode...">'.
                     // '<input type="button" value="'.lang('@Manage language').'">'.
                     //' <a href="translate.page.php">'.lang('@Manage language').'</a> '.
+                              # $labl='',$plho='@Enter...',$icon='',$hint='',$type= 'text',$name='',$valu='',$form='',$wdth='',$algn='left',$attr='',$rtrn=false,$unit='',$disa=false,$rows='2',$step='',$list=[],$llgn='R',$bord='',$ftop='');
                 //    htm_Input($type='html',$name='lang',$valu= '<a href="translate.page.php">'.lang('@Manage language').'</a>', $labl='@Language',
                 //          $hint='@Go to the translate language page',
                 //          $plho='@Select...',$width='',$algn='left',$unit='',$disa=false,
-                //          $rows='1',$step='',$more='',$list= [],'','', $proc= false).
-                    '</form>'.
+                //          $rows='1',$step='',$more='',$list= [],'','', $echo= false).
+                //    '</form>'.
                 str_sp(2).
-                htm_Input($type='text',$name='csvFile',$valu= $csvFile ?? '', $labl='@Export to',
-                          $hint='@Output path/file name. If none given export is deactivated',
-                          $plho='@File...',$width='120px',$algn='left',$unit='',$disa=false,
-                          $rows='1',$step='',$more='',$list= [],'','', $proc= false, $form='csv').
+                # $labl='',$plho='@Enter...',$icon='',$hint='',$type= 'text',$name='',$valu='',$form='',$wdth='',$algn='left',$attr='',$rtrn=false,$unit='',
+                # $disa=false,$rows='2',$step='',$list=[],$llgn='R',$bord='',$ftop='');
+                /* 
+                htm_Input($labl='@Export to',$plho='@File...',$icon='', $hint='@Output path/file name. If none given export is deactivated',
+                          $type='text',$name='csvFile',$valu= $csvFile ?? '', $form='csv',
+                          $wdth='120px',$algn='left',$attr='',$rtrn=true, $unit='',$disa=false,
+                          $rows='1',$step='',$list= []).
                 str_sp(5).
-                htm_LinkButt($labl='@Language', $gotoLink='translate.page.php', $hint='@Open the translate language page', $target='_blank', $proc=false).
-           '</span>',  '90%','html','','left'] 
+                 */
+                htm_LinkButt($labl='@Language', $hint='@Open the translate language page', $attr='', $link='translate.page.php', $targ='_blank', 
+                             $rtrn=true).
+           '</div>'
+           ,  '90%','html','','left'] 
         ),
         $RowPref= array(),
         $RowBody= array(
-            ['@Ix',        '02%', 'show', '', ['center'],                   '@System index','..auto..'], 
-            ['@Name',      '10%', 'html', '', ['left'  ],                   '@The name of file or directory'], // Don`t change this hint. It will remove the goUp-button in header!
-            ['@Count/Ext', '05%', 'html', '', ['center','','',$sort=false], '@Folder content or the extension of the filename'],
-            ['@Size',      '05%', 'html', '', ['right' ],                   '@The used space'],
-            ['@Modifyed',  '08%', 'html', '', ['center'],                   '@Last modifyed date/time'],
-            ['@Perms',     '02%', 'text', '', ['center'],                   '@The file permissions (UNIX.mode)'],
-            ['@Owner',     '02%', 'text', '', ['center'],                   '@ID for the file creater (UNIX.owner)'],
-            ['@Accessed',  '08%', 'html', '', ['center'],                   '@File accessed date/time'],
-            ['@Space',     '35%', ($calc_folder == true ? 'html' : 'hidd') , 
-                                          '', ['left'  ,'','',$sort=false], '@Used space related to<br>Sum of all files in current folder and subfolders.']
+        // ['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:fldKey', '6:ColTip','7:placeholder','8:default','9:[selectList]'],
+            ['@Ix',        '04%', 'show', '', ['center'],                   'ix',       '@System index','..auto..'], 
+            ['@Name',      '15%', 'html', '', ['left'  ],                   'name',     '@The name of file or directory'], // Don`t change this hint. It will remove the goUp-button in header!
+            ['@Count/Ext', '10%', 'html', '', ['center','','',$sort=false], 'ext',      '@Folder content or the extension of the filename'],
+            ['@Size',      '05%', 'html', '', ['right' ],                   'size',     '@The used space'],
+            ['@Modifyed',  '12%', 'html', '', ['center'],                   'modifyed', '@Last modifyed date/time'],
+            ['@Perms',     '05%', 'text', '', ['center'],                   'perms',    '@The file permissions (UNIX.mode)'],
+            ['@Owner',     '05%', 'text', '', ['center'],                   'owner',    '@ID for the file creater (UNIX.owner)'],
+            ['@Accessed',  '12%', 'html', '', ['center'],                   'access',   '@File accessed date/time'],
+            ['@Space',     '35%', ($calc_folder == true ? 'html' : 'hidd') ,
+                                          '', ['left'  ,'','',$sort=false], 'space', '@Used space related to<br>Sum of all files in current folder and subfolders.']
         ),
         $RowSuff= array(), // tabl_row.ix
         $TblNote= '',
         $tabldata, 
-        $fldNames=['ix','name','ext','size','modifyed','perms','owner','access','space'],
         $FilterOn= true,
         $SorterOn= true,        # FIXIT: Sorting fails if there are both folders and files! (js-error coursed by empty td-fields)- Folders only is OK (BAD data before the first file ?)
         $CreateRec=false,
         $ModifyRec=false,
         $ViewHeight= '650px',
-        $TblStyle= 'width:98%; cursor: alias; " title= "'.lang('@RightClick for program MENU'),
+        // $TblStyle= 'width:98%; cursor: alias; " title= "'.lang('@RightClick for program MENU'),
+        $TblStyle= 'width:98%; cursor: alias; ',
         $CalledFrom= __FILE__ ,
         $MultiList= ['',''],
         $ExportTo= $csvFile ?? ''
     );
     echo $Context_Row;
-    echo '</small>';
     
-    //echo '<div id="with_selected">xxx<div>';
-    echo // Context-Menu:
-        "<script>".
-        Pmnu_Prepare($id='tblSpan',$widt='260px').
-            Pmnu_Item($type='custo',$lbl='@Program menu:',    $tip='@Program functions. Go to: Admin / Settings, if you want to save permanently', $icon='fas fa-info fa-sm',   $id='cust',$click='',
-                      $attr="'background-color: white; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;'' ").
-/*                       
-            Pmnu_Item($type='plain',$lbl='@Upload',           $tip='@Upload local file',               $icon='fas fa-upload colgray',      $id='upld',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Create New Item',  $tip='@Create new file or folder',       $icon='fa fa-plus-square colgray',  $id='crea',$click='cssTogg(\$infVisi,vis_ful)').
+    $body1= '<b>Context-Menu:</b> Right-click on table-row to get File/Folder-menu,  Right-click elsewere in table to get Program-menu<br>
+             <b>Advanced mode:</b> Collect file names, size and folders in subfolders - Show used space graphichal. Show Syncronize- / ZipClone-buttons<br>
+             <b>Unrounded size:</b> Hover over size';
+    htm_Tabs_0($head='', $styl='', $rtrn=false);
+    htm_Tab($labl='@Nice to know:',$body1, $name='nice',$styl='text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightyellow;',$bclr='lightyellow;');
+    htm_Tab($labl='@Accessory:',$body='@Comming later !', $name='acce',$styl='text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightcyan;',$bclr='lightcyan;');
+    htm_Tab($labl='@File-viewers:',$body2='@Comming later !', $name='view',$styl='text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',$bclr='lightgray;');
+    htm_Tabs_00($foot='', $styl='', $rtrn=false);
+    /* 
+    htm_TextDiv(lang('@Nice to know:').'<br>
+                <b>Context-Menu:</b> Right-click on table-row to get File/Folder-menu,  Right-click elsewere in table to get Program-menu<br>
+                <b>Advanced mode:</b> Collect file names, size and folders in subfolders - Show used space graphichal. Show Syncronize- / ZipClone-buttons<br>
+                <b>Unrounded size:</b> Hover over size'); 
+      */                     
+    echo '</small>';
+    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    
+    htm_nl(2);
+    
+    // $fileName= 'http://ev-soft.work/fe/'. '_assets/font-awesome6/6.1.1/LICENSE.txt';
+    $fileName= './'. 'LICENSE';
+    $fileContent= file_get_contents ($fileName);
+        
+    htm_Panel_0($capt='TEXT-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
+                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
+        $fileContent= file_get_contents ($fileName);
+        htm_wrapp_0($ViewHeight='500px');
+        htm_TextDiv(str_replace(chr(13),'<br>',htmlentities($fileContent))); 
+        htm_wrapp_00();
+        htm_nl(1);
+    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    
+    htm_Panel_0($capt='HTML-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
+                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
+        htm_wrapp_0($ViewHeight='500px');
+        htm_TextDiv($fileContent); 
+        htm_wrapp_00();
+        htm_nl(1);
+    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    
+    htm_Panel_0($capt='BIN-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
+                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
+        htm_wrapp_0($ViewHeight='500px');
+        htm_TextDiv(preg_replace('/[^\x20-\x7E]/', $pad_char='·', $fileContent),algn:'left',marg:'12px',styl:'',attr:'font-family:monospace; width:580px; background-color:lightcyan;'); 
+        htm_wrapp_00();
+        htm_nl(1);
+    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    
+    htm_Panel_0($capt='HEX-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
+                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
+        htm_wrapp_0($ViewHeight='500px');
+        htm_TextDiv('<pre><code>'.hex_dump($fileContent,"<br>",16,"·").'</code></pre>',algn:'left',marg:'12px',styl:'',attr:'font-family:monospace; width:580px; background-color:lightcyan;'); 
+        htm_wrapp_00();
+        htm_nl(1);
+    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    
+    
+
+    /* 
+    echo '<textarea id="GSNotes" style=" min-height: 400px ; min-width: 700px; width:175%; transform: scale(0.8); transform-origin: 0 0; ">
+          " & Notes::Notes_RTE_html & "
+          </textarea>';
  */
-            Pmnu_Item($type='plain',$lbl='@Program settings', $tip='@Change program settings',         $icon='fa fa-cog colgray',          $id='sett',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@User settings',    $tip='@Change user settings',            $icon='fa fa-user colgray',          $id='user',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='plain',$lbl='@Help',             $tip='@Go to program help',              $icon='fa fa-question',             $id='help',$click='cssTogg(\$infVisi,vis_ful)').
-                      
-            Pmnu_Sepe().
-            Pmnu_Item($type='plain',$lbl='@Logout',           $tip='@Leave the program in locked mode',$icon='fas fa-sign-out-alt',        $id='logu',$click='cssTogg(\$infVisi,vis_ful)').
-            Pmnu_Item($type='custo',$lbl='@Inactive DEMO',    $tip='@Click outside menu to close',     $icon='fas fa-info fa-sm',          $id='cust',$click='',
-                      $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$sep=' ').
-        Pmnu_Finish().
-        "
-            
+    //echo '<div id="with_selected">xxx<div>';
+    
+    // Context-Menu: 
+    echo 
+        Pmnu_0($elem='tblSpan',$capt='@Regarding PROGRAM:',$wdth='260px',$icon='',$stck='false',$attr='background-color:lightcyan;',$cntx=true,$rtrn=true).
+                    # $labl='',$icon='',$hint='',$type='plain',$name='',$clck='',$attr='',$akey='',$enabl='true',$rtrn=false
+            Pmnu_Item($labl='@Program menu:',    $icon='fas fa-wrench fa-sm',     $hint='@Program functions. Go to: Admin / Settings, if you want to save permanently', $type='custom',   $name='cust',$clck='',
+                      $attr="'background-color: yellow; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;'' ",$akey='',$enabl='false',$rtrn=true).
+            Pmnu_Item($labl='@Program settings', $icon='fa fa-cog colrgray',         $hint='@Change program settings',   $type='plain', $name='sett',$clck='console.log(\''.$labl.'\')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@User settings',    $icon='fa fa-user colrgray',        $hint='@Change user settings',      $type='plain', $name='user',$clck='console.log(\''.$labl.'\')' , $attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Help',             $icon='fa fa-question',             $hint='@Go to program help',        $type='plain', $name='help',$clck='console.log(\''.$labl.'\')'  ,$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='',                  $icon='',                           $hint='',                           $type='separator',rtrn:true).
+            Pmnu_Item($labl='@Create New Item',  $icon='fa fa-plus-square colrgray', $hint='@Create new file or folder', $type='plain', $name='crea',$clck='console.log(\''.$labl.'\')' , $attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Upload',           $icon='fas fa-upload colrgray',     $hint='@Upload local file',         $type='plain', $name='upld',$clck='console.log(\''.$labl.'\')' , $attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='',                  $icon='',                           $hint='',                           $type='separator',rtrn:true).
+            Pmnu_Item($labl='@Logout',           $icon='fas fa-sign-out-alt',        $hint='@Leave the program in locked mode',$type='plain', $name='logu',$clck='console.log(\''.$labl.'\')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Still an inactive DEMO', $icon='fas fa-info-circle colrred fa-sm', $hint='@Click outside menu to close',     $type='custom', $name='cust',$clck='',
+                      $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$akey='',$enabl='true',$rtrn=true).
+        Pmnu_00($labl='',$hint='',$attr='',$rtrn=true).
+        
+        '<script>'.
         // Modal window:
-            var modal = document.getElementById('divModal');            // Get the modal div
-            var btn = document.getElementById('btnModalSearch1002');    // Get the button that opens the modal
-            var span = document.getElementsByClassName('close')[0];     // Get the <span> element that closes the modal
-            // btn.onclick = function() { modal.style.display = 'block'; } // When the user clicks on the button, open the modal
-        //s    span.onclick = function() { modal.style.display = 'none'; } // When the user clicks on <span> (x), close the modal
-            window.onclick = function(event) {                          // When the user clicks anywhere outside of the modal, close it
-              if (event.target == modal) { modal.style.display = 'none'; }
+        '   var modal = document.getElementById("divModal");            '.  // Get the modal div                           
+        '   var btn = document.getElementById("btnModalSearch1002");    '.  // Get the button that opens the modal         
+        '   var span = document.getElementsByClassName("close")[0];     '.  // Get the <span> element that closes the modal
+            // btn.onclick = function() { modal.style.display = "block"; }  // When the user clicks on the button, open the modal
+        //s    span.onclick = function() { modal.style.display = "none"; }  // When the user clicks on <span> (x), close the modal
+        '   window.onclick = function(event) {                          '.  // When the user clicks anywhere outside of the modal, close it
+        '     if (event.target == modal) { modal.style.display = "none"; }
             }            
 
-
             
-        function ToggShow() { /* When the user clicks on the button, toggle between hiding and showing the dropdown content */
-          document.getElementById(\"FileSearch\").classList.toggle(\"show\");
+        function ToggShow() { /* When the user clicks the button, toggle between hiding and showing the dropdown content */
+          document.getElementById("FileSearch").classList.toggle("show");
         }
 
-        function filterFunction() {
+        function filterFunction() { 
           var input, filter, ul, li, a, i;
-          input = document.getElementById(\"searchInput\");
+          input = document.getElementById("searchInput");
           filter = input.value.toUpperCase();
-          div = document.getElementById(\"FileSearch\");
-          a = div.getElementsByTagName(\"a\");
+          div = document.getElementById("FileSearch");
+          a = div.getElementsByTagName("a");
           for (i = 0; i < a.length; i++) {
             txtValue = a[i].textContent || a[i].innerText;
-            if (txtValue.toUpperCase().indexOf(filter) > -1) {
-              a[i].style.display = \"\";
-            } else {
-              a[i].style.display = \"none\";
+            if (txtValue.toUpperCase().indexOf(filter) > -1) // fails in some situations ! ?
+                 { a[i].style.display = ""; } 
+            else { a[i].style.display = "none";
             }
           }
         } 
+        </script>'; // Context-Menu
+        
+    PanelOff($First=1,$Last=1);
+    PanelOff($First=3,$Last=6);
+    
+htm_Page_00();
 
-
-        </script>";
-            
-htm_PageFina();
-
-
-?>
+        
