@@ -1,22 +1,16 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.2.0';    $DocRev='2022-10-07';     $DocIni='evs';  $ModulNr=0; ## File informative only
-$©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-2020 EV-soft *** See the file: LICENSE';
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.3.0';    $DocRev='2024-05-07';     $DocIni='evs';  $ModulNr=0; ## File informative only
+$©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-24 EV-soft *** See the file: LICENSE';
 
-// error_reporting(E_ERROR);
+$sys= $GLOBALS["gbl_ProgRoot"]= './';
 
-$GLOBALS["ØProgRoot"]= './';
-require_once ('./php2html.lib.php');    // Creating HTML-functions
+## Activate needed libraries: Set 0:deactive  1:Local-source  2:WEB-source-CDN
+$needJquery=      '2';
+$needTablesorter= '2';
+$needPolyfill=    '0';
+$needFontawesome= '2';
+$needTinymce=     '0';
 
-
-## Speedup page-loading, if some libraryes is not needed:
-//      ConstName:          ix:   LocalPath:                 CDN-path:
-define('LIB_JQUERY',        [1, '_assets/jquery/',          'https://cdnjs.cloudflare.com/ajax/libs/']);
-define('LIB_TABLESORTER',   [1, '_assets/tablesorter/js/',  'https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.30.1/js/']);
-define('LIB_POLYFILL',      [0, '_assets/',  '']);
-define('LIB_POPSCRIPTS',    [0, '_assets/',  '']);
-define('LIB_FONTAWESOME',   [1, '_assets/font-awesome6/',   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome6/']);
-// Set ix 0:deactive  1:Local-source  2:WEB-source-CDN
-
-
+require_once ($sys.'php2html.lib.php');    // Creating HTML-functions
 
 ##### SPECIAL this page only:
 define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
@@ -662,6 +656,7 @@ function p2h_fileExplore($path,$parentDir) {
     }
     foreach ($folders as $fld) {
         $file_path= $path. '/'. $fld;
+        $fileRef[]= $file_path;
         $is_link = is_link($file_path);
         $ext = pathinfo($fld, PATHINFO_EXTENSION);
         $icoc = $is_link ? 'icon-link_folder' : 'far fa-folder colr0';
@@ -733,16 +728,16 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['perms']= $perms;
         $rec['owner']= $owner['name'];      //$rec['group']= $group['name'];
         $rec['access']= '-';
-        $rec['space']= '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 92%;">'.$meter.'</meter>
-                        <small style="width: 40px; text-align: right;">'.number_format($meter*100,2).' %</small>';
+        $rec['space']= '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
+                        <small style="/* width: 40px; */ display: inline-block; text-align: right; left: 130px; top: -20px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
         $foldRecords[]= $rec;
         $Context_Row.=
         //  "<script>".  
-        Pmnu_0($elem='tabl_row'.($ix-1000),$capt='@Regarding FOLDER:<br>'.
+        Pmnu_($elem='tabl_row'.($ix-1000),$capt='@Regarding FOLDER:<br>'.
                                                 // '<i class="'.$icoc.' fa-sm"></i>&nbsp;'. // Fails
                                                  '<b>'.$fld.'</b>',
                                                  $wdth='260px', icon:'', stck:'false', attr:'background-color:lightcyan; height: 30px;', cntx:true, rtrn:true).
-       // Pmnu_0($elem='tabl_row'.($ix-1000),$capt='@Regarding FOLDER:',$wdth='260px',$icon='far fa-folder colr0 bgclgold',$stck='false',$attr='background-color:lightcyan;',$cntx=true,$rtrn=true).
+       // Pmnu_($elem='tabl_row'.($ix-1000),$capt='@Regarding FOLDER:',$wdth='260px',$icon='far fa-folder colr0 bgclgold',$stck='false',$attr='background-color:lightcyan;',$cntx=true,$rtrn=true).
        //     Pmnu_Item($labl='<b>'.$fld.'</b><br>', $icon='far fa-folder colr0 bgclgold',   $hint='', $type='custom',  $name='cust',$clck='', $attr="'background-color: white; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-top: 10px;'' ",$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='@Rename folder',       $icon='fas fa-pen-square colrorange',  $hint='@Give another name',        $type='plain',  $name='renm',$clck='console.log(\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='@Delete folder',       $icon='fas fa-trash-alt colrred',      $hint='@Erase the folder',         $type='plain',  $name='dele',$clck='console.log(\''.$labl.'\')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
@@ -757,7 +752,7 @@ function p2h_fileExplore($path,$parentDir) {
             Pmnu_Item($labl='@Create new folder',   $icon='fas fa-plus colrgray',           $hint='@Make a new folder',                                                $type='plain',  $name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='@Still an inactive DEMO', $icon='fas fa-info-circle colrred fa-sm',     $hint='@Click outside menu to close',                                      $type='custom',  $name='cust',$clck='',
                       $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-bottom: 0; padding-top: 10px;' ",$akey='',$enabl='true',$rtrn=true).
-        Pmnu_00($labl='',$hint='',$attr='',$rtrn=true);
+        Pmnu_end($labl='',$hint='',$attr='',$rtrn=true);
         // "</script>"; 
         flush();
         $ix++;
@@ -817,13 +812,13 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['perms']= $perms;
         $rec['owner']= $owner['name'];      //$rec['group']= $group['name'];
         $rec['access']= $accetime.$acces;
-        $rec['space']= '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 92%;">'.$meter.'</meter>
-                        <small style="width: 40px; text-align: right;">'.number_format($meter*100,2).' %</small>';
+        $rec['space']= '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
+                        <small style="/* width: 40px; */ text-align: right; display: inline-block; left: 130px; top: -20px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
         $fileRecords[]= $rec;
 
     $Context_Row.=
         // "<script>".
-        Pmnu_0($elem='tabl_row'.($ix-1000),$capt='@Regarding FILE:<br>'.
+        Pmnu_($elem='tabl_row'.($ix-1000),$capt='@Regarding FILE:<br>'.
                                                 // '<i class="'.$icoc.' fa-sm"></i>&nbsp;'. // Fails
                                                  '<b>'.$fld.'</b>',
                                                  $wdth='260px', icon:'', stck:'false', attr:'background-color:lightcyan; height: 30px;', cntx:true, rtrn:true).
@@ -838,12 +833,12 @@ function p2h_fileExplore($path,$parentDir) {
             Pmnu_Item($labl='@Download',       $icon='fas fa-download colrbrown',       $hint='@Download to local storage',    $type='plain',$name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='@File properties',$icon='fa-solid fa-binoculars colrblue', $hint='@Look at the files properties', $type='plain',$name='prop',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='@Still an inactive DEMO',  $icon='fas fa-info-circle colrred fa-sm', $hint='@Click outside menu to close',  $type='custom',$name='info',$clck='', $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$attr='',$akey='',$enabl='true',$rtrn=true).
-        Pmnu_00($labl='',$hint='',$attr='',$rtrn=true);
+        Pmnu_end($labl='',$hint='',$attr='',$rtrn=true);
         // "</script>";
         $ix++; 
         $fileRecordsIncurrent= $ix-$filesInsub;
     }
-    return array($foldRecords ?? null,$fileRecords ?? null);
+    return array($foldRecords ?? null, $fileRecords ?? null, $fileRef ?? null);
 } // p2h_fileExplore()
 
 
@@ -868,7 +863,7 @@ function p2h_folder_backup($currDir, $subdirs= 3) { ## Serverside-zip-backup:
   if ($zip->open($destDir.$destFile, ZipArchive::CREATE)!==TRUE) { exit(lang('@Unable to create <').$destFile.'>'); }
 
   $zip->addFromString('_Readme.txt',    ## Info-file in Zip-file:
-    lang('@This ZIP file contains a moment\'s image per: ').$timestamp.
+    lang('@This ZIP file contains a momentary backup at the time: ').$timestamp.
     lang('@ of files in the folder: ').$lf.$currDir.
     lang('@, as well as subfolders, restricted to ').$subdirs.
     lang('@ levels.').$lf.
@@ -926,12 +921,12 @@ function p2h_getFileList($dir, $recurse=false, $depth=false)    // Create list o
 
 function SearchSub(&$arrNames) { global $calc_folder;
 $result= '
-<div class="dropdown" title="'.($calc_folder== true ? lang('@Enter search string...') : lang('@Only active in advanced mode!') ). '">'.
+<span class="" title="'.($calc_folder== true ? lang('@Enter search string...') : lang('@Only active in advanced mode!') ). '">'.
     htm_Input($labl='Search',$plho='@Enter...',$icon='',$hint='@Search for a file in sub-folders, and open that folder',
               $type='html',$name='fsearch',
               $valu='<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
               $form= '', $wdth='200px',$algn='left',$attr='onclick="ToggShow()" class="dropbtn" ',$rtrn=true,
-              $unit='',$disa=($_POST['prgMode'] ?? '' != 'mode_A'),$rows='0',$step='',$list=[],$llgn='R',$bord='',$ftop='20px')
+              $unit='',$disa=($_POST['prgMode'] ?? '' != 'mode_A'),$rows='0',$step='',$list=[],$llgn='R',$bord='',$ftop='')
               . '
     <div id="FileSearch" class="dropdown-content" 
         title="'. lang('@Click to open this files folder') .'">
@@ -947,13 +942,14 @@ $result= '
                         '<span class="colrgray">'.(strlen($dir) > 32 ? '...'.substr($dir,-32) : $dir).':</span> '. $fil.'</a>';
             }
             $result.= '<div style= "text-align:left;">'.$name_list.'</div>';
-    $result.= "
+    $result.= '
     </div>
-</div>";
+</span>';
 return $result;
 }
 
-// arrPrint($_POST,'$_POST');
+// arrPretty($_POST,'$_POST');
+ // arrPretty(get_defined_vars(),'Defined_vars:');
 
 ##### PREPARE DATA:
 // if (!isset($calc_folder)) $calc_folder= true;
@@ -987,6 +983,11 @@ foreach($JumpTo= explode('/',$path ?? ''.$currPath) as $jt) // if ($jt[0]>'')
 $data= p2h_fileExplore($currPath,$parentDir);
 $arrfolds= $data[0];
 $arrfiles= $data[1];
+$objNames= $data[2];
+$arrFnames= []; $i= 0;
+foreach ($objNames as $obj) $arrFnames[]= [ $i++, substr($obj,strrpos($obj,DIRECTORY_SEPARATOR)+1)];
+// arrPretty($arrFnames,'arrFnames:');
+
 // $arrfolds= $GLOBALS['folders']; $arrfiles= $GLOBALS['files'];
 
 $tabldata= [];
@@ -1014,29 +1015,29 @@ function doAuth() {
 ##### SCREEN OUTPUT:  -  generated by PHP2HTML functions !
 #!!!: Remember no OUTPUT to screen, before htm_PagePrep() output
             # titl:'', hint:'', info:'', inis:'', algn:'center', gbl_Imag:'', attr:'', gbl_Bord:true) 
-htm_Page_0($titl='Folder-explorer', $hint=lang('@Tip: Toggle fullscreen-mode with function key: F11'),$info=lang(''), $inis=$p2h_Style, 
-           $algn='center', $gbl_Imag='./_accessories/_background.png',$attr='', $gbl_Bord=true );
+htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with function key: F11'),info:lang(''), inis:$p2h_Style, 
+           algn:'center', imag:'./_accessories/_background.png',attr:'', pbrd:true );
     // print_r($tabldata);
-    htm_Caption($labl='Folder-explorer',$icon='',$hint='The advanced file-explorer with focus on folders and space taken up of files.',
-                $algn='center',$style='color:'.$gbl_TitleColr.'; font-weight:600; font-size: 18px; padding: 4px;' );
+    htm_Caption(labl:'Folder-explorer',icon:'',hint:'The advanced file-explorer with focus on folders and space taken up of files.',
+                algn:'center',styl:'color:'.$gbl_TitleColr.'; font-weight:600; font-size: 18px; padding: 4px;' );
     htm_nl(1);
-    htm_Caption($labl='Build with PHP2HTML v2',$icon='',$hint='The shortcut to structured and compact code<br>Created by EV-soft.',
-                $algn='center',$style='color: gray;; font-weight:400; font-size: 12px;');
+    htm_Caption(labl:'Build with PHP2HTML v4',icon:'',hint:'The shortcut to structured and compact code<br>Created by EV-soft.',
+                algn:'center',styl:'color: gray;; font-weight:400; font-size: 12px;');
     htm_nl(1);
-    htm_Panel_0($capt='Folder-Tree',$icon='fas fa-sitemap',$hint= '',$form='',$acti='',$clas='panelW800',
-                $wdth='',$styl='background-color: white; ',$attr='text-align: left; padding:8px; ',$show = true,$head = '');
-        htm_wrapp_0($ViewHeight='300px; text-align:left; ');
+    htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',
+                wdth:'',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+        htm_wrapp_($ViewHeight='300px; text-align:left; ');
 
         // $base= $_SERVER['DOCUMENT_ROOT'];        // $base= substr($base,0,-13);
         $base= __DIR__;        // $base= substr($base,0,-13);
                     # $body,$algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; ',$attr='background-color: white; ');
-        htm_TextDiv($body='BASE: <big><b>'.$base.'</b>/'.'</big><br>All folders with name="'.$currentDir.'" (current folder), are marked with bold text.',
-                    $algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
+        htm_TextDiv(body:'BASE: <big><b>'.$base.'</b>/'.'</big><br>All folders with name="'.$currentDir.'" (current folder), are marked with bold text.',
+                    algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
         echo '<style> ul { padding-left: 50px; line-height: 1.2; } </style>';
         listFolders($base,$currentDir);
 
-        htm_wrapp_00();
-    htm_Panel_00($labl='', $icon='',  $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+        htm_wrapp_end();
+    htm_Card_end($labl='', $icon='',  $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
     htm_nl(1);
     
 run_Script('function fileview(path, fld) {
@@ -1065,12 +1066,15 @@ run_Script('function fileview(path, fld) {
     </div>
     -->
 <?
-    htm_Panel_0($capt='Folder-Details',$icon='fas fa-info',$hint= '',$form='',$acti='',$clas='panelWmax',
-                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
+    htm_Card_(capt:'Folder-Details',icon:'fas fa-info',hint: '',form:'xxx',acti:'',clas:'cardWmax',
+                wdth: '',styl:'background-color: white;',attr:'', show:true, head: 'background-color: white;');
     echo '<small>';
+    
+    if (count($arrFnames)== 0) $dis= 'disabled'; else $dis= '';
+    
     htm_Table(
         $TblCapt= array( //#['0:Label', '1:Width', '2:Type', '3:OutFormat', '4:horJust', '5:Tip', '6:placeholder', '7:Content';], ...
-          ['<span style="float:left;" title="'.lang('@RightClick for program MENU').'">
+          ['<span style="float:left; top: -5px; position: relative;" title="'.lang('@RightClick for program MENU').'">
             <big><i>Showing:</i> ', '90%','html','','left','@Tip','?', $_SERVER['SERVER_NAME'].' // '.$breadcrumbs.'</big></span>'],
           ['<span style="float:right; white-space: nowrap; display: inline-block;">'.
                '<span title="'.lang('@Space meaning file-space in local folder / total in subfolders').'">'.
@@ -1078,60 +1082,60 @@ run_Script('function fileview(path, fld) {
                '<i>Content:</i> Folders: '.$totFolds.' - Files: '.markAllChars($filesIncurrent.'/','i','style="opacity:0.5;"').$totFiles. ' - ' : '' ).
                'Space: '.markAllChars(p2h_nice_filesize($locSize).'/','i','style="opacity:0.5;"').p2h_nice_filesize($totSize).
                ' - Free: '.   p2h_nice_filesize(disk_free_space( __FILE__ )).
-               ' of total: '. p2h_nice_filesize(disk_total_space( __FILE__ )). 
+               ' of total: '. p2h_nice_filesize(disk_total_space(__FILE__ )). 
                '</span>'.
-           '</span> <br> 
-            <div style="width: 500px; margin: auto; ">'. SearchSub($arrNames). ' '. 
+           '</span> <br>
+            <div style="width: 600px; margin: auto; padding-top: 10px;">'. 
                 '<form method="post" name= "frmMode" style="display:inline;">'.
                 str_sp(2).
-                # $labl='',$plho='@Enter...',$icon='',$hint='',$type= 'text',$name='',$valu='',$form='',$wdth='',$algn='left',$attr='',$rtrn=false,$unit='',$disa=false,$rows='2',$step='',$list=[],$llgn='R',$bord='',$ftop='');
-                htm_Input($labl='@Mode',$plho='@Select...',$icon='',
-                          $hint='@The program mode.<br>Speedup by deactivating calculating content in subfolders using "Simple mode"',
-                          $type='opti',$name='prgMode',$valu= ($calc_folder == true ? 'mode_A' : 'mode_S'), $form='',
-                          $wdth='',$algn='left',$attr='',$rtrn=true,$unit='',$disa=false,$rows='1',$step='',$list=[
+                SearchSub($arrNames). ' '.
+                htm_Input(labl:'@Mode',plho:'@Select...',icon:'',
+                          hint:'@The program mode.<br>Speedup by deactivating calculating content in subfolders using "Simple mode"',
+                          vrnt:'opti',name:'prgMode',valu: ($calc_folder == true ? 'mode_A' : 'mode_S'), form:'',
+                          wdth:'',algn:'left',attr:'',rtrn:true,unit:'',disa:false,rows:'1',step:'',list:[
                             ['mode_S','Simple','@Do not spend time on calulating subfolders'],
                             ['mode_A','Advanced','@Advanced mode exploring all subfolders']
-                          ],$llgn='R',$bord='',$ftop='').
-                    '<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" title="Analyse sub-folders in advanced mode...">'.
-                    // '<input type="button" value="'.lang('@Manage language').'">'.
-                    //' <a href="translate.page.php">'.lang('@Manage language').'</a> '.
-                              # $labl='',$plho='@Enter...',$icon='',$hint='',$type= 'text',$name='',$valu='',$form='',$wdth='',$algn='left',$attr='',$rtrn=false,$unit='',$disa=false,$rows='2',$step='',$list=[],$llgn='R',$bord='',$ftop='');
-                //    htm_Input($type='html',$name='lang',$valu= '<a href="translate.page.php">'.lang('@Manage language').'</a>', $labl='@Language',
-                //          $hint='@Go to the translate language page',
-                //          $plho='@Select...',$width='',$algn='left',$unit='',$disa=false,
-                //          $rows='1',$step='',$more='',$list= [],'','', $echo= false).
-                //    '</form>'.
+                          ],llgn:'R',bord:'',ftop:'').
+                    '<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" style="top: 12px; position: relative;" title="'.lang('@Analyse sub-folders in advanced mode...').'">'.
                 str_sp(2).
-                # $labl='',$plho='@Enter...',$icon='',$hint='',$type= 'text',$name='',$valu='',$form='',$wdth='',$algn='left',$attr='',$rtrn=false,$unit='',
-                # $disa=false,$rows='2',$step='',$list=[],$llgn='R',$bord='',$ftop='');
-                /* 
-                htm_Input($labl='@Export to',$plho='@File...',$icon='', $hint='@Output path/file name. If none given export is deactivated',
-                          $type='text',$name='csvFile',$valu= $csvFile ?? '', $form='csv',
-                          $wdth='120px',$algn='left',$attr='',$rtrn=true, $unit='',$disa=false,
-                          $rows='1',$step='',$list= []).
-                str_sp(5).
-                 */
-                htm_LinkButt($labl='@Language', $hint='@Open the translate language page', $attr='', $link='translate.page.php', $targ='_blank', 
-                             $rtrn=true).
-           '</div>'
-           ,  '90%','html','','left'] 
-        ),
-        $RowPref= array(),
+                htm_LinkButt(labl:'@Language', hint:'@Open the translate language page', attr:'style="top: 12px; position: relative;"', link:'translate.page.php', targ:'_blank', rtrn:true).
+                '</form>'.
+            '</div>'
+                , '90%','html','','left'] 
+        ), // $TblCapt
+        $RowPref= array(
+            ['@Select',    '04%', 'html', '', ['center'],/* ColTip: */'@Mark here to select object',    /* Html: */ 
+                htm_Input(vrnt: 'chck', name:'objt', wdth:'52px; padding:0;', bord:'border: 0; box-shadow:none; background:transparent; margin:0; padding:0;', attr:'', rtrn:true, list:[['chck','?','@Handle this file/folder - Click to select/unselect','']] )
+            ] ),
         $RowBody= array(
         // ['0:ColLabl', '1:ColWidth', '2:ContType', '3:OutFormat', '4:[horJust_etc]', '5:fldKey', '6:ColTip','7:placeholder','8:default','9:[selectList]'],
             ['@Ix',        '04%', 'show', '', ['center'],                   'ix',       '@System index','..auto..'], 
             ['@Name',      '15%', 'html', '', ['left'  ],                   'name',     '@The name of file or directory'], // Don`t change this hint. It will remove the goUp-button in header!
             ['@Count/Ext', '10%', 'html', '', ['center','','',$sort=false], 'ext',      '@Folder content or the extension of the filename'],
             ['@Size',      '05%', 'html', '', ['right' ],                   'size',     '@The used space'],
-            ['@Modifyed',  '12%', 'html', '', ['center'],                   'modifyed', '@Last modifyed date/time'],
-            ['@Perms',     '05%', 'text', '', ['center'],                   'perms',    '@The file permissions (UNIX.mode)'],
-            ['@Owner',     '05%', 'text', '', ['center'],                   'owner',    '@ID for the file creater (UNIX.owner)'],
-            ['@Accessed',  '12%', 'html', '', ['center'],                   'access',   '@File accessed date/time'],
-            ['@Space',     '35%', ($calc_folder == true ? 'html' : 'hidd') ,
+            ['@Modifyed',  '10%', 'html', '', ['center'],                   'modifyed', '@Last modifyed date/time'],
+            ['@Perms',     '04%', 'text', '', ['center'],                   'perms',    '@The file permissions (UNIX.mode)'],
+            ['@Owner',     '04%', 'text', '', ['center'],                   'owner',    '@ID for the file creater (UNIX.owner)'],
+            ['@Accessed',  '10%', 'html', '', ['center'],                   'access',   '@File accessed date/time'],
+            ['@Space',     '20%', ($calc_folder == true ? 'html' : 'hidd'),
                                           '', ['left'  ,'','',$sort=false], 'space', '@Used space related to<br>Sum of all files in current folder and subfolders.']
         ),
         $RowSuff= array(), // tabl_row.ix
-        $TblNote= '',
+        $TblNote= htm_Fieldset_(capt:'@Future features:',icon:'',hint:'',wdth:'',marg:'',attr:'',rtrn:true).
+                      htm_AcceptButt(labl:'Select All',  icon:'', hint:'', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'', idix:'').
+                      htm_AcceptButt(labl:'Select None', icon:'', hint:'', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'', idix:'').
+                      htm_AcceptButt(labl:'Inverse Select', icon:'', hint:'', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'', idix:'').
+                      ' - '. lang('@With selected do: <small>'.   // 'COPY/MOVE/ZIP/DOWNLOAD/DELETE'.
+                      htm_AcceptButt(labl:'COPY',       icon:'', hint:'Make a copy of selected file/folder(s)',                 form:'', wdth:'100px;', attr:$dis, akey:'', kind:'',     rtrn:true, tplc:'LblTip_text', tsty:'', acti:'fcopy("path","name")', idix:'').
+                      htm_AcceptButt(labl:'MOVE',       icon:'', hint:'Transfer selected files/folder(s) to another folder(s)', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'crea', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'fmove("path","name")', idix:'').
+                      htm_AcceptButt(labl:'Create ZIP', icon:'', hint:'Make a copy of selected file/folder in a ZIP-file',      form:'', wdth:'100px;', attr:$dis, akey:'', kind:'',     rtrn:true, tplc:'LblTip_text', tsty:'', acti:'f_zip("path","name")', idix:'').
+                      htm_AcceptButt(labl:'DOWNLOAD',   icon:'', hint:'Transfer selected file/folder(s) to a local folder',     form:'', wdth:'100px;', attr:$dis, akey:'', kind:'get_', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'fdwnl("path","name")', idix:'').
+                      htm_AcceptButt(labl:'DELETE',     icon:'', hint:'Erase selected file/folder(s)',                          form:'', wdth:'100px;', attr:$dis, akey:'', kind:'eras', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'fdelt("path","name")', idix:'').
+                      '</small> (in the future) ').
+                      htm_Input(labl:'Destination',plho:'?',icon:'',hint:'For COPY/MOVE/ZIP If it is not the current folder',vrnt:'text',name:'dest',valu:'',form:'',wdth:'',algn:'',attr:'',rtrn:true,unit:'',disa:false,rows:'',step:'',list:[],llgn:'',bord:'',ftop:'').
+                  htm_Fieldset_end(rtrn:true).
+                  '<br><small><small>'.lang('@Filtering/Searching: Hold mouse over the colored row below the column headers.').'</small></small>'
+                  ,
         $tabldata, 
         $FilterOn= true,
         $SorterOn= true,        # FIXIT: Sorting fails if there are both folders and files! (js-error coursed by empty td-fields)- Folders only is OK (BAD data before the first file ?)
@@ -1146,14 +1150,48 @@ run_Script('function fileview(path, fld) {
     );
     echo $Context_Row;
     
+run_Script(
+    'function fcopy(path, name) { alert("FileCopy:      " + path + " " + name); }'.
+    'function fmove(path, name) { alert("FileMove:      " + path + " " + name); }'.
+    'function f_zip(path, name) { alert("FileZip:       " + path + " " + name); }'.
+    'function fdwnl(path, name) { alert("FileDownload:  " + path + " " + name); }'.
+    'function fdelt(path, name) { alert("FileDelete:    " + path + " " + name); }'
+);
+    // function setcheck(id) {    document.querySelector(\'section.button input[type="checkbox"]\').checked = true; }
+    run_Script('
+    function setcheck(id) {    document.getElementById(id).checked = true; }
+    function setuncheck(id) {  document.getElementById(id).checked = false; }
+    '); // const input = document.querySelector('section.button input[type="checkbox"]');
+
+$selected= [];  $ChkBoxes= [];
+for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck'; 
+    $ChkBoxes[] = [ $arrFnames[$ix][1], (array_key_exists($key, $_POST) ? 'checked' : 'unchecked')];
+    
+    if ((isset($_POST[$key])) and ($_POST[$key]=='checked')) { 
+        $selected[]= $arrFnames[$ix][1]; 
+        // run_Script("setcheck($key);");
+    }
+    
+    // else run_Script("setuncheck($key);");
+    // run_Script("setcheck('i5_chck');"); 
+    // run_Script('$(function() { $("input[name=\'i2_chck\']").checked(true); })');
+    // option1ChkBox = array_key_exists('chkBoxName', $_POST) ? true : false;
+}
+// <input type="checkbox" name="'.'i'.$ix.'_chck'.'" value="checked" style="width: 20px; box-shadow: none;">
+// $(function() { $("input[name=''.'i'.$ix.'_chck'.'']").val("checked"); });
+// elementX.checked = true;
+
+// arrPretty($selected,'Selected:');
+// arrPretty($ChkBoxes,'ChkBoxes:');
+
     $body1= '<b>Context-Menu:</b> Right-click on table-row to get File/Folder-menu,  Right-click elsewere in table to get Program-menu<br>
              <b>Advanced mode:</b> Collect file names, size and folders in subfolders - Show used space graphichal. Show Syncronize- / ZipClone-buttons<br>
              <b>Unrounded size:</b> Hover over size';
-    htm_Tabs_0($head='', $styl='', $rtrn=false);
-    htm_Tab($labl='@Nice to know:',$body1, $name='nice',$styl='text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightyellow;',$bclr='lightyellow;');
-    htm_Tab($labl='@Accessory:',$body='@Comming later !', $name='acce',$styl='text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightcyan;',$bclr='lightcyan;');
-    htm_Tab($labl='@File-viewers:',$body2='@Comming later !', $name='view',$styl='text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',$bclr='lightgray;');
-    htm_Tabs_00($foot='', $styl='', $rtrn=false);
+    htm_Tabs_(head:'', styl:'', rtrn:false);
+    htm_Tab(labl:'@Nice to know:',body:$body1, name:'nice',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightyellow;',bclr:'lightyellow;');
+    htm_Tab(labl:'@Accessory:',body:'@Comming later !', name:'acce',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightcyan;',bclr:'lightcyan;');
+    htm_Tab(labl:'@File-viewers:',body:'@Comming later !', name:'view',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',bclr:'lightgray;');
+    htm_Tabs_end(foot:'', styl:'', rtrn:false);
     /* 
     htm_TextDiv(lang('@Nice to know:').'<br>
                 <b>Context-Menu:</b> Right-click on table-row to get File/Folder-menu,  Right-click elsewere in table to get Program-menu<br>
@@ -1161,7 +1199,7 @@ run_Script('function fileview(path, fld) {
                 <b>Unrounded size:</b> Hover over size'); 
       */                     
     echo '</small>';
-    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
     htm_nl(2);
     
@@ -1169,38 +1207,38 @@ run_Script('function fileview(path, fld) {
     $fileName= './'. 'LICENSE';
     $fileContent= file_get_contents ($fileName);
         
-    htm_Panel_0($capt='TEXT-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
-                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
+    htm_Card_(capt:'TEXT-view file: '.$fileName,icon:'fas fa-eye',hint: '',form:'',acti:'',clas:'cardW640',
+                wdth: '',styl:'background-color: white;',attr:'', show : true, head : '');
         $fileContent= file_get_contents ($fileName);
-        htm_wrapp_0($ViewHeight='500px');
+        htm_wrapp_($ViewHeight='500px');
         htm_TextDiv(str_replace(chr(13),'<br>',htmlentities($fileContent))); 
-        htm_wrapp_00();
+        htm_wrapp_end();
         htm_nl(1);
-    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
-    htm_Panel_0($capt='HTML-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
-                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
-        htm_wrapp_0($ViewHeight='500px');
+    htm_Card_(capt:'HTML-view file: '.$fileName,icon:'fas fa-eye',hint: '',form:'',acti:'',clas:'cardW640',
+                wdth: '',styl:'background-color: white;',attr:'', show : true, head : '');
+        htm_wrapp_($ViewHeight='500px');
         htm_TextDiv($fileContent); 
-        htm_wrapp_00();
+        htm_wrapp_end();
         htm_nl(1);
-    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
-    htm_Panel_0($capt='BIN-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
-                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
-        htm_wrapp_0($ViewHeight='500px');
+    htm_Card_(capt:'BIN-view file: '.$fileName,icon:'fas fa-eye',hint: '',form:'',acti:'',clas:'cardW640',
+                wdth: '',styl:'background-color: white;',attr:'', show : true, head : '');
+        htm_wrapp_($ViewHeight='500px');
         htm_TextDiv(preg_replace('/[^\x20-\x7E]/', $pad_char='·', $fileContent),algn:'left',marg:'12px',styl:'',attr:'font-family:monospace; width:580px; background-color:lightcyan;'); 
-        htm_wrapp_00();
+        htm_wrapp_end();
         htm_nl(1);
-    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
-    htm_Panel_0($capt='HEX-view file: '.$fileName,$icon='fas fa-eye',$hint= '',$form='',$acti='',$clas='panelW640',
-                $wdth= '',$styl='background-color: white;',$attr='', $show = true, $head = '');
-        htm_wrapp_0($ViewHeight='500px');
+    htm_Card_(capt:'HEX-view file: '.$fileName,icon:'fas fa-eye',hint: '',form:'',acti:'',clas:'cardW640',
+                wdth: '',styl:'background-color: white;',attr:'', show : true, head : '');
+        htm_wrapp_($ViewHeight='500px');
         htm_TextDiv('<pre><code>'.hex_dump($fileContent,"<br>",16,"·").'</code></pre>',algn:'left',marg:'12px',styl:'',attr:'font-family:monospace; width:580px; background-color:lightcyan;'); 
-        htm_wrapp_00();
+        htm_wrapp_end();
         htm_nl(1);
-    htm_Panel_00($labl='', $icon='', $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
     
 
@@ -1213,21 +1251,21 @@ run_Script('function fileview(path, fld) {
     
     // Context-Menu: 
     echo 
-        Pmnu_0($elem='tblSpan',$capt='@Regarding PROGRAM:',$wdth='260px',$icon='',$stck='false',$attr='background-color:lightcyan;',$cntx=true,$rtrn=true).
+        Pmnu_(elem:'tblSpan',capt:'@Regarding PROGRAM:',wdth:'260px',icon:'',stck:'false',attr:'background-color:lightcyan;',cntx:true, rtrn:true).
                     # $labl='',$icon='',$hint='',$type='plain',$name='',$clck='',$attr='',$akey='',$enabl='true',$rtrn=false
-            Pmnu_Item($labl='@Program menu:',    $icon='fas fa-wrench fa-sm',     $hint='@Program functions. Go to: Admin / Settings, if you want to save permanently', $type='custom',   $name='cust',$clck='',
-                      $attr="'background-color: yellow; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;'' ",$akey='',$enabl='false',$rtrn=true).
-            Pmnu_Item($labl='@Program settings', $icon='fa fa-cog colrgray',         $hint='@Change program settings',   $type='plain', $name='sett',$clck='console.log(\''.$labl.'\')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@User settings',    $icon='fa fa-user colrgray',        $hint='@Change user settings',      $type='plain', $name='user',$clck='console.log(\''.$labl.'\')' , $attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Help',             $icon='fa fa-question',             $hint='@Go to program help',        $type='plain', $name='help',$clck='console.log(\''.$labl.'\')'  ,$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='',                  $icon='',                           $hint='',                           $type='separator',rtrn:true).
-            Pmnu_Item($labl='@Create New Item',  $icon='fa fa-plus-square colrgray', $hint='@Create new file or folder', $type='plain', $name='crea',$clck='console.log(\''.$labl.'\')' , $attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Upload',           $icon='fas fa-upload colrgray',     $hint='@Upload local file',         $type='plain', $name='upld',$clck='console.log(\''.$labl.'\')' , $attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='',                  $icon='',                           $hint='',                           $type='separator',rtrn:true).
-            Pmnu_Item($labl='@Logout',           $icon='fas fa-sign-out-alt',        $hint='@Leave the program in locked mode',$type='plain', $name='logu',$clck='console.log(\''.$labl.'\')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Still an inactive DEMO', $icon='fas fa-info-circle colrred fa-sm', $hint='@Click outside menu to close',     $type='custom', $name='cust',$clck='',
-                      $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$akey='',$enabl='true',$rtrn=true).
-        Pmnu_00($labl='',$hint='',$attr='',$rtrn=true).
+            Pmnu_Item(labl:'@Program menu:',    icon:'fas fa-wrench fa-sm',     hint:'@Program functions. Go to: Admin / Settings, if you want to save permanently', vrnt:'custom',   name:'cust',clck:'',
+                      attr:"'background-color: yellow; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;'' ",shrt:'',enbl:'false',rtrn:true).
+            Pmnu_Item(labl:'@Program settings', icon:'fa fa-cog colrgray',         hint:'@Change program settings',   vrnt:'plain', name:'sett',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:'@User settings',    icon:'fa fa-user colrgray',        hint:'@Change user settings',      vrnt:'plain', name:'user',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='@Help',             icon:'fa fa-question',             hint:'@Go to program help',        vrnt:'plain', name:'help',clck:'console.log(\''.$labl.'\')'  ,attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='',                  icon:'',                           hint:'',                           vrnt:'separator',rtrn:true).
+            Pmnu_Item(labl:$labl='@Create New Item',  icon:'fa fa-plus-square colrgray', hint:'@Create new file or folder', vrnt:'plain', name:'crea',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='@Upload',           icon:'fas fa-upload colrgray',     hint:'@Upload local file',         vrnt:'plain', name:'upld',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='',                  icon:'',                           hint:'',                           vrnt:'separator',rtrn:true).
+            Pmnu_Item(labl:$labl='@Logout',           icon:'fas fa-sign-out-alt',        hint:'@Leave the program in locked mode',vrnt:'plain', name:'logu',clck:'console.log(\''.$labl.'\')' ,attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='@Still an inactive DEMO', icon:'fas fa-info-circle colrred fa-sm', hint:'@Click outside menu to close',     vrnt:'custom', name:'cust',clck:'',
+                      attr:"'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",shrt:'',enbl:'true',rtrn:true).
+        Pmnu_end(labl:'',hint:'',attr:'',rtrn:true).
         
         '<script>'.
         // Modal window:
@@ -1261,9 +1299,9 @@ run_Script('function fileview(path, fld) {
         } 
         </script>'; // Context-Menu
         
-    PanelOff($First=1,$Last=1);
-    PanelOff($First=3,$Last=6);
+    CardOff($First=1,$Last=1);
+    CardOff($First=3,$Last=6);
     
-htm_Page_00();
+htm_Page_end();
 
         
