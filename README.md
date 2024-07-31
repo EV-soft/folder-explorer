@@ -1,12 +1,12 @@
 # folder-explorer
 
-A browser that focuses on the disk space that folders take up.
+A browser that focuses on the disk space that folders takes up.
 
 Developed with the [PHP2HTML library.](https://github.com/EV-soft/ev-soft.github.io)
 
 The Folder Explorer project is built with the PHP2HTML library and shows how html output is generated, especially with regard to the advanced function htm_table ()
 
-Watch / try a [demo here](https://ev-soft.work/fe/folder-explorer.php) It runs on PHP 8.1
+Watch / try a [demo here](https://ev-soft.work/fe/folder-explorer.php) It runs on PHP 8.3
 
 
 ### Description:
@@ -24,4 +24,4 @@ In simple mode: it speeds up and works like a typical file-browser without analy
 
 Recently added context menus that you can activate by right-clicking on a file or folder row in the table (still demo).
 
-Tested to run on latest PHP 8.1 (PHP 7.0 required)
+Tested to run on latest PHP 8.3 (PHP 7.0 required)
