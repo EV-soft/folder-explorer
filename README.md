@@ -6,7 +6,7 @@ Developed with the [PHP2HTML library.](https://github.com/EV-soft/ev-soft.github
 
 The Folder Explorer project is built with the PHP2HTML library and shows how html output is generated, especially with regard to the advanced function htm_table ()
 
-Watch / try a [demo here](https://ev-soft.work/fe/folder-explorer.php) It runs on PHP 8.3
+Watch / try a [demo here](https://ev-soft.dk/foldexpl/folder-explorer.php) It runs on PHP 8.3
 
 
 ### Description:
