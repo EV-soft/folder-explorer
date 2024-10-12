@@ -6,15 +6,15 @@ Developed with the [PHP2HTML library.](https://github.com/EV-soft/ev-soft.github
 
 The Folder Explorer project is built with the PHP2HTML library and shows how html output is generated, especially with regard to the advanced function htm_table ()
 
-Watch / try a [demo here](https://ev-soft.dk/foldexpl/folder-explorer.php) It runs on PHP 8.3
+Look / try a [demo here](https://ev-soft.dk/foldexpl/folder-explorer.php) It runs on PHP 8.3
 
 
 ### Description:
-With Folder Explorer, you can browse files and folders on a web server and see the space required.
+With Folder Explorer, you can browse files and folders on a web server and see used space.
 
 The file list are displayed in a table, where you can sort and filter the data.
 
-In extended mode: content in subfolders is analyzed, so that file-data for the entire subtree can be displayed.
+In advanced mode: content in subfolders is analyzed, so that file-data for the entire subtree can be displayed.
 
 For example, you can search for a filename in the subtrees.
 
