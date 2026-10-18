@@ -476,7 +476,9 @@ ul.feTree .feLvl { position: absolute; width: 22px; top: 2px; text-align: right;
 ul.feTree li.feHere > .feLvl { color: #b07d00; font-weight: bold; }
 .feRuler { position: relative; height: 18px; margin-top: 6px; border-top: 1px dashed #c5ccd3; font: 11px monospace; color: #8a94a0; white-space: nowrap; }
 .feRuler span { position: absolute; top: 3px; }
-ul.feTree .feTreeSize { margin-left: 10px; font: 11px monospace; color: #5d6b78; }
+ul.feTree .feTreeSize { font: 11px monospace; color: #5d6b78; }
+ul.feTree .feTreeNum { display: inline-block; min-width: 10ch; text-align: right; }
+ul.feTree .feSizeCol { position: absolute; top: 2px; }    /* One column for all levels: --feSizeX is set from the widest folder name */
 ul.feTree .feTreeBar { display: inline-block; width: 50px; height: 7px; margin-right: 5px; border: 1px solid #b9c3cc; border-radius: 3px; vertical-align: middle; background: #f3f5f7; overflow: hidden; }
 ul.feTree .feTreeBar > span { display: block; height: 100%; background: #3c8dbc; }
 ul.feTree li.feHere > abbr > a { background: #fff3c4; border-radius: 3px; padding: 0 4px; }
@@ -808,9 +810,10 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
              '</a>', p2h_enc($dir).'/');
         if ($sizes) {
             $pct= $total > 0 ? $size / $total * 100 : 0;
-            echo fe_hint('<span class="feTreeSize">'.
-                     '<span class="feTreeBar"><span style="width: '.round($pct, 1).'%;"></span></span>'.p2h_nice_filesize($size).'</span>',
-                     number_format((float)$size, 0, ',', ' ').' Bytes<br>'.round($pct).' % '.lang('@of the parent folder'));
+            $liX= $depth ? 35 + ($depth-1)*50 : 0;                         // This level from level 0
+            echo '<span class="feSizeCol" style="left: calc(var(--feSizeX, 400px) - '.(30 + $liX).'px);">'.fe_hint('<span class="feTreeSize">'.
+                     '<span class="feTreeBar"><span style="width: '.round($pct, 1).'%;"></span></span><span class="feTreeNum">'.p2h_nice_filesize($size).'</span></span>',
+                     number_format((float)$size, 0, ',', ' ').' Bytes<br>'.round($pct).' % '.lang('@of the parent folder')).'</span>';
         }
         echo $kids.'</li>';
     }
@@ -1433,6 +1436,18 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>All folders with name="'.p2h_enc($currentDir).'" (current folder), are marked with bold text.',
                     algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
         $treeTotal= listFolders($base,$currentDir);
+        if ($fe_treesize)       // The size column just right of the widest folder name
+            echo '<script>(function(){'.
+                    'var t= document.querySelector("ul.feTree");  if (!t) return;'.
+                    'function fit() {'.
+                        'var x0= t.getBoundingClientRect().left, max= 0;'.
+                        't.querySelectorAll("li > abbr.feHint").forEach(function(a){ max= Math.max(max, a.getBoundingClientRect().right - x0); });'.
+                        'if (max <= 0) return;     /* Folded card: measured when it is shown */'.
+                        'var z= parseFloat(getComputedStyle(document.body).zoom) || 1;     /* View bar zoom */'.
+                        't.style.setProperty("--feSizeX", Math.ceil(max / z + 16) + "px");'.
+                    '}'.
+                    'fit();  if (window.ResizeObserver) new ResizeObserver(fit).observe(t);'.
+                 '})();</script>';
         if ($fe_treesize)
             echo '<div style="margin: 6px 0 0 4px; font-size: 13px;"><i class="fas fa-hdd" style="color: #1a7f37;"></i> '.
                  p2h_enc(lang('@Used space below BASE')).': <b>'.p2h_nice_filesize($treeTotal).'</b> '.
