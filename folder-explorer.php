@@ -253,11 +253,12 @@ function p2h_get_size($file) {  // Recover all file sizes larger than > 2GB.  32
     return filesize($file);    // if all else fails
 }
 
-function p2h_nice_filesize($size)    // Output nice rounded filesize
+function p2h_nice_filesize($size, $fix= false)    // Output nice rounded filesize - $fix: always 2 decimals (in columns: the numbers line up)
 {   if (!is_numeric($size)) return $size; //  string 'Folder'
     $units = array('&nbsp;B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
     $power = $size > 0 ? floor(log($size, 1024)) : 0;
-    return sprintf('%s %s', $power ? number_format($size / pow(1024, $power), 2, '.', '') : (int)$size, $units[$power]);    // Always 2 decimals (bytes: whole)
+    $num= $size / pow(1024, $power);
+    return sprintf('%s %s', $power && $fix ? number_format($num, 2, '.', '') : round($num, 2), $units[$power]);    // Bytes: always whole
 }
 
 function p2h_get_file_icon_class($path) { // Get CSS classname for file
@@ -581,8 +582,8 @@ function archList($arrRow,$part='Body') {
         $rate = intval($arrRow['compressed_size'] / ($arrRow['filesize']+ 0.0001) * 100).' %';
         $path = pathinfo($arrRow['name'],PATHINFO_DIRNAME );
         $name = basename($arrRow['name']);
-        $size = p2h_nice_filesize($arrRow['filesize']);
-        $comp = p2h_nice_filesize($arrRow['compressed_size']);
+        $size = p2h_nice_filesize($arrRow['filesize'], true);
+        $comp = p2h_nice_filesize($arrRow['compressed_size'], true);
         $clr = '';
         // if ($path=='.') { $path = '<b>ROOT</b>'; $size = ''; $comp = ''; $rate = ''; $clr= 'style="color: #707070;"';}
         echo '<tr '.$clr.'>'.
@@ -816,7 +817,7 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
             $pct= $total > 0 ? $size / $total * 100 : 0;
             $liX= $depth ? 35 + ($depth-1)*50 : 0;                         // This level from level 0
             echo '<span class="feSizeCol" data-bytes="'.$size.'" data-pp="'.round($pct, 2).'" style="left: calc(var(--feSizeX, 400px) - '.(30 + $liX).'px);">'.fe_hint('<span class="feTreeSize">'.
-                     '<span class="feTreeBar"><span style="width: '.round($pct, 1).'%;"></span></span><span class="feTreeNum">'.p2h_nice_filesize($size).'</span></span>',
+                     '<span class="feTreeBar"><span style="width: '.round($pct, 1).'%;"></span></span><span class="feTreeNum">'.p2h_nice_filesize($size, true).'</span></span>',
                      number_format((float)$size, 0, ',', ' ').' Bytes<br><span class="feTreePct">'.($pct > 0 && $pct < 1 ? number_format($pct, 2) : round($pct)).' % '.lang('@of the parent folder').'</span>').'</span>';
         }
         echo $kids.'</li>';
@@ -867,7 +868,7 @@ function p2h_fileExplore($path,$parentDir) {
             $totFiles += $filecount;
             $totFolds += $dir_count;
             $totSize  += $foldsize;
-            $showsize  = p2h_nice_filesize($foldsize);
+            $showsize  = p2h_nice_filesize($foldsize, true);
             $ext= '<pre style="margin: 3px 0 0;">'.
                 '<i class="far fa-folder colr0 bgclgold"></i> '.str_pad($dir_count,4,' ').' '.
                 '<i class="far fa-file"></i> '.  str_pad($filecount,4,' ').'</pre>';
@@ -978,7 +979,7 @@ function p2h_fileExplore($path,$parentDir) {
         $filesize_raw = p2h_get_size($file_path);
         // $sortsize = '<span style="display:none;">'.str_pad($filesize_raw, 18, "0", STR_PAD_LEFT).'</span>';
         $sortsize = '<span class="sortPrefix">'. $filesize_raw.  ' </span>';
-        $showsize = p2h_nice_filesize($filesize_raw);
+        $showsize = p2h_nice_filesize($filesize_raw, true);
         $all_files_size += $filesize_raw;
         $totSize+=  $filesize_raw;
         $locSize+=  $filesize_raw;
