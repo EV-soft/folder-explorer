@@ -257,7 +257,7 @@ function p2h_nice_filesize($size)    // Output nice rounded filesize
 {   if (!is_numeric($size)) return $size; //  string 'Folder'
     $units = array('&nbsp;B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
     $power = $size > 0 ? floor(log($size, 1024)) : 0;
-    return sprintf('%s %s', round($size / pow(1024, $power), 2), $units[$power]);
+    return sprintf('%s %s', $power ? number_format($size / pow(1024, $power), 2, '.', '') : (int)$size, $units[$power]);    // Always 2 decimals (bytes: whole)
 }
 
 function p2h_get_file_icon_class($path) { // Get CSS classname for file
