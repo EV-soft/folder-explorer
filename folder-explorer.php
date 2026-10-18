@@ -459,6 +459,20 @@ $p2h_Style = '
 }
  
 /* fe_hint(): the hint opens below its own element (abbr.hint data-hint is otherwise placed from the nearest positioned box) */
+/* Folder tree: drawn lines (├ └ │) - one level = one step of the Level ruler */
+ul.feTree { list-style: none; margin: 0; padding: 0 0 0 7px; line-height: 1.25; }      /* The line just below the icon of the parent folder */
+ul.feTree:not(li > ul) { padding-left: 2px; }
+ul.feTree:not(li > ul) > li { padding-left: 28px; }  /* Level 0 just below "0:" of the ruler */
+ul.feTree:not(li > ul) > li::before { width: 23px; }
+ul.feTree li { position: relative; padding: 1px 0 1px 43px; white-space: nowrap; }    /* 7 + 43 = 50px: one step of the Level ruler */
+ul.feTree li::before { content: ""; position: absolute; left: 0; top: 0; width: 38px; height: 0.8em;
+    border-left: 1px solid #9aa5b1; border-bottom: 1px solid #9aa5b1; border-bottom-left-radius: 4px; }
+ul.feTree li::after { content: ""; position: absolute; left: 0; top: 0.8em; bottom: 0; border-left: 1px solid #9aa5b1; }
+ul.feTree li:last-child::after { display: none; }
+ul.feTree .feTreeIc { color: #d9a400; margin-right: 5px; font-size: 0.9em; }
+ul.feTree a { text-decoration: none; }
+ul.feTree a:hover { text-decoration: underline; }
+ul.feTree li.feHere > abbr > a { background: #fff3c4; border-radius: 3px; padding: 0 4px; }
 abbr.hint.feHint { position: relative; display: inline-block; text-decoration: none; }
 abbr.hint.feHint:hover data-hint, abbr.hint.feHint:focus-within data-hint { left: 0; top: calc(100% + 4px); }
 
@@ -757,20 +771,25 @@ function listFolders($dir,$currentDir='',$depth=0) {
     $pathOnly= $GLOBALS['fe_unlocked'] ?? false;    // Whole account: only the path to the current folder is opened (else far too many folders)
     $arrItems = @scandir($dir);
     if (!is_array($arrItems)) return;    // Unreadable folder
-    $arrItems = array_diff($arrItems, ['.', '..']);
-    if (count($arrItems) < 1) return;    // prevent empty elements
-    $file= 0;
-    echo '<ul>';
-        foreach($arrItems as $item){
-            if(is_dir($dir.'/'.$item) && !is_link($dir.'/'.$item))  // Do not follow symlinks (loops)
-            {echo '├ '.
-                  fe_hint('<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '">'.
-                      ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
-                  '</a>', p2h_enc($dir).'/').'/'; 
-             if (!$pathOnly || fe_in_dir($GLOBALS['currPath'], p2h_norm_path($dir.'/'.$item)))
-                 listFolders($dir.'/'.$item,$currentDir,$depth+1);
-            } else $file++;
-        }
+    $subs= [];
+    foreach ($arrItems as $item)
+        if ($item !== '.' && $item !== '..' && is_dir($dir.'/'.$item) && !is_link($dir.'/'.$item))  // Do not follow symlinks (loops)
+            $subs[]= $item;
+    if (!$subs) return;                  // No sub folders: no empty list
+    echo '<ul class="feTree">';
+    foreach ($subs as $item) {
+        $full= p2h_norm_path($dir.'/'.$item);
+        $here= ($full === $GLOBALS['currPath']);                            // The folder shown below
+        $onPath= !$here && fe_in_dir($GLOBALS['currPath'], $full);          // A folder above it
+        echo '<li'.($here ? ' class="feHere"' : '').'>'.
+             '<i class="'.($here || $onPath ? 'fas fa-folder-open' : 'fas fa-folder').' feTreeIc"></i>'.
+             fe_hint('<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '">'.
+                 ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
+             '</a>', p2h_enc($dir).'/');
+        if (!$pathOnly || $here || $onPath)
+            listFolders($dir.'/'.$item,$currentDir,$depth+1);
+        echo '</li>';
+    }
     echo '</ul>';
 }
 
@@ -1370,7 +1389,6 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                     # $body,$algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; ',$attr='background-color: white; ');
         htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>All folders with name="'.p2h_enc($currentDir).'" (current folder), are marked with bold text.',
                     algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
-        echo '<style> ul { padding-left: 50px; line-height: 1.2; } </style>';
         listFolders($base,$currentDir);
 
         htm_wrapp_end();
