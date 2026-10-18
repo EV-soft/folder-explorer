@@ -24,6 +24,18 @@ In simple mode: it speeds up and works like a typical file-browser without analy
 
 Recently added context menus that you can activate by right-clicking on a file or folder row in the table (still demo).
 
+### Exchange area - files between the server and your PC:
+- The folder `_exchange/` (set `$fe_exchange_path` to change it) is the **only** place where files can be
+  uploaded from your PC, downloaded to your PC and deleted. Everything else is read-only.
+- It is created automatically with a `.htaccess` that blocks direct web access: files are only served
+  through `folder-explorer.php?dl=...`, for logged-in users.
+- Rights per account in `$auth_users` (3rd field): `r` = download, `w` = upload and delete.
+  The public demo account `visitor` has `r` only.
+- Server scripts (`.php`, `.phtml`, `.phar`, `.cgi`, `.py`, `.sh` ..., also as a double extension like `x.php.jpg`),
+  server config and hidden files are refused. Existing files are never overwritten (`name (2).ext`).
+- Limits: `$fe_max_upload` per file (20 MB) and `$fe_exchange_quota` in total (200 MB) -
+  PHP's `upload_max_filesize` and `post_max_size` also apply.
+
 ### Requirements:
 - PHP 8.1 or newer. Tested on PHP 8.3.
 - `short_open_tag` is **not** required.

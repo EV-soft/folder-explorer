@@ -1,4 +1,5 @@
 _cache/
+_exchange/
 *.bak
 _trans.*.tmp.json
 sys_2Google.txt

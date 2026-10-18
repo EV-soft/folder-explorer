@@ -1,4 +1,4 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.6.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.7.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-24 EV-soft *** See the file: LICENSE';
 
 $sys= $GLOBALS["gbl_ProgRoot"]= './';
@@ -43,13 +43,20 @@ if ( !defined( 'p2h_SESSION_ID')) { define('p2h_SESSION_ID', 'foldermanager'); }
 $auth_users = array(    # hash                                              # userPath   # userRights
     'fe-admin'  => ['$2y$10$g9W04bYhFOG45HAvnZCK6.FytNiDdzW4OM6Si0L4SaJAm/LyZa.zG','root','rwx'],  // xxxxxxxx
     'fe-user'   => ['$2y$10$vJjLTMo9Zb2oIhd.RF.W8eXsVWfFXVdze4Ta7WC7xAQZb8LtDLoH6','root','rwx'],  // xxxxxxxx
-    'visitor'   => ['$2y$10$kD49SD5o81IAU1sU/k8e3.59T9ZiGfzgG9jWpc./Y04V6B1hHzP/a','root','rwx']   // 8x x
+    'visitor'   => ['$2y$10$kD49SD5o81IAU1sU/k8e3.59T9ZiGfzgG9jWpc./Y04V6B1hHzP/a','root','r']     // 8x x  - public demo account: download only
 );  # To create a new user: Login with wrong password. Error shows you a korrect user: hash comination. Copy this to a new record in $auth_users
+    # userRights in the exchange area:  r: download  w: upload and delete
 
 $locked_path= 'ev-soft.work/fe/locked2/demo/';
 
 ## Browsing is restricted to this folder and its subfolders (no access above it):
 $fe_root_path= $fe_root_path ?? __DIR__;
+
+## Exchange area: the ONLY folder where files may be uploaded, downloaded and deleted (between this server and the user's PC).
+## It is created automatically, closed for direct web access (.htaccess), and files are only served through this page.
+$fe_exchange_path=  $fe_exchange_path  ?? $fe_root_path.'/_exchange';
+$fe_max_upload=     $fe_max_upload     ?? 20 * 1024 * 1024;     // Max size per file (bytes) - PHP's upload_max_filesize / post_max_size also apply
+$fe_exchange_quota= $fe_exchange_quota ?? 200 * 1024 * 1024;    // Max total size of the exchange area (bytes)
 
 function p2h_js($str) { // Encode a PHP string as a safe JavaScript string literal
     return json_encode((string)$str, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
@@ -67,6 +74,66 @@ function p2h_safe_path($requested, $root) { // Resolve $requested and accept it 
     if ($real === false || !is_dir($real)) return $root;
     $real = p2h_norm_path($real);
     return ($real === $root || strpos($real.'/', $root.'/') === 0) ? $real : $root;
+}
+
+function fe_in_dir($path, $dir) { // Is $path the folder $dir or below it (both normalized)
+    return $dir !== false && $dir !== '' && ($path === $dir || strpos($path.'/', $dir.'/') === 0);
+}
+
+function fe_can($right) { // Rights of the logged user in the exchange area: r= download, w= upload/delete
+    global $auth_users;
+    if (empty($auth_users)) return true;
+    $usr= $_SESSION[p2h_SESSION_ID]['logged'] ?? '';
+    return isset($auth_users[$usr][2]) && strpos($auth_users[$usr][2], $right) !== false;
+}
+
+function fe_exchange_init($dir) { // Create the exchange folder - closed for direct web access
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) return false;
+    if (!is_file($dir.'/.htaccess'))
+        @file_put_contents($dir.'/.htaccess',
+            "# Folder-explorer exchange area: files are only served through folder-explorer.php\n".
+            "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n".
+            "<IfModule !mod_authz_core.c>\n  Order allow,deny\n  Deny from all\n</IfModule>\n");
+    if (!is_file($dir.'/index.html')) @file_put_contents($dir.'/index.html', '');
+    $real= realpath($dir);
+    return $real === false ? false : p2h_norm_path($real);
+}
+
+function fe_clean_name($name) { // A plain file name: no path, no control or reserved characters
+    $name= basename(str_replace('\\', '/', (string)$name));
+    $name= preg_replace('/[\x00-\x1F\x7F<>:"\/\\\\|?*]/u', '_', $name) ?? '';
+    return trim($name, " .");
+}
+
+function fe_name_allowed($name) { // Never server scripts, server config or hidden files
+    if ($name === '' || $name[0] === '.' || strcasecmp($name, 'index.html') === 0) return false;
+    return !preg_match('/\.(php\d*|phtml|phar|pht|phps|cgi|pl|py|sh|asp|aspx|jsp|htaccess|htpasswd|ini)(\.|$)/i', $name);
+}
+
+function fe_dir_size($dir) { // Total size of all files below $dir
+    $size= 0;
+    try {
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+                     RecursiveIteratorIterator::LEAVES_ONLY, RecursiveIteratorIterator::CATCH_GET_CHILD) as $f)
+            if ($f->isFile()) $size+= $f->getSize();
+    } catch (Exception $e) { }
+    return $size;
+}
+
+function fe_ini_bytes($val) { // php.ini size ("8M") to bytes
+    $val= trim((string)$val);   $num= (float)$val;
+    switch (strtolower(substr($val, -1))) { case 'g': $num*= 1024; case 'm': $num*= 1024; case 'k': $num*= 1024; }
+    return (int)$num;
+}
+
+function fe_msg($html, $status= 'ok') { // Message shown on the next page (already translated and escaped)
+    $_SESSION[p2h_SESSION_ID]['message']= $html;
+    $_SESSION[p2h_SESSION_ID]['status']=  $status;
+}
+
+function fe_redirect($dir) { // Post/Redirect/Get - back to the folder
+    header('Location: '.basename(__FILE__).'?show='.urlencode($dir), true, 303);
+    exit;
 }
 
 function hex_dump($string, $line_sep='\n',$bytes_per_line=16,$pad_char='·',$want_array=false) { // https://stackoverflow.com/questions/1057572/how-can-i-get-a-hex-dump-of-a-string-in-php
@@ -649,6 +716,7 @@ function listFolders($dir,$currentDir='',$depth=0) {
 }
 
 function p2h_fileExplore($path,$parentDir) {
+    global $exch_path, $in_exchange;
     global $calc_folder, $totFolds, $totFiles, $totSize, $filesIncurrent, $locSize, $filesize_raw, $view_title, $root_dir, $currentPath, $arrNames, $quickView, $Context_Row, $ix;
     $objects = is_readable($path) ? scandir($path) : array();
     $folders = array();    $files = array();
@@ -826,6 +894,13 @@ function p2h_fileExplore($path,$parentDir) {
             $nameFld= '<div class="file-name-div" title="File content: '.$view_title.'"><i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld). $preview. '</div>';
         } else
             $nameFld= '<i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld);
+        // In the exchange area: the name is a download link, and Download / Delete in the menu work
+        $exch_file= $in_exchange && fe_name_allowed($fld);
+        $dlUrl= $exch_file ? basename(__FILE__).'?dl='.rawurlencode(ltrim(substr(p2h_norm_path($file_path), strlen($exch_path)), '/')) : '';
+        if ($exch_file && fe_can('r'))
+            $nameFld= '<a href="'.p2h_enc($dlUrl).'" download title="'.lang('@Download to your PC').'"><i class="fas fa-download colr9"></i></a> '.$nameFld;
+        $clckDl=  ($exch_file && fe_can('r')) ? 'location.href='.p2h_js($dlUrl)  : 'fileview('.p2h_js($currentPath).','.p2h_js($fld).')';
+        $clckDel= ($exch_file && fe_can('w')) ? 'feDelete('.p2h_js($fld).')'     : 'fileview('.p2h_js($currentPath).','.p2h_js($fld).')';
         if ($ext>'') $ext = '.'.p2h_enc($ext);
         $rec['ix']= $ix;
         $rec['name']= $nameFld;
@@ -846,14 +921,14 @@ function p2h_fileExplore($path,$parentDir) {
             Pmnu_Item($labl='@Preview',        $icon='far fa-eye colrblack',         $hint='@Look at content in viewer',     $type='plain', $name='view', $clck='seecontent('.p2h_js($currentPath).','.p2h_js($fld).')', $attr='', $akey='', $enabl='true', $rtrn=true).
             Pmnu_Item($labl='@Edit content',   $icon='far fa-edit colrgreen',        $hint='@Open file in editor',           $type='plain', $name='edit', $clck='window.open(\'TEST\',\'_self\')', $attr='',$akey='', $enabl='true', $rtrn=true).
             Pmnu_Item($labl='@Rename file',    $icon='fas fa-pen-square colrorange', $hint='@Give another name',             $type='plain', $name='renm', $clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')', $attr='',$akey='', $enabl='true', $rtrn=true).
-            Pmnu_Item($labl='@Delete file',    $icon='fas fa-trash-alt colrred',     $hint='@Erase the file',                $type='plain', $name='dele', $clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')', $attr='',$akey='', $enabl='true', $rtrn=true).
+            Pmnu_Item($labl='@Delete file',    $icon='fas fa-trash-alt colrred',     $hint='@Erase the file',                $type='plain', $name='dele', $clck=$clckDel, $attr='',$akey='', $enabl='true', $rtrn=true).
             Pmnu_Item($labl='',                $icon='', $hint='', $type='separator', rtrn:true).
             Pmnu_Item($labl='@Copy file',      $icon='fas fa-copy colrbrown',           $hint='@Make a copy with a new name or in another folder', $type='plain',$name='dnld',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='@Create ZIP',     $icon='far fa-file-archive colrbrown',   $hint='@Make a compressed file with the content of this file', $type='plain', $name='crea',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Download',       $icon='fas fa-download colrbrown',       $hint='@Download to local storage',    $type='plain',$name='dnld',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Download',       $icon='fas fa-download colrbrown',       $hint='@Download to local storage',    $type='plain',$name='dnld',$clck=$clckDl,$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='@File properties',$icon='fa-solid fa-binoculars colrblue', $hint='@Look at the files properties', $type='plain',$name='prop',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='',                $icon='', $hint='', $type='separator', rtrn:true).
-            Pmnu_Item($labl='@Still an inactive DEMO', $icon='fas fa-info-circle colrred fa-sm', $hint='@Click outside menu to close', $type='custom',$name='info',$clck='', $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl=($exch_file ? '@Download / Delete work here - the rest is DEMO' : '@Still an inactive DEMO'), $icon='fas fa-info-circle colrred fa-sm', $hint='@Click outside menu to close', $type='custom',$name='info',$clck='', $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$attr='',$akey='',$enabl='true',$rtrn=true).
         Pmnu_end($labl='',$hint='',$attr='',$rtrn=true);
    
         $ix++; 
@@ -1013,6 +1088,73 @@ if (isset($_GET['calc'])) {
 
 $root_path= p2h_norm_path(realpath($fe_root_path) ?: $fe_root_path);
 $currPath= p2h_safe_path($_POST['show'] ?? $_GET['show'] ?? '', $root_path);  // Never outside $root_path
+
+##### EXCHANGE AREA: download / upload / delete - only inside $fe_exchange_path, only for logged users with the right
+$exch_path=   $is_logged ? fe_exchange_init($fe_exchange_path) : false;
+$in_exchange= $exch_path !== false && fe_in_dir($currPath, $exch_path);
+$exch_dest=   $in_exchange ? $currPath : $exch_path;    // Uploads go to the current folder, when it is in the exchange area
+
+if ($exch_path !== false && isset($_GET['dl'])) {      // Download a file to the user's PC
+    $file= realpath($exch_path.'/'.ltrim(str_replace('\\', '/', (string)$_GET['dl']), '/'));
+    if (!fe_can('r') || $file === false || !is_file($file)
+        || !fe_in_dir(p2h_norm_path($file), $exch_path) || !fe_name_allowed(basename($file))) {
+        http_response_code(404);
+        exit(p2h_enc(lang('@File not found')));
+    }
+    while (ob_get_level()) ob_end_clean();
+    $name= basename($file);
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="'.preg_replace('/[^\x20-\x7E]|"/', '_', $name).'"; filename*=UTF-8\'\''.rawurlencode($name));
+    header('Content-Length: '.filesize($file));
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store');
+    readfile($file);
+    exit;
+}
+
+if ($exch_path !== false && isset($_FILES['fe_upload'])) {     // Upload files from the user's PC
+    if (!fe_can('w'))       fe_msg(p2h_enc(lang('@Your account may not upload files')), 'error');
+    elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
+    else {
+        $up= $_FILES['fe_upload'];
+        foreach (['name','tmp_name','size','error'] as $k) $up[$k]= (array)$up[$k];
+        $used= fe_dir_size($exch_path);     $done= [];      $fail= [];
+        foreach ($up['name'] as $i => $orig) {
+            $err= (int)$up['error'][$i];    $size= (int)$up['size'][$i];    $name= fe_clean_name($orig);
+            if ($err === UPLOAD_ERR_NO_FILE) continue;
+            if     ($err !== UPLOAD_ERR_OK)          $why= lang('@upload error').' '.$err.($err <= 2 ? ' - '.lang('@the file is too large') : '');
+            elseif (!fe_name_allowed($name))         $why= lang('@this file type is not allowed');
+            elseif ($size > $fe_max_upload)          $why= lang('@the file is too large');
+            elseif ($used + $size > $fe_exchange_quota) $why= lang('@the exchange area is full');
+            else {
+                $target= $exch_dest.'/'.$name;      $n= 2;      // Never overwrite: "name (2).ext"
+                while (file_exists($target))
+                    $target= $exch_dest.'/'.pathinfo($name, PATHINFO_FILENAME).' ('.$n++.')'.(pathinfo($name, PATHINFO_EXTENSION) > '' ? '.'.pathinfo($name, PATHINFO_EXTENSION) : '');
+                if (move_uploaded_file($up['tmp_name'][$i], $target)) {
+                    @chmod($target, 0644);  $used+= $size;  $done[]= basename($target);  continue;
+                }
+                $why= lang('@could not be saved');
+            }
+            $fail[]= p2h_enc($name ?: (string)$orig).' ('.p2h_enc($why).')';
+        }
+        if ($done) fe_msg(p2h_enc(lang('@Uploaded')).': <b>'.implode(', ', array_map('p2h_enc', $done)).'</b>'.
+                          ($fail ? '<br>'.p2h_enc(lang('@Not uploaded')).': '.implode(', ', $fail) : ''), $fail ? 'error' : 'ok');
+        else       fe_msg(p2h_enc(lang('@Not uploaded')).': '.($fail ? implode(', ', $fail) : p2h_enc(lang('@no file selected'))), 'error');
+    }
+    fe_redirect($exch_dest);
+}
+
+if ($exch_path !== false && isset($_POST['fe_delete'])) {      // Delete a file in the exchange area
+    $name= fe_clean_name($_POST['fe_delete']);
+    $file= realpath($exch_dest.'/'.$name);
+    if (!fe_can('w'))       fe_msg(p2h_enc(lang('@Your account may not delete files')), 'error');
+    elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
+    elseif ($file === false || !is_file($file) || !fe_in_dir(p2h_norm_path($file), $exch_path) || !fe_name_allowed($name))
+                            fe_msg(p2h_enc(lang('@File not found')).': '.p2h_enc($name), 'error');
+    elseif (@unlink($file)) fe_msg(p2h_enc(lang('@Deleted')).': <b>'.p2h_enc($name).'</b>');
+    else                    fe_msg(p2h_enc(lang('@Could not delete')).': '.p2h_enc($name), 'error');
+    fe_redirect($exch_dest);
+}
 if (isset($_POST['csvFile']))   { $csvFile= basename($_POST['csvFile']); }   // No paths in export filename
 
 $root_dir= basename(p2h_norm_path($_SERVER['DOCUMENT_ROOT'] ?? ''));  // web
@@ -1137,6 +1279,35 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     htm_Card_end($labl='', $icon='',  $hint='', name: '', form: '', subm: false, attr: '', akey: '', kind: 'save', simu: false);
     htm_nl(1);
 
+    ### EXCHANGE AREA: upload from the PC / download to the PC
+    if ($exch_path !== false) {
+        $exch_rel= ltrim(substr($exch_path, strlen($root_path)), '/');
+        $maxFile=  min($fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX, fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX);
+        $exch_used= fe_dir_size($exch_path);
+        htm_Card_(capt:'@Exchange area',icon:'fas fa-exchange-alt',hint:'@Exchange files between this server and your own PC',form:'',acti:'',clas:'cardW800',
+                  wdth:'',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+            echo '<div style="text-align:left; padding: 4px 10px; line-height: 1.6;">'.
+                 p2h_enc(lang('@The only folder where files can be uploaded and downloaded')).': '.
+                 '<a href="'.basename(__FILE__).'?show='.urlencode($exch_path).'" class="txtbutt"><i class="far fa-folder colr0"></i> '.p2h_enc($exch_rel ?: basename($exch_path)).'</a>'.
+                 ($in_exchange ? ' <small>('.p2h_enc(lang('@you are here')).')</small>' : '').'<br>'.
+                 '<small>'.p2h_enc(lang('@Used')).': '.p2h_nice_filesize($exch_used).' '.p2h_enc(lang('@of')).' '.p2h_nice_filesize($fe_exchange_quota).
+                 ' &nbsp;-&nbsp; '.p2h_enc(lang('@Max per file')).': '.p2h_nice_filesize($maxFile).
+                 ' &nbsp;-&nbsp; '.p2h_enc(lang('@Not allowed: server scripts (.php ...) and hidden files')).'</small><br>';
+            if (fe_can('w'))
+                echo '<form method="post" enctype="multipart/form-data" action="'.basename(__FILE__).'?show='.urlencode($exch_dest).'" style="margin: 6px 0;">'.
+                         csrf_field(true).
+                         '<input type="file" name="fe_upload[]" multiple required aria-label="'.p2h_enc(lang('@Files to upload')).'"> '.
+                         '<button type="submit" class="txtbutt" style="border-radius: 54px; height: 30px; background-color: ivory; padding: 0 15px;">'.
+                            '<i class="fas fa-upload"></i> '.p2h_enc(lang('@Upload')).'</button> '.
+                         '<small>'.p2h_enc(lang('@to')).': <b>'.p2h_enc(ltrim(substr($exch_dest, strlen($root_path)), '/')).'</b></small>'.
+                     '</form>';
+            else echo '<i>'.p2h_enc(lang('@Your account can only download files from here.')).'</i><br>';
+            echo '<small>'.p2h_enc(lang('@Download: click the download icon before a file name in the exchange area, or right-click the row.')).'</small>'.
+                 '</div>';
+        htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
+        htm_nl(1);
+    }
+
     htm_Card_(capt:'Folder-Details',icon:'fas fa-info',hint: '',form:'xxx',acti:'',clas:'cardWmax',
                 wdth: '',styl:'background-color: white;',attr:'', show:true, head: 'background-color: white;');
     echo '<small>';
@@ -1256,6 +1427,18 @@ run_Script('
 ');
 
     // function setcheck(id) { document.querySelector(\'section.button input[type="checkbox"]\').checked = true; }
+if ($exch_path !== false && fe_can('w'))     // Delete in the exchange area: confirm, then POST with the CSRF token
+run_Script('
+    function feDelete(name) {
+        if (!confirm('.p2h_js(lang('@Delete the file').': ').' + name + " ?")) return;
+        var f= document.createElement("form");  f.method= "post";  f.action= '.p2h_js(basename(__FILE__).'?show='.urlencode($exch_dest)).';
+        [["fe_delete", name], ["csrf_token", '.p2h_js($_SESSION['csrf_token'] ?? '').']].forEach(function(v) {
+            var i= document.createElement("input");  i.type= "hidden";  i.name= v[0];  i.value= v[1];  f.appendChild(i);
+        });
+        document.body.appendChild(f);  f.submit();
+    }
+');
+
 run_Script('
     function setcheck(id) {    document.getElementById(id).checked = true; }
     function setuncheck(id) {  document.getElementById(id).checked = false; }
@@ -1424,8 +1607,9 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
                        'folders' => $totFolds, 'files' => $totFiles, 'size' => $totSize], 'Status:');
     htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
+    $c= ($exch_path !== false) ? 1 : 0;     // The exchange card shifts the card numbers
     CardOff($First=1,$Last=1);
-    CardOff($First=3,$Last=4);
+    CardOff($First=3+$c,$Last=4+$c);
     
 htm_Page_end();
 }
