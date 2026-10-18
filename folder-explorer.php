@@ -1405,6 +1405,7 @@ else {
 ### FOLDEREXPLORER: 
 htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with function key: F11'),info:lang(''), inis:$p2h_Style, 
           algn:'center', imag:'./_accessories/_background.png',attr:'', pbrd:true );
+    htm_ViewBar();      // Zoom, full screen, column view, language, notes, help, theme (top right, movable)
     // print_r($tabldata);
     htm_Caption(labl:'Folder-explorer',icon:'',hint:'The advanced file-explorer with focus on folders and space taken up of files.',
                 algn:'center',styl:'color:'.$gbl_TitleColr.'; font-weight:600; font-size: 18px; padding: 4px;' );
