@@ -491,7 +491,13 @@ ul.feTree .feTreeNum { display: inline-block; min-width: 10ch; text-align: right
 .feInHead .dropbtn { height: 28px; box-sizing: border-box; display: flex; align-items: center; padding: 0 12px !important; border: 1px solid #9aa5b1 !important;
     border-radius: 14px; white-space: nowrap; cursor: pointer; font-size: 13px; }
 .feInHead .dropbtn[aria-disabled=true] { cursor: default; color: #888; }
-.feInHead .dropdown-content { right: 0; top: calc(100% + 4px); text-align: left; }
+.feInHead .dropdown-content { right: 0; top: calc(100% + 4px); text-align: left; z-index: 1000; }      /* Above the sticky table header */
+.feInHead .inpField { position: relative; }
+.feInHead .inpField:hover > abbr.hint data-hint {                               /* The hint of the (hidden) label: when the mouse is over the field */
+    display: block; position: absolute; left: 0 !important; top: calc(100% + 6px) !important; width: 200px; min-width: 160px;
+    border: solid 1px #aaa; border-radius: 6px; box-shadow: 3px 3px 3px var(--ButtnShad); white-space: pre-line; overflow-wrap: break-word;
+    background-color: var(--HintsBgrd); color: var(--HintsText); font-style: normal; font-weight: 400; font-size: 12px; text-align: center; padding: 5px 3px; z-index: 1001; }
+.feInHead span:has(> #FileSearch.show) .inpField abbr.hint data-hint { display: none; }   /* Not over the open file list */
 .feModeSw { display: inline-flex; padding: 0; border: 1px solid #9aa5b1; border-radius: 17px; overflow: hidden; background: #fff; cursor: pointer; height: 33px; vertical-align: middle; box-shadow: none; }
 .feModeSw > span { display: inline-flex; align-items: center; gap: 5px; padding: 0 13px; color: #555; font-size: 13px; }
 .feModeSw[aria-pressed=false] > .feMq, .feModeSw[aria-pressed=true] > .feMa { background: #3c8dbc; color: #fff; }
