@@ -476,6 +476,9 @@ ul.feTree .feLvl { position: absolute; width: 22px; top: 2px; text-align: right;
 ul.feTree li.feHere > .feLvl { color: #b07d00; font-weight: bold; }
 .feRuler { position: relative; height: 18px; margin-top: 6px; border-top: 1px dashed #c5ccd3; font: 11px monospace; color: #8a94a0; white-space: nowrap; }
 .feRuler span { position: absolute; top: 3px; }
+ul.feTree .feTreeSize { margin-left: 10px; font: 11px monospace; color: #5d6b78; }
+ul.feTree .feTreeBar { display: inline-block; width: 50px; height: 7px; margin-right: 5px; border: 1px solid #b9c3cc; border-radius: 3px; vertical-align: middle; background: #f3f5f7; overflow: hidden; }
+ul.feTree .feTreeBar > span { display: block; height: 100%; background: #3c8dbc; }
 ul.feTree li.feHere > abbr > a { background: #fff3c4; border-radius: 3px; padding: 0 4px; }
 abbr.hint.feHint { position: relative; display: inline-block; text-decoration: none; }
 abbr.hint.feHint:hover data-hint, abbr.hint.feHint:focus-within data-hint { left: 0; top: calc(100% + 4px); }
@@ -770,33 +773,49 @@ function p2h_folders($path)
     //foreach ($folders as $fold) echo $fold;
 }
 
-function listFolders($dir,$currentDir='',$depth=0) {
-    if ($depth > 14) return;     // Same depth as the 'Level' ruler above the tree
+function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below $dir - returns the total size of the files below $dir when the sizes are shown (else 0)
+    $sizes= $GLOBALS['fe_treesize'] ?? false;       // The card tool "Show used space"
+    if ($depth > 14) return $sizes ? fe_dir_size($dir) : 0;     // Same depth as the Level axis below the tree
     $pathOnly= $GLOBALS['fe_unlocked'] ?? false;    // Whole account: only the path to the current folder is opened (else far too many folders)
     $arrItems = @scandir($dir);
-    if (!is_array($arrItems)) return;    // Unreadable folder
-    $subs= [];
-    foreach ($arrItems as $item)
-        if ($item !== '.' && $item !== '..' && is_dir($dir.'/'.$item) && !is_link($dir.'/'.$item))  // Do not follow symlinks (loops)
-            $subs[]= $item;
-    if (!$subs) return;                  // No sub folders: no empty list
-    echo '<ul class="feTree">';
-    foreach ($subs as $item) {
+    if (!is_array($arrItems)) return 0;  // Unreadable folder
+    $subs= [];  $total= 0;
+    foreach ($arrItems as $item) {
+        if ($item === '.' || $item === '..') continue;
+        if (is_dir($dir.'/'.$item)) { if (!is_link($dir.'/'.$item)) $subs[]= $item; }  // Do not follow symlinks (loops)
+        elseif ($sizes && is_file($dir.'/'.$item)) $total+= (int)@filesize($dir.'/'.$item);
+    }
+    if (!$subs) return $total;           // No sub folders: no empty list
+    $rows= [];
+    foreach ($subs as $item) {          // The sub trees first: the share of each folder needs the total of this folder
         $full= p2h_norm_path($dir.'/'.$item);
         $here= ($full === $GLOBALS['currPath']);                            // The folder shown below
         $onPath= !$here && fe_in_dir($GLOBALS['currPath'], $full);          // A folder above it
-        $lvlX= $depth ? 65 + ($depth-1)*50 : 30;                           // Back to the left edge of the tree
+        ob_start();
+        $size= (!$pathOnly || $here || $onPath) ? listFolders($dir.'/'.$item,$currentDir,$depth+1)
+                                                : ($sizes ? fe_dir_size($dir.'/'.$item) : 0);
+        $rows[]= [$item, $here, $onPath, $size, ob_get_clean()];
+        $total+= $size;
+    }
+    $lvlX= $depth ? 65 + ($depth-1)*50 : 30;                               // Back to the left edge of the tree
+    echo '<ul class="feTree">';
+    foreach ($rows as [$item, $here, $onPath, $size, $kids]) {
         echo '<li'.($here ? ' class="feHere"' : '').'>'.
              '<span class="feLvl" style="left: -'.$lvlX.'px;">'.$depth.'</span>'.
              '<i class="'.($here || $onPath ? 'fas fa-folder-open' : 'fas fa-folder').' feTreeIc"></i>'.
              fe_hint('<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '">'.
                  ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
              '</a>', p2h_enc($dir).'/');
-        if (!$pathOnly || $here || $onPath)
-            listFolders($dir.'/'.$item,$currentDir,$depth+1);
-        echo '</li>';
+        if ($sizes) {
+            $pct= $total > 0 ? $size / $total * 100 : 0;
+            echo fe_hint('<span class="feTreeSize">'.
+                     '<span class="feTreeBar"><span style="width: '.round($pct, 1).'%;"></span></span>'.p2h_nice_filesize($size).'</span>',
+                     number_format((float)$size, 0, ',', ' ').' Bytes<br>'.round($pct).' % '.lang('@of the parent folder'));
+        }
+        echo $kids.'</li>';
     }
     echo '</ul>';
+    return $total;
 }
 
 function p2h_fileExplore($path,$parentDir) {
@@ -1387,6 +1406,25 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     htm_nl(1);
     htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',
                 wdth:'',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+        // Card tool: show the used space of every folder in the tree (on/off for this session)
+        if (isset($_GET['treesize'])) $_SESSION[p2h_SESSION_ID]['treesize']= ($_GET['treesize'] === '1');
+        $fe_treesize= !empty($_SESSION[p2h_SESSION_ID]['treesize']);
+        $tsHint= $fe_treesize ? lang('@USED SPACE: Click to hide the used space of the folders')
+                              : lang('@USED SPACE: Click to show the total used space of every folder (can take some time in big folders)');
+        echo '<abbr class="hint p2hCtrlHint" id="feSizeTool">'.
+                '<a href="'.basename(__FILE__).'?show='.urlencode($currPath).'&amp;treesize='.($fe_treesize ? '0' : '1').'" '.
+                    'aria-label="'.p2h_enc(strip_tags($tsHint)).'" aria-pressed="'.($fe_treesize ? 'true' : 'false').'" '.
+                    'style="text-decoration: none; margin: 5px 8px 0 0; font-size: 13px; display: inline-block; color: '.($fe_treesize ? '#1a7f37' : '#555').';">'.
+                    '<ic class="fas fa-hdd"></ic></a>'.
+                '<data-hint>'.$tsHint.'</data-hint>'.
+             '</abbr>'.
+             '<script>(function(){'.
+                'var t= document.getElementById("feSizeTool"), card= t.closest("[id^=card]"), head= card && card.querySelector("[id^=chead]");'.
+                'if (!head) return;'.
+                'var tools= head.querySelectorAll("abbr.p2hCtrlHint"), last= tools[tools.length - 1];'.
+                'head.insertBefore(t, last ? last.nextSibling : null);     /* floats right: after the last one = left of the group */'.
+                't.querySelector("a").addEventListener("click", function(e) { e.stopPropagation(); });     /* not the card header click */'.
+             '})();</script>';
         htm_wrapp_($ViewHeight='300px; text-align:left; ');
 
         // $base= $_SERVER['DOCUMENT_ROOT'];        // $base= substr($base,0,-13);
@@ -1394,7 +1432,11 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                     # $body,$algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; ',$attr='background-color: white; ');
         htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>All folders with name="'.p2h_enc($currentDir).'" (current folder), are marked with bold text.',
                     algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
-        listFolders($base,$currentDir);
+        $treeTotal= listFolders($base,$currentDir);
+        if ($fe_treesize)
+            echo '<div style="margin: 6px 0 0 4px; font-size: 13px;"><i class="fas fa-hdd" style="color: #1a7f37;"></i> '.
+                 p2h_enc(lang('@Used space below BASE')).': <b>'.p2h_nice_filesize($treeTotal).'</b> '.
+                 '<small style="color: gray;">('.number_format((float)$treeTotal, 0, ',', ' ').' Bytes)</small></div>';
         $ruler= '<span style="left: 0;">Level:</span>';                    // The level axis below the tree
         for ($l= 0; $l <= 14; $l++) $ruler.= '<span style="left: '.(30 + 28 + 50*$l).'px;">'.$l.'</span>';
         echo '<div class="feRuler" style="width: '.(30 + 28 + 50*14 + 20).'px;">'.$ruler.'</div>';
