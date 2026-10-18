@@ -480,6 +480,11 @@ ul.feTree li.feHere > .feLvl { color: #b07d00; font-weight: bold; }
 .feRuler span { position: absolute; top: 3px; }
 ul.feTree .feTreeSize { font: 11px monospace; color: #5d6b78; }
 ul.feTree .feTreeNum { display: inline-block; min-width: 10ch; text-align: right; }
+.feModeSw { display: inline-flex; padding: 0; border: 1px solid #9aa5b1; border-radius: 17px; overflow: hidden; background: #fff; cursor: pointer; height: 33px; vertical-align: middle; box-shadow: none; }
+.feModeSw > span { display: inline-flex; align-items: center; gap: 5px; padding: 0 13px; color: #555; font-size: 13px; }
+.feModeSw[aria-pressed=false] > .feMq, .feModeSw[aria-pressed=true] > .feMa { background: #3c8dbc; color: #fff; }
+.feModeSw:hover > span:not(:only-child) { filter: brightness(0.97); }
+.feModeSw:focus-visible { outline: 2px solid #3c8dbc; outline-offset: 2px; }
 .feRelSw button { font-size: 12px; padding: 1px 9px; margin: 0; border: 1px solid #9aa5b1; background: #fff; color: #333; cursor: pointer; box-shadow: none; }
 .feRelSw button:first-of-type { border-radius: 10px 0 0 10px; }
 .feRelSw button:last-of-type  { border-radius: 0 10px 10px 0; border-left: 0; }
@@ -1133,9 +1138,9 @@ $result= '
 <span>'.     // (htm_Input below has the hint)
     htm_Input($labl= 'Search', plho: '@Enter...', icon: '', hint: '@Search for a file in sub-folders, and open that folder',
               vrnt: $type= 'html', name: 'fsearch',
-              valu: '<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
+              valu: '<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Only in Analyse mode')).'</div>',
               form: '', wdth: '200px', algn: 'left',attr: 'onclick="ToggShow()" class="dropbtn" ',rtrn: true,
-              unit: '', disa: (($_POST['prgMode'] ?? '') != 'mode_A'), rows: '0', step: '', list: [], llgn: 'R', bord: '', ftop: '')
+              unit: '', disa: !$calc_folder, rows: '0', step: '', list: [], llgn: 'R', bord: '', ftop: '')
               . '
     <div id="FileSearch" class="dropdown-content" 
         >
@@ -1421,8 +1426,8 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         // Card tool: show the used space of every folder in the tree (on/off for this session)
         if (isset($_GET['treesize'])) $_SESSION[p2h_SESSION_ID]['treesize']= ($_GET['treesize'] === '1');
         $fe_treesize= !empty($_SESSION[p2h_SESSION_ID]['treesize']);
-        $tsHint= $fe_treesize ? lang('@USED SPACE: Click to hide the used space of the folders')
-                              : lang('@USED SPACE: Click to show the total used space of every folder (can take some time in big folders)');
+        $tsHint= $fe_treesize ? lang('@ANALYSE: Click to hide the used space of the folders')
+                              : lang('@ANALYSE: Click to show the used space of every folder (can take time in big folders)');
         echo '<abbr class="hint p2hCtrlHint" id="feSizeTool">'.
                 '<a href="'.basename(__FILE__).'?show='.urlencode($currPath).'&amp;treesize='.($fe_treesize ? '0' : '1').'" '.
                     'aria-label="'.p2h_enc(strip_tags($tsHint)).'" aria-pressed="'.($fe_treesize ? 'true' : 'false').'" '.
@@ -1634,15 +1639,14 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                 '<form method="post" name= "frmMode" style="display:inline;">'. csrf_field(true).  // php2html 1.7 rejects a POST without the token
                 str_sp(2).
                 SearchSub($arrNames). ' '.
-                htm_Input(labl:'@Mode',plho:'@Select...',icon:'',
-                          hint:'@The program mode.<br>Speedup by deactivating calculating content in subfolders using "Simple mode"',
-                          vrnt:'opti',name:'prgMode',valu: ($calc_folder == true ? 'mode_A' : 'mode_S'), form:'',
-                          wdth:'',algn:'left',attr:'',rtrn:true,unit:'',disa:false,rows:'1',step:'',list:[
-                            ['mode_S','Simple','@Do not spend time on calulating subfolders'],
-                            ['mode_A','Advanced','@Advanced mode exploring all subfolders']
-                          ],llgn:'R',bord:'',ftop:'').
-                    fe_hint('<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" style="
-                                 border-radius:54px; height:33px; background-color: ivory; padding: 0 15px;">', lang('@Analyse sub-folders in advanced mode...')).
+                // Mode: one button - Quick (the folder at once) / Analyse (the content of all sub-folders is calculated)
+                fe_hint('<button type="submit" name="prgMode" value="'.($calc_folder ? 'mode_S' : 'mode_A').'" class="feModeSw" aria-pressed="'.($calc_folder ? 'true' : 'false').'" '.
+                            'aria-label="'.p2h_enc(lang('@Mode')).': '.p2h_enc(lang($calc_folder ? '@Analyse' : '@Quick')).'">'.
+                            '<span class="feMq"><i class="fas fa-bolt"></i> '.lang('@Quick').'</span>'.
+                            '<span class="feMa"><i class="fas fa-chart-pie"></i> '.lang('@Analyse').'</span></button>',
+                        '<b>'.lang('@Quick').':</b> '.lang('@shows the folder at once.').'<br>'.
+                        '<b>'.lang('@Analyse').':</b> '.lang('@calculates the content of all sub-folders - size, graphs, Sync/ZipClone - and can take time in big folders.').'<br>'.
+                        '<i>'.lang('@Click to switch.').'</i>').
                 str_sp(2).      // (Language, "Logged as" and Logout: in the view bar)
                 '</form>'.
             '</div>'
@@ -1761,10 +1765,10 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
 // arrPretty($ChkBoxes,'ChkBoxes:');
 
     $body1= '(<b>Context-Menu:</b> Right-click on table-row to get File/Folder-menu,  Right-click elsewere in table-window, to get Program-menu [Not active yet])<br>
-             <b>Advanced mode:</b> Collect file names, size and folders in subfolders - Show used space graphichal. Show Syncronize- / ZipClone-buttons,  
+             <b>Analyse mode:</b> Collect file names, size and folders in subfolders - Show used space graphichal. Show Syncronize- / ZipClone-buttons,  
              show more details about files<br>
              <b>Unrounded size:</b> Hover over size and the size will be shown on bytes.<br>
-             <b>Auto mode:</b> When you change folder, the mode is automatic changed to simple.<br>
+             <b>Auto mode:</b> When you change folder, the mode is automatic changed to Quick.<br>
              In tables you can ajust columns width by dragging the vertical column border.';
     $body2= '@Comming later !';
     htm_Tabs_(head:'', styl:'', rtrn:false);
@@ -1775,7 +1779,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     /* 
     htm_TextDiv(lang('@Nice to know:').'<br>
                 <b>Context-Menu:</b> Right-click on table-row to get File/Folder-menu,  Right-click elsewere in table to get Program-menu<br>
-                <b>Advanced mode:</b> Collect file names, size and folders in subfolders - Show used space graphichal. Show Syncronize- / ZipClone-buttons<br>
+                <b>Analyse mode:</b> Collect file names, size and folders in subfolders - Show used space graphichal. Show Syncronize- / ZipClone-buttons<br>
                 <b>Unrounded size:</b> Hover over size'); 
       */                     
     echo '</small>';
