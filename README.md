@@ -40,6 +40,14 @@ Recently added context menus that you can activate by right-clicking on a file o
 - Limits: `$fe_max_upload` per file (20 MB) and `$fe_exchange_quota` in total (200 MB) -
   PHP's `upload_max_filesize` and `post_max_size` also apply.
 
+### Remove restrictions (administrators only):
+- Accounts in `$fe_admins` (default `fe-admin`) get a button **Remove restrictions**. For that session only:
+  browse and download everything below `$fe_unlocked_root` (default: the folder above the web root, e.g. `/home/<account>`),
+  upload any file type to the exchange area, and no quota or size limit of its own (PHP's limits still apply).
+- Still refused: hidden files (`.htaccess`, `.user.ini` ...) - the `.htaccess` of the exchange area is what keeps an
+  uploaded script from being run from the web. Upload and delete stay inside the exchange area.
+- A red banner shows while the restrictions are removed; *Restore restrictions*, logout or a new login ends it.
+
 ### Requirements:
 - PHP 8.1 or newer. Tested on PHP 8.3.
 - `short_open_tag` is **not** required.

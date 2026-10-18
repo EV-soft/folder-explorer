@@ -30,7 +30,7 @@
     }
     function check(f, rel) {    // The same rules as fe_name_allowed() / fe_rel_dir() in folder-explorer.php
         var n = f.name;
-        if (!n || n.charAt(0) === '.' || n.toLowerCase() === 'index.html' || deny.test(n)) return txt.type;
+        if (!n || n.charAt(0) === '.' || (cfg.strict && n.toLowerCase() === 'index.html') || deny.test(n)) return txt.type;
         var dirs = rel ? rel.split('/').slice(0, -1) : [];
         if (dirs.length > 10) return txt.folder;
         for (var i = 0; i < dirs.length; i++)

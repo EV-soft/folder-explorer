@@ -1,4 +1,4 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.8.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.9.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-24 EV-soft *** See the file: LICENSE';
 
 $sys= $GLOBALS["gbl_ProgRoot"]= './';
@@ -58,6 +58,11 @@ $fe_exchange_path=  $fe_exchange_path  ?? $fe_root_path.'/_exchange';
 $fe_max_upload=     $fe_max_upload     ?? 20 * 1024 * 1024;     // Max size per file (bytes) - PHP's upload_max_filesize / post_max_size also apply
 $fe_exchange_quota= $fe_exchange_quota ?? 200 * 1024 * 1024;    // Max total size of the exchange area (bytes)
 
+## "Remove restrictions" (admins only, per session): browse/download from $fe_unlocked_root, upload any file type
+## (never hidden files like .htaccess) and no quota / size limit of its own. Upload and delete stay inside the exchange area.
+$fe_admins=        $fe_admins        ?? ['fe-admin'];
+$fe_unlocked_root= $fe_unlocked_root ?? dirname(p2h_norm_path($_SERVER['DOCUMENT_ROOT'] ?? __DIR__));   // e.g. /home/<account>
+
 function p2h_js($str) { // Encode a PHP string as a safe JavaScript string literal
     return json_encode((string)$str, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
 }
@@ -108,8 +113,26 @@ function fe_clean_name($name) { // A plain file name: no path, no control or res
 const FE_DENY_EXT= '\.(php\d*|phtml|phar|pht|phps|cgi|pl|py|sh|asp|aspx|jsp|htaccess|htpasswd|ini)(\.|$)';   // Also used by fe-upload.js
 
 function fe_name_allowed($name) { // Never server scripts, server config or hidden files
-    if ($name === '' || $name[0] === '.' || strcasecmp($name, 'index.html') === 0) return false;
+    if ($name === '' || $name[0] === '.') return false;                  // Hidden files (.htaccess ...) - also without restrictions
+    if ($GLOBALS['fe_unlocked'] ?? false) return true;                   // Admin has removed the restrictions
+    if (strcasecmp($name, 'index.html') === 0) return false;
     return !preg_match('/'.FE_DENY_EXT.'/i', $name);
+}
+
+function fe_is_admin() { // The logged user may remove the restrictions
+    return in_array($_SESSION[p2h_SESSION_ID]['logged'] ?? '', $GLOBALS['fe_admins'] ?? [], true);
+}
+
+function fe_send_file($file) { // Send a file as a download, and stop
+    while (ob_get_level()) ob_end_clean();
+    $name= basename($file);
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="'.preg_replace('/[^\x20-\x7E]|"/', '_', $name).'"; filename*=UTF-8\'\''.rawurlencode($name));
+    header('Content-Length: '.filesize($file));
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store');
+    readfile($file);
+    exit;
 }
 
 function fe_rel_dir($base, $rel) { // Create the subfolders of a relative upload path ("photos/2026/a.jpg") below $base
@@ -728,6 +751,7 @@ function p2h_folders($path)
 
 function listFolders($dir,$currentDir='',$depth=0) {
     if ($depth > 14) return;     // Same depth as the 'Level' ruler above the tree
+    $pathOnly= $GLOBALS['fe_unlocked'] ?? false;    // Whole account: only the path to the current folder is opened (else far too many folders)
     $arrItems = @scandir($dir);
     if (!is_array($arrItems)) return;    // Unreadable folder
     $arrItems = array_diff($arrItems, ['.', '..']);
@@ -741,14 +765,15 @@ function listFolders($dir,$currentDir='',$depth=0) {
                       title="'.p2h_enc($dir).'/'.'">'.
                       ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
                   '</a>'.'/';
-             listFolders($dir.'/'.$item,$currentDir,$depth+1);
+             if (!$pathOnly || fe_in_dir($GLOBALS['currPath'], p2h_norm_path($dir.'/'.$item)))
+                 listFolders($dir.'/'.$item,$currentDir,$depth+1);
             } else $file++;
         }
     echo '</ul>';
 }
 
 function p2h_fileExplore($path,$parentDir) {
-    global $exch_path, $in_exchange;
+    global $exch_path, $in_exchange, $fe_unlocked;
     global $calc_folder, $totFolds, $totFiles, $totSize, $filesIncurrent, $locSize, $filesize_raw, $view_title, $root_dir, $currentPath, $arrNames, $quickView, $Context_Row, $ix;
     $objects = is_readable($path) ? scandir($path) : array();
     $folders = array();    $files = array();
@@ -928,10 +953,12 @@ function p2h_fileExplore($path,$parentDir) {
             $nameFld= '<i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld);
         // In the exchange area: the name is a download link, and Download / Delete in the menu work
         $exch_file= $in_exchange && fe_name_allowed($fld);
-        $dlUrl= $exch_file ? basename(__FILE__).'?dl='.rawurlencode(ltrim(substr(p2h_norm_path($file_path), strlen($exch_path)), '/')) : '';
-        if ($exch_file && fe_can('r'))
+        $dlUrl= $exch_file   ? basename(__FILE__).'?dl='.rawurlencode(ltrim(substr(p2h_norm_path($file_path), strlen($exch_path)), '/')) :
+               ($fe_unlocked ? basename(__FILE__).'?dla='.rawurlencode(p2h_norm_path($file_path)) : '');
+        $can_dl= ($exch_file && fe_can('r')) || $fe_unlocked;
+        if ($can_dl)
             $nameFld= '<a href="'.p2h_enc($dlUrl).'" download title="'.lang('@Download to your PC').'"><i class="fas fa-download colr9"></i></a> '.$nameFld;
-        $clckDl=  ($exch_file && fe_can('r')) ? 'location.href='.p2h_js($dlUrl)  : 'fileview('.p2h_js($currentPath).','.p2h_js($fld).')';
+        $clckDl=  $can_dl ? 'location.href='.p2h_js($dlUrl)  : 'fileview('.p2h_js($currentPath).','.p2h_js($fld).')';
         $clckDel= ($exch_file && fe_can('w')) ? 'feDelete('.p2h_js($fld).')'     : 'fileview('.p2h_js($currentPath).','.p2h_js($fld).')';
         if ($ext>'') $ext = '.'.p2h_enc($ext);
         $rec['ix']= $ix;
@@ -1083,7 +1110,7 @@ return $result;
 if (empty($auth_users)) $use_auth = false; else $use_auth = true;
 
 if (isset($_GET['logout'])) {
-    unset($_SESSION[p2h_SESSION_ID]['logged']);
+    unset($_SESSION[p2h_SESSION_ID]['logged'], $_SESSION[p2h_SESSION_ID]['unlocked']);
 }
 
 if ($use_auth) {
@@ -1099,6 +1126,7 @@ if ($use_auth) {
         if (isset($auth_users[$usr][0]) && password_verify($pwd, $auth_users[$usr][0])) {
             if (!headers_sent()) session_regenerate_id(true);    // Prevent session fixation
             $_SESSION[p2h_SESSION_ID]['logged'] = $usr;
+            unset($_SESSION[p2h_SESSION_ID]['unlocked']);         // A new login always starts with the restrictions
             p2h_set_msg(lang('@You are logged in as: ').p2h_enc($usr));
         } else {
             // Shows a hash of the typed password, so a new account can be added to $auth_users:
@@ -1111,6 +1139,25 @@ if ($use_auth) {
 
 $is_logged= isset($_SESSION[p2h_SESSION_ID]['logged']);
 
+##### REMOVE RESTRICTIONS (admins only, this session only)
+if ($is_logged && isset($_POST['fe_unlock'])) {
+    if (!fe_is_admin())     fe_msg(p2h_enc(lang('@Only an administrator can remove the restrictions')), 'error');
+    elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
+    elseif ($_POST['fe_unlock'] === '1') {
+        $_SESSION[p2h_SESSION_ID]['unlocked']= true;
+        fe_msg(p2h_enc(lang('@The restrictions are removed for this session')), 'error');
+    } else {
+        unset($_SESSION[p2h_SESSION_ID]['unlocked']);
+        fe_msg(p2h_enc(lang('@The restrictions are active again')));
+    }
+    fe_redirect(is_string($_POST['show'] ?? null) ? $_POST['show'] : '');
+}
+$fe_unlocked= $is_logged && fe_is_admin() && !empty($_SESSION[p2h_SESSION_ID]['unlocked']);
+if ($fe_unlocked) {                     // No size limit of its own - PHP's upload_max_filesize / post_max_size still apply
+    $fe_max_upload=     PHP_INT_MAX;
+    $fe_exchange_quota= PHP_INT_MAX;
+}
+
 
 ##### PREPARE DATA:
 $calc_folder= (($_POST['prgMode'] ?? '') == 'mode_A');
@@ -1118,7 +1165,7 @@ if (isset($_GET['calc'])) {
     $calc_folder= true;
 }
 
-$root_path= p2h_norm_path(realpath($fe_root_path) ?: $fe_root_path);
+$root_path= p2h_norm_path(($fe_unlocked ? realpath($fe_unlocked_root) : false) ?: realpath($fe_root_path) ?: $fe_root_path);
 $currPath= p2h_safe_path($_POST['show'] ?? $_GET['show'] ?? '', $root_path);  // Never outside $root_path
 
 ##### EXCHANGE AREA: download / upload / delete - only inside $fe_exchange_path, only for logged users with the right
@@ -1133,15 +1180,16 @@ if ($exch_path !== false && isset($_GET['dl'])) {      // Download a file to the
         http_response_code(404);
         exit(p2h_enc(lang('@File not found')));
     }
-    while (ob_get_level()) ob_end_clean();
-    $name= basename($file);
-    header('Content-Type: application/octet-stream');
-    header('Content-Disposition: attachment; filename="'.preg_replace('/[^\x20-\x7E]|"/', '_', $name).'"; filename*=UTF-8\'\''.rawurlencode($name));
-    header('Content-Length: '.filesize($file));
-    header('X-Content-Type-Options: nosniff');
-    header('Cache-Control: private, no-store');
-    readfile($file);
-    exit;
+    fe_send_file($file);
+}
+
+if ($fe_unlocked && isset($_GET['dla'])) {              // Admin without restrictions: download any file below $root_path
+    $file= realpath((string)$_GET['dla']);
+    if ($file === false || !is_file($file) || !fe_in_dir(p2h_norm_path($file), $root_path)) {
+        http_response_code(404);
+        exit(p2h_enc(lang('@File not found')));
+    }
+    fe_send_file($file);
 }
 
 if ($exch_path !== false && isset($_FILES['fe_upload'])) {     // Upload files from the user's PC (form, or batches from fe-upload.js)
@@ -1156,6 +1204,7 @@ if ($exch_path !== false && isset($_FILES['fe_upload'])) {     // Upload files f
         $used= fe_dir_size($exch_path);
         foreach ($up['name'] as $i => $orig) {
             $err= (int)$up['error'][$i];    $size= (int)$up['size'][$i];    $name= fe_clean_name($orig);
+            if (substr(trim(basename(strtr((string)$orig, '\\', '/'))), 0, 1) === '.') $name= '.'.$name;   // A hidden file stays hidden - and is refused
             if ($err === UPLOAD_ERR_NO_FILE) continue;
             $dir= fe_rel_dir($exch_dest, is_string($rels[$i] ?? null) ? $rels[$i] : '');
             if     ($err !== UPLOAD_ERR_OK)          $why= lang('@upload error').' '.$err.($err <= 2 ? ' - '.lang('@the file is too large') : '');
@@ -1307,6 +1356,26 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     htm_Caption(labl:'Build with PHP2HTML v'.P2H_VERSION,icon:'',hint:'The shortcut to structured and compact code<br>Created by EV-soft.',
                 algn:'center',styl:'color: gray;; font-weight:400; font-size: 12px;');
     p2h_show_message();
+    if (fe_is_admin()) {    // Remove / restore the restrictions - admins only
+        $unlockForm= '<form method="post" action="'.basename(__FILE__).'" style="display:inline;">'.csrf_field(true).
+                     '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
+                     '<input type="hidden" name="fe_unlock" value="'.($fe_unlocked ? '0' : '1').'">';
+        if ($fe_unlocked)
+            echo '<div class="p2hAlert p2hAlert-error" style="max-width: 800px;" role="alert">'.
+                    '<i class="fas fa-unlock"></i> <b>'.p2h_enc(lang('@Restrictions removed')).'</b> - '.
+                    p2h_enc(lang('@you can see and download everything below')).' <b>'.p2h_enc($root_path).'</b>, '.
+                    p2h_enc(lang('@upload any file type (not hidden files) to the exchange area, with no size limit or quota of its own. Only for you, only in this session.')).
+                    ' '.$unlockForm.'<button type="submit" class="txtbutt" style="background: white; border-radius: 54px; padding: 2px 12px;">'.
+                    '<i class="fas fa-lock"></i> '.p2h_enc(lang('@Restore restrictions')).'</button></form>'.
+                 '</div>';
+        else
+            echo '<div style="margin: 4px auto; text-align: center;">'.$unlockForm.
+                    '<button type="submit" class="txtbutt" style="border-radius: 54px; padding: 2px 12px; color: #b00020; background: ivory;" '.
+                    'title="'.p2h_enc(lang('@Administrator: see the whole account, upload any file type, no quota - for this session')).'" '.
+                    'onclick="return confirm('.p2h_enc(p2h_js(lang('@Remove the restrictions for this session?'))).');">'.
+                    '<i class="fas fa-unlock"></i> '.p2h_enc(lang('@Remove restrictions')).'</button></form>'.
+                 '</div>';
+    }
     htm_nl(1);
     htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',
                 wdth:'',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
@@ -1336,9 +1405,10 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                  p2h_enc(lang('@The only folder where files can be uploaded and downloaded')).': '.
                  '<a href="'.basename(__FILE__).'?show='.urlencode($exch_path).'" class="txtbutt"><i class="far fa-folder colr0"></i> '.p2h_enc($exch_rel ?: basename($exch_path)).'</a>'.
                  ($in_exchange ? ' <small>('.p2h_enc(lang('@you are here')).')</small>' : '').'<br>'.
-                 '<small>'.p2h_enc(lang('@Used')).': '.p2h_nice_filesize($exch_used).' '.p2h_enc(lang('@of')).' '.p2h_nice_filesize($fe_exchange_quota).
+                 '<small>'.p2h_enc(lang('@Used')).': '.p2h_nice_filesize($exch_used).
+                    ($fe_unlocked ? ' ('.p2h_enc(lang('@no quota')).')' : ' '.p2h_enc(lang('@of')).' '.p2h_nice_filesize($fe_exchange_quota)).
                  ' &nbsp;-&nbsp; '.p2h_enc(lang('@Max per file')).': '.p2h_nice_filesize($maxFile).
-                 ' &nbsp;-&nbsp; '.p2h_enc(lang('@Not allowed: server scripts (.php ...) and hidden files')).'</small><br>';
+                 ' &nbsp;-&nbsp; '.p2h_enc($fe_unlocked ? lang('@All file types allowed - except hidden files') : lang('@Not allowed: server scripts (.php ...) and hidden files')).'</small><br>';
             if (fe_can('w')) {
                 // Settings and texts for fe-upload.js (the form also works without JavaScript: plain file field + submit)
                 $feCfg= [
@@ -1346,7 +1416,8 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                     'quotaLeft' => max(0, $fe_exchange_quota - $exch_used),
                     'maxCount'  => max(1, (int)ini_get('max_file_uploads') ?: 20),
                     'maxPost'   => fe_ini_bytes(ini_get('post_max_size')) ?: 8 * 1024 * 1024,
-                    'deny'      => FE_DENY_EXT,
+                    'deny'      => $fe_unlocked ? '(?!)' : FE_DENY_EXT,     // (?!) never matches: all types allowed
+                    'strict'    => !$fe_unlocked,
                     'txt'       => array_map('lang', [
                         'type'    => '@this file type is not allowed',
                         'folder'  => '@the folder name is not allowed',
