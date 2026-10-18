@@ -480,6 +480,18 @@ ul.feTree li.feHere > .feLvl { color: #b07d00; font-weight: bold; }
 .feRuler span { position: absolute; top: 3px; }
 ul.feTree .feTreeSize { font: 11px monospace; color: #5d6b78; }
 ul.feTree .feTreeNum { display: inline-block; min-width: 10ch; text-align: right; }
+.feDetTools { text-align: center; padding-top: 10px; }
+.feDetTools.feInHead { float: right; padding: 0; margin: -3px 14px -3px 0; cursor: default; }
+.feInHead .feModeSw { height: 28px; }
+.feDetTools.feInHead { display: flex; align-items: center; gap: 8px; }          /* (frmMode is inside the card form "xxx": the browser drops the inner form tag) */
+.feInHead span:has(> #FileSearch) { position: relative; }                       /* The search list opens below the field */
+.feInHead .inpField { padding: 0 !important; width: auto !important; vertical-align: middle !important; }
+.feInHead .fieldContent { padding: 0 !important; box-shadow: none !important; border: 0 !important; background: transparent !important; }
+.feInHead .inpField label { display: none; }                                    /* No "Search" label: the icon says it */
+.feInHead .dropbtn { height: 28px; box-sizing: border-box; display: flex; align-items: center; padding: 0 12px !important; border: 1px solid #9aa5b1 !important;
+    border-radius: 14px; white-space: nowrap; cursor: pointer; font-size: 13px; }
+.feInHead .dropbtn[aria-disabled=true] { cursor: default; color: #888; }
+.feInHead .dropdown-content { right: 0; top: calc(100% + 4px); text-align: left; }
 .feModeSw { display: inline-flex; padding: 0; border: 1px solid #9aa5b1; border-radius: 17px; overflow: hidden; background: #fff; cursor: pointer; height: 33px; vertical-align: middle; box-shadow: none; }
 .feModeSw > span { display: inline-flex; align-items: center; gap: 5px; padding: 0 13px; color: #555; font-size: 13px; }
 .feModeSw[aria-pressed=false] > .feMq, .feModeSw[aria-pressed=true] > .feMa { background: #3c8dbc; color: #fff; }
@@ -1634,11 +1646,10 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                ' - Free: '.   p2h_nice_filesize(@disk_free_space($currPath)).
                ' of total: '. p2h_nice_filesize(@disk_total_space($currPath)).
                '<data-hint style="white-space: normal;">'.lang('@Space meaning file-space in local folder / total in subfolders').'</data-hint></abbr>'.
-           '</span> <br>
-            <div style="width: 800px; margin: auto; padding-top: 10px;">'. 
-                '<form method="post" name= "frmMode" style="display:inline;">'. csrf_field(true).  // php2html 1.7 rejects a POST without the token
-                str_sp(2).
-                SearchSub($arrNames). ' '.
+           '</span> <br>'.
+            '<div id="feDetTools" class="feDetTools">'.          // Search + mode: moved into the card header (the tool field) by the script below the table
+                '<form method="post" name= "frmMode" style="display:inline-flex; align-items:center; gap: 8px;">'. csrf_field(true).  // php2html 1.7 rejects a POST without the token
+                SearchSub($arrNames).
                 // Mode: one button - Quick (the folder at once) / Analyse (the content of all sub-folders is calculated)
                 fe_hint('<button type="submit" name="prgMode" value="'.($calc_folder ? 'mode_S' : 'mode_A').'" class="feModeSw" aria-pressed="'.($calc_folder ? 'true' : 'false').'" '.
                             'aria-label="'.p2h_enc(lang('@Mode')).': '.p2h_enc(lang($calc_folder ? '@Analyse' : '@Quick')).'">'.
@@ -1647,9 +1658,8 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                         '<b>'.lang('@Quick').':</b> '.lang('@shows the folder at once.').'<br>'.
                         '<b>'.lang('@Analyse').':</b> '.lang('@calculates the content of all sub-folders - size, graphs, Sync/ZipClone - and can take time in big folders.').'<br>'.
                         '<i>'.lang('@Click to switch.').'</i>').
-                str_sp(2).      // (Language, "Logged as" and Logout: in the view bar)
-                '</form>'.
-            '</div>'
+                '</form>'.      // (Language, "Logged as" and Logout: in the view bar)
+            '</div><div style="clear: both;"></div>'
                 , '90%','html','','left'] 
         ), // $TblCapt
         $RowPref= array(
@@ -1704,6 +1714,15 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         expo: $ExportTo= $csvFile ?? ''
     );
     echo $Context_Row;
+    // Search + mode up into the header of this card - left of the tool icons (without JavaScript they stay above the table)
+    echo '<script>(function(){'.
+            'var t= document.getElementById("feDetTools"), card= t && t.closest("[id^=card]"), head= card && card.querySelector("[id^=chead]");'.
+            'if (!head) return;'.
+            'var tools= head.querySelectorAll("abbr.p2hCtrlHint"), last= tools[tools.length - 1];'.
+            'head.insertBefore(t, last ? last.nextSibling : null);     /* floats right: after the last icon = left of the group */'.
+            't.classList.add("feInHead");'.
+            '["click", "pointerdown", "dblclick"].forEach(function(ev){ t.addEventListener(ev, function(e){ e.stopPropagation(); }); });     /* not the card header (fold, move) */'.
+         '})();</script>';
     
 run_Script('
     function fcopy(path, name) { alert("FileCopy:      " + path + " " + name); }
