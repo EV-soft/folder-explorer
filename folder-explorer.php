@@ -812,7 +812,7 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
              '<span class="feLvl" style="left: -'.$lvlX.'px;">'.$depth.'</span>'.
              '<i class="'.($here || $onPath ? 'fas fa-folder-open' : 'fas fa-folder').' feTreeIc"></i>'.
              fe_hint('<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '">'.
-                 ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
+                 ($here ? '<b>' : ''). p2h_enc($item). ($here ? '</b>' : '').     // Only the current folder (was every folder with its name)
              '</a>', p2h_enc($dir).'/');
         if ($sizes) {
             $pct= $total > 0 ? $size / $total * 100 : 0;
@@ -1439,7 +1439,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         // $base= $_SERVER['DOCUMENT_ROOT'];        // $base= substr($base,0,-13);
         $base= $root_path;          // $base= substr($base,0,-13);
                     # $body,$algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; ',$attr='background-color: white; ');
-        htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>All folders with name="'.p2h_enc($currentDir).'" (current folder), are marked with bold text.',
+        htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>'.lang('@The current folder').' (<b>'.p2h_enc($currentDir).'</b>) '.lang('@is marked with bold text and an open folder.'),
                     algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
         ob_start();                                                         // The tree first: the total is shown above it
         $treeTotal= listFolders($base,$currentDir);
