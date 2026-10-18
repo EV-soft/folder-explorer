@@ -1167,6 +1167,8 @@ if (empty($auth_users)) $use_auth = false; else $use_auth = true;
 
 if (isset($_GET['logout'])) {
     unset($_SESSION[p2h_SESSION_ID]['logged'], $_SESSION[p2h_SESSION_ID]['unlocked']);
+    header('Location: '.basename(__FILE__));   // A clean address: the login form must not post ?logout again
+    exit;
 }
 
 if ($use_auth) {
@@ -1405,7 +1407,7 @@ else {
 ### FOLDEREXPLORER: 
 htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with function key: F11'),info:lang(''), inis:$p2h_Style, 
           algn:'center', imag:'./_accessories/_background.png',attr:'', pbrd:true );
-    htm_ViewBar();      // Zoom, full screen, column view, language, notes, help, theme (top right, movable)
+    htm_ViewBar(user: $_SESSION[p2h_SESSION_ID]['logged'] ?? '', lout: $use_auth ? basename(__FILE__).'?logout=1' : '');     // Zoom, full screen, column view, language, notes, help, theme, user (top right, movable)
     // print_r($tabldata);
     htm_Caption(labl:'Folder-explorer',icon:'',hint:'The advanced file-explorer with focus on folders and space taken up of files.',
                 algn:'center',styl:'color:'.$gbl_TitleColr.'; font-weight:600; font-size: 18px; padding: 4px;' );
@@ -1641,10 +1643,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                           ],llgn:'R',bord:'',ftop:'').
                     fe_hint('<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" style="
                                  border-radius:54px; height:33px; background-color: ivory; padding: 0 15px;">', lang('@Analyse sub-folders in advanced mode...')).
-                str_sp(2).
-                htm_LinkButt(labl:'@Language', hint:'@Open the translate language page', attr:'', 
-                             link:'translate.page.php', targ:'_blank', rtrn:true).
-                '<span style= "padding: 0 12px;"> Logged as: <b>'.p2h_enc($_SESSION[p2h_SESSION_ID]['logged']).'</b></span>'.
+                str_sp(2).      // (Language and "Logged as": in the view bar)
                 '</form>'.
                 '<abbr class="hint" >
                     <form name="zzz" style=" display: inline-block; ">
