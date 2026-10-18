@@ -1,4 +1,4 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.7.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.8.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-24 EV-soft *** See the file: LICENSE';
 
 $sys= $GLOBALS["gbl_ProgRoot"]= './';
@@ -105,9 +105,25 @@ function fe_clean_name($name) { // A plain file name: no path, no control or res
     return trim($name, " .");
 }
 
+const FE_DENY_EXT= '\.(php\d*|phtml|phar|pht|phps|cgi|pl|py|sh|asp|aspx|jsp|htaccess|htpasswd|ini)(\.|$)';   // Also used by fe-upload.js
+
 function fe_name_allowed($name) { // Never server scripts, server config or hidden files
     if ($name === '' || $name[0] === '.' || strcasecmp($name, 'index.html') === 0) return false;
-    return !preg_match('/\.(php\d*|phtml|phar|pht|phps|cgi|pl|py|sh|asp|aspx|jsp|htaccess|htpasswd|ini)(\.|$)/i', $name);
+    return !preg_match('/'.FE_DENY_EXT.'/i', $name);
+}
+
+function fe_rel_dir($base, $rel) { // Create the subfolders of a relative upload path ("photos/2026/a.jpg") below $base
+    $parts= array_slice(explode('/', str_replace('\\', '/', $rel)), 0, -1);    // Without the file name
+    if (count($parts) > 10) return false;
+    $dir= $base;
+    foreach ($parts as $part) {
+        if (substr(trim($part), 0, 1) === '.') return false;   // ".", ".." and hidden folders (.git ...)
+        $part= fe_clean_name($part);
+        if ($part === '' || $part[0] === '.') return false;
+        $dir.= '/'.$part;
+        if (!is_dir($dir) && !@mkdir($dir, 0755)) return false;
+    }
+    return $dir;
 }
 
 function fe_dir_size($dir) { // Total size of all files below $dir
@@ -415,6 +431,22 @@ $p2h_Style = '
     color: blue;
 }
  
+/* Exchange area upload (fe-upload.js) */
+.fe-drop { border: 2px dashed #9bbbd6; border-radius: 10px; padding: 12px; margin: 6px 0; text-align: center; background: #f7fbff; }
+.fe-drop.fe-over { border-color: green; background: #eaffea; }
+.fe-js { display: none; }
+#feUpload.fe-ready .fe-js { display: inline-block; }
+#feUpload.fe-ready .fe-pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }   /* Hidden, but still reachable with the keyboard */
+.fe-pick:focus-within { outline: 2px solid DodgerBlue; }
+.fe-pick { position: relative; }
+.fe-pick { cursor: pointer; display: inline-block; margin: 6px 4px 0; }
+.fe-list table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 12px; }
+.fe-list th, .fe-list td { border-bottom: 1px solid #ddd; padding: 2px 6px; text-align: left; }
+.fe-list td.fe-size { text-align: right; font-family: monospace; white-space: nowrap; }
+.fe-list .fe-bad  { color: #b00020; }
+.fe-list .fe-good { color: #1a6e1a; }
+.fe-list .fe-wrap { max-height: 260px; overflow: auto; }
+
 .show {     /* Show the dropdown menu (use JS to add this class to the .dropdown-content container when the user clicks on the dropdown button)  */
     display:block;
 }
@@ -1112,35 +1144,49 @@ if ($exch_path !== false && isset($_GET['dl'])) {      // Download a file to the
     exit;
 }
 
-if ($exch_path !== false && isset($_FILES['fe_upload'])) {     // Upload files from the user's PC
-    if (!fe_can('w'))       fe_msg(p2h_enc(lang('@Your account may not upload files')), 'error');
-    elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
+if ($exch_path !== false && isset($_FILES['fe_upload'])) {     // Upload files from the user's PC (form, or batches from fe-upload.js)
+    $ajax= ($_POST['fe_ajax'] ?? '') === '1';   // fe-upload.js wants a JSON answer per batch
+    $done= [];  $fail= [];  $error= '';         // done: [index, saved path]   fail: [index, name, reason]
+    if (!fe_can('w'))       $error= lang('@Your account may not upload files');
+    elseif (!csrf_verify()) $error= lang('@The form has expired - reload the page and try again');
     else {
         $up= $_FILES['fe_upload'];
         foreach (['name','tmp_name','size','error'] as $k) $up[$k]= (array)$up[$k];
-        $used= fe_dir_size($exch_path);     $done= [];      $fail= [];
+        $rels= (array)($_POST['fe_relpath'] ?? []);     // Relative paths of files from a chosen / dropped folder
+        $used= fe_dir_size($exch_path);
         foreach ($up['name'] as $i => $orig) {
             $err= (int)$up['error'][$i];    $size= (int)$up['size'][$i];    $name= fe_clean_name($orig);
             if ($err === UPLOAD_ERR_NO_FILE) continue;
+            $dir= fe_rel_dir($exch_dest, is_string($rels[$i] ?? null) ? $rels[$i] : '');
             if     ($err !== UPLOAD_ERR_OK)          $why= lang('@upload error').' '.$err.($err <= 2 ? ' - '.lang('@the file is too large') : '');
             elseif (!fe_name_allowed($name))         $why= lang('@this file type is not allowed');
             elseif ($size > $fe_max_upload)          $why= lang('@the file is too large');
             elseif ($used + $size > $fe_exchange_quota) $why= lang('@the exchange area is full');
+            elseif ($dir === false)                  $why= lang('@the folder name is not allowed');
             else {
-                $target= $exch_dest.'/'.$name;      $n= 2;      // Never overwrite: "name (2).ext"
+                $target= $dir.'/'.$name;    $n= 2;      // Never overwrite: "name (2).ext"
                 while (file_exists($target))
-                    $target= $exch_dest.'/'.pathinfo($name, PATHINFO_FILENAME).' ('.$n++.')'.(pathinfo($name, PATHINFO_EXTENSION) > '' ? '.'.pathinfo($name, PATHINFO_EXTENSION) : '');
+                    $target= $dir.'/'.pathinfo($name, PATHINFO_FILENAME).' ('.$n++.')'.(pathinfo($name, PATHINFO_EXTENSION) > '' ? '.'.pathinfo($name, PATHINFO_EXTENSION) : '');
                 if (move_uploaded_file($up['tmp_name'][$i], $target)) {
-                    @chmod($target, 0644);  $used+= $size;  $done[]= basename($target);  continue;
+                    @chmod($target, 0644);  $used+= $size;
+                    $done[]= [$i, ltrim(substr($target, strlen($exch_dest)), '/')];  continue;
                 }
                 $why= lang('@could not be saved');
             }
-            $fail[]= p2h_enc($name ?: (string)$orig).' ('.p2h_enc($why).')';
+            $fail[]= [$i, $name ?: (string)$orig, $why];
         }
-        if ($done) fe_msg(p2h_enc(lang('@Uploaded')).': <b>'.implode(', ', array_map('p2h_enc', $done)).'</b>'.
-                          ($fail ? '<br>'.p2h_enc(lang('@Not uploaded')).': '.implode(', ', $fail) : ''), $fail ? 'error' : 'ok');
-        else       fe_msg(p2h_enc(lang('@Not uploaded')).': '.($fail ? implode(', ', $fail) : p2h_enc(lang('@no file selected'))), 'error');
     }
+    if ($ajax) {
+        while (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => $error, 'done' => $done, 'fail' => $fail]);
+        exit;
+    }
+    $failTxt= implode(', ', array_map(fn($f) => p2h_enc($f[1]).' ('.p2h_enc($f[2]).')', $fail));
+    if ($error)    fe_msg(p2h_enc($error), 'error');
+    elseif ($done) fe_msg(p2h_enc(lang('@Uploaded')).': <b>'.implode(', ', array_map(fn($d) => p2h_enc($d[1]), $done)).'</b>'.
+                          ($fail ? '<br>'.p2h_enc(lang('@Not uploaded')).': '.$failTxt : ''), $fail ? 'error' : 'ok');
+    else           fe_msg(p2h_enc(lang('@Not uploaded')).': '.($fail ? $failTxt : p2h_enc(lang('@no file selected'))), 'error');
     fe_redirect($exch_dest);
 }
 
@@ -1293,14 +1339,56 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                  '<small>'.p2h_enc(lang('@Used')).': '.p2h_nice_filesize($exch_used).' '.p2h_enc(lang('@of')).' '.p2h_nice_filesize($fe_exchange_quota).
                  ' &nbsp;-&nbsp; '.p2h_enc(lang('@Max per file')).': '.p2h_nice_filesize($maxFile).
                  ' &nbsp;-&nbsp; '.p2h_enc(lang('@Not allowed: server scripts (.php ...) and hidden files')).'</small><br>';
-            if (fe_can('w'))
-                echo '<form method="post" enctype="multipart/form-data" action="'.basename(__FILE__).'?show='.urlencode($exch_dest).'" style="margin: 6px 0;">'.
+            if (fe_can('w')) {
+                // Settings and texts for fe-upload.js (the form also works without JavaScript: plain file field + submit)
+                $feCfg= [
+                    'maxFile'   => $maxFile,
+                    'quotaLeft' => max(0, $fe_exchange_quota - $exch_used),
+                    'maxCount'  => max(1, (int)ini_get('max_file_uploads') ?: 20),
+                    'maxPost'   => fe_ini_bytes(ini_get('post_max_size')) ?: 8 * 1024 * 1024,
+                    'deny'      => FE_DENY_EXT,
+                    'txt'       => array_map('lang', [
+                        'type'    => '@this file type is not allowed',
+                        'folder'  => '@the folder name is not allowed',
+                        'big'     => '@the file is too large',
+                        'quota'   => '@The selected files are larger than the free space in the exchange area',
+                        'ready'   => '@ready',
+                        'sending' => '@uploading...',
+                        'saved'   => '@uploaded as',
+                        'uploaded'=> '@uploaded',
+                        'server'  => '@the server refused the upload',
+                        'files'   => '@files selected',
+                        'none'    => '@No files selected yet',
+                        'done'    => '@Finished',
+                        'show'    => '@Show the folder',
+                        'name'    => '@File',
+                        'size'    => '@Size',
+                        'status'  => '@Status',
+                        'all'     => '@Select / deselect all',
+                    ]),
+                ];
+                echo '<form id="feUpload" method="post" enctype="multipart/form-data" action="'.basename(__FILE__).'?show='.urlencode($exch_dest).'" '.
+                           'data-cfg="'.p2h_enc(json_encode($feCfg)).'" style="margin: 6px 0;">'.
                          csrf_field(true).
-                         '<input type="file" name="fe_upload[]" multiple required aria-label="'.p2h_enc(lang('@Files to upload')).'"> '.
-                         '<button type="submit" class="txtbutt" style="border-radius: 54px; height: 30px; background-color: ivory; padding: 0 15px;">'.
+                         '<div id="feDrop" class="fe-drop">'.
+                            '<i class="fas fa-cloud-upload-alt fa-2x colr9"></i><br>'.
+                            p2h_enc(lang('@Drag files or folders from your PC here - or')).'<br>'.
+                            '<label class="txtbutt fe-pick"><input type="file" name="fe_upload[]" id="feFiles" multiple>'.
+                                '<i class="far fa-file"></i> '.p2h_enc(lang('@Choose files')).'</label> '.
+                            '<label class="txtbutt fe-pick fe-js"><input type="file" id="feFolder" webkitdirectory multiple>'.
+                                '<i class="far fa-folder colr0"></i> '.p2h_enc(lang('@Choose a folder')).'</label>'.
+                         '</div>'.
+                         '<div id="feList" class="fe-list" aria-live="polite"></div>'.
+                         '<button type="submit" id="feSend" class="txtbutt" style="border-radius: 54px; height: 30px; background-color: ivory; padding: 0 15px;">'.
                             '<i class="fas fa-upload"></i> '.p2h_enc(lang('@Upload')).'</button> '.
-                         '<small>'.p2h_enc(lang('@to')).': <b>'.p2h_enc(ltrim(substr($exch_dest, strlen($root_path)), '/')).'</b></small>'.
-                     '</form>';
+                         '<button type="button" id="feClear" class="txtbutt fe-js" style="border-radius: 54px; height: 30px; padding: 0 15px;">'.
+                            '<i class="fas fa-times"></i> '.p2h_enc(lang('@Clear list')).'</button> '.
+                         '<small>'.p2h_enc(lang('@to')).': <b>'.p2h_enc(ltrim(substr($exch_dest, strlen($root_path)), '/')).'</b></small> '.
+                         '<progress id="feProg" max="100" value="0" hidden style="width: 200px; vertical-align: middle;"></progress> '.
+                         '<span id="feSum"></span>'.
+                     '</form>'.
+                     '<script src="fe-upload.js?v='.@filemtime(__DIR__.'/fe-upload.js').'" defer></script>';
+            }
             else echo '<i>'.p2h_enc(lang('@Your account can only download files from here.')).'</i><br>';
             echo '<small>'.p2h_enc(lang('@Download: click the download icon before a file name in the exchange area, or right-click the row.')).'</small>'.
                  '</div>';

@@ -27,6 +27,10 @@ Recently added context menus that you can activate by right-clicking on a file o
 ### Exchange area - files between the server and your PC:
 - The folder `_exchange/` (set `$fe_exchange_path` to change it) is the **only** place where files can be
   uploaded from your PC, downloaded to your PC and deleted. Everything else is read-only.
+- Upload: **drag files or whole folders** from your PC onto the drop zone, or use *Choose files* / *Choose a folder*.
+  A list shows every file with a check box; files the server would refuse are marked with the reason and not sent.
+  Folder structure is kept, and large selections are sent in batches that fit PHP's `max_file_uploads` / `post_max_size`
+  (`fe-upload.js`; without JavaScript the plain file field still works).
 - It is created automatically with a `.htaccess` that blocks direct web access: files are only served
   through `folder-explorer.php?dl=...`, for logged-in users.
 - Rights per account in `$auth_users` (3rd field): `r` = download, `w` = upload and delete.
