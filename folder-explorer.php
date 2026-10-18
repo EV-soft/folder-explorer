@@ -461,8 +461,8 @@ $p2h_Style = '
 /* fe_hint(): the hint opens below its own element (abbr.hint data-hint is otherwise placed from the nearest positioned box) */
 /* Folder tree: drawn lines (├ └ │) - one level = one step of the Level ruler */
 ul.feTree { list-style: none; margin: 0; padding: 0 0 0 7px; line-height: 1.25; }      /* The line just below the icon of the parent folder */
-ul.feTree:not(li > ul) { padding-left: 2px; }
-ul.feTree:not(li > ul) > li { padding-left: 28px; }  /* Level 0 just below "0:" of the ruler */
+ul.feTree:not(li > ul) { padding-left: 30px; }      /* Room for the level numbers at the far left */
+ul.feTree:not(li > ul) > li { padding-left: 28px; }  /* Then one level = 50px */
 ul.feTree:not(li > ul) > li::before { width: 23px; }
 ul.feTree li { position: relative; padding: 1px 0 1px 43px; white-space: nowrap; }    /* 7 + 43 = 50px: one step of the Level ruler */
 ul.feTree li::before { content: ""; position: absolute; left: 0; top: 0; width: 38px; height: 0.8em;
@@ -472,6 +472,10 @@ ul.feTree li:last-child::after { display: none; }
 ul.feTree .feTreeIc { color: #d9a400; margin-right: 5px; font-size: 0.9em; }
 ul.feTree a { text-decoration: none; }
 ul.feTree a:hover { text-decoration: underline; }
+ul.feTree .feLvl { position: absolute; width: 22px; top: 2px; text-align: right; font: 11px monospace; color: #8a94a0; }
+ul.feTree li.feHere > .feLvl { color: #b07d00; font-weight: bold; }
+.feRuler { position: relative; height: 18px; margin-top: 6px; border-top: 1px dashed #c5ccd3; font: 11px monospace; color: #8a94a0; white-space: nowrap; }
+.feRuler span { position: absolute; top: 3px; }
 ul.feTree li.feHere > abbr > a { background: #fff3c4; border-radius: 3px; padding: 0 4px; }
 abbr.hint.feHint { position: relative; display: inline-block; text-decoration: none; }
 abbr.hint.feHint:hover data-hint, abbr.hint.feHint:focus-within data-hint { left: 0; top: calc(100% + 4px); }
@@ -781,7 +785,9 @@ function listFolders($dir,$currentDir='',$depth=0) {
         $full= p2h_norm_path($dir.'/'.$item);
         $here= ($full === $GLOBALS['currPath']);                            // The folder shown below
         $onPath= !$here && fe_in_dir($GLOBALS['currPath'], $full);          // A folder above it
+        $lvlX= $depth ? 65 + ($depth-1)*50 : 30;                           // Back to the left edge of the tree
         echo '<li'.($here ? ' class="feHere"' : '').'>'.
+             '<span class="feLvl" style="left: -'.$lvlX.'px;">'.$depth.'</span>'.
              '<i class="'.($here || $onPath ? 'fas fa-folder-open' : 'fas fa-folder').' feTreeIc"></i>'.
              fe_hint('<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '">'.
                  ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
@@ -1381,7 +1387,6 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     htm_nl(1);
     htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',
                 wdth:'',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
-        echo '<span style="text-align:left;"><pre style="margin-bottom: 0;">Level:  0:     1:     2:     3:     4:     5:     6:     7:     8:     9:    10:    11:    12:    13:    14:  </pre></span>';
         htm_wrapp_($ViewHeight='300px; text-align:left; ');
 
         // $base= $_SERVER['DOCUMENT_ROOT'];        // $base= substr($base,0,-13);
@@ -1390,6 +1395,9 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>All folders with name="'.p2h_enc($currentDir).'" (current folder), are marked with bold text.',
                     algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
         listFolders($base,$currentDir);
+        $ruler= '<span style="left: 0;">Level:</span>';                    // The level axis below the tree
+        for ($l= 0; $l <= 14; $l++) $ruler.= '<span style="left: '.(30 + 28 + 50*$l).'px;">'.$l.'</span>';
+        echo '<div class="feRuler" style="width: '.(30 + 28 + 50*14 + 20).'px;">'.$ruler.'</div>';
 
         htm_wrapp_end();
     htm_Card_end($labl='', $icon='',  $hint='', name: '', form: '', subm: false, attr: '', akey: '', kind: 'save', simu: false);
