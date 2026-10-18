@@ -478,6 +478,10 @@ ul.feTree li.feHere > .feLvl { color: #b07d00; font-weight: bold; }
 .feRuler span { position: absolute; top: 3px; }
 ul.feTree .feTreeSize { font: 11px monospace; color: #5d6b78; }
 ul.feTree .feTreeNum { display: inline-block; min-width: 10ch; text-align: right; }
+.feRelSw button { font-size: 12px; padding: 1px 9px; margin: 0; border: 1px solid #9aa5b1; background: #fff; color: #333; cursor: pointer; box-shadow: none; }
+.feRelSw button:first-of-type { border-radius: 10px 0 0 10px; }
+.feRelSw button:last-of-type  { border-radius: 0 10px 10px 0; border-left: 0; }
+.feRelSw button[aria-pressed=true] { background: #3c8dbc; border-color: #3c8dbc; color: #fff; }
 ul.feTree .feSizeCol { position: absolute; top: 2px; }    /* One column for all levels: --feSizeX is set from the widest folder name */
 ul.feTree .feTreeBar { display: inline-block; width: 50px; height: 7px; margin-right: 5px; border: 1px solid #b9c3cc; border-radius: 3px; vertical-align: middle; background: #f3f5f7; overflow: hidden; }
 ul.feTree .feTreeBar > span { display: block; height: 100%; background: #3c8dbc; }
@@ -811,9 +815,9 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
         if ($sizes) {
             $pct= $total > 0 ? $size / $total * 100 : 0;
             $liX= $depth ? 35 + ($depth-1)*50 : 0;                         // This level from level 0
-            echo '<span class="feSizeCol" style="left: calc(var(--feSizeX, 400px) - '.(30 + $liX).'px);">'.fe_hint('<span class="feTreeSize">'.
+            echo '<span class="feSizeCol" data-bytes="'.$size.'" data-pp="'.round($pct, 2).'" style="left: calc(var(--feSizeX, 400px) - '.(30 + $liX).'px);">'.fe_hint('<span class="feTreeSize">'.
                      '<span class="feTreeBar"><span style="width: '.round($pct, 1).'%;"></span></span><span class="feTreeNum">'.p2h_nice_filesize($size).'</span></span>',
-                     number_format((float)$size, 0, ',', ' ').' Bytes<br>'.round($pct).' % '.lang('@of the parent folder')).'</span>';
+                     number_format((float)$size, 0, ',', ' ').' Bytes<br><span class="feTreePct">'.($pct > 0 && $pct < 1 ? number_format($pct, 2) : round($pct)).' % '.lang('@of the parent folder').'</span>').'</span>';
         }
         echo $kids.'</li>';
     }
@@ -1435,7 +1439,35 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                     # $body,$algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; ',$attr='background-color: white; ');
         htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>All folders with name="'.p2h_enc($currentDir).'" (current folder), are marked with bold text.',
                     algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
+        ob_start();                                                         // The tree first: the total is shown above it
         $treeTotal= listFolders($base,$currentDir);
+        $treeHtml= ob_get_clean();
+        if ($fe_treesize)
+            echo '<div style="margin: 0 0 6px 4px; font-size: 13px;"><i class="fas fa-hdd" style="color: #1a7f37;"></i> '.
+                 p2h_enc(lang('@Used space below BASE')).': <b>'.p2h_nice_filesize($treeTotal).'</b> '.
+                 '<small style="color: gray;">('.number_format((float)$treeTotal, 0, ',', ' ').' Bytes)</small>'.
+                 // The bars: share of the parent folder or of BASE (switched in the browser, remembered there)
+                 '<span class="feRelSw" role="group" aria-label="'.p2h_enc(lang('@Share of')).'" hidden> &nbsp; '.p2h_enc(lang('@Share of')).': '.
+                    '<button type="button" data-rel="parent" aria-pressed="true">'.p2h_enc(lang('@Parent folder')).'</button>'.
+                    '<button type="button" data-rel="base" aria-pressed="false">BASE</button></span></div>'.
+                 '<script>(function(){'.
+                    'var sw= document.querySelector(".feRelSw"), total= '.(int)$treeTotal.';  if (!sw) return;'.
+                    'var txt= {parent: '.p2h_js(lang('@of the parent folder')).', base: '.p2h_js(lang('@of BASE')).'};'.
+                    'function set(rel) {'.
+                        'document.querySelectorAll("ul.feTree .feSizeCol").forEach(function(c){'.
+                            'var p= rel === "base" ? (total > 0 ? c.getAttribute("data-bytes") / total * 100 : 0) : parseFloat(c.getAttribute("data-pp"));'.
+                            'c.querySelector(".feTreeBar > span").style.width= p.toFixed(1) + "%";'.
+                            'var t= c.querySelector(".feTreePct");  if (t) t.textContent= (p < 1 && p > 0 ? p.toFixed(2) : Math.round(p)) + " % " + txt[rel];'.
+                        '});'.
+                        'sw.querySelectorAll("button").forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-rel") === rel ? "true" : "false"); });'.
+                        'try { localStorage.setItem("feTreeRel", rel); } catch (e) {}'.
+                    '}'.
+                    'sw.addEventListener("click", function(e){ var b= e.target.closest("button[data-rel]");  if (b) set(b.getAttribute("data-rel")); });'.
+                    'sw.hidden= false;'.
+                    'var r= "parent";  try { r= localStorage.getItem("feTreeRel") || "parent"; } catch (e) {}'.
+                    'if (r === "base") document.addEventListener("DOMContentLoaded", function(){ set("base"); });     /* The tree comes below this script */'.
+                 '})();</script>';
+        echo $treeHtml;
         if ($fe_treesize)       // The size column just right of the widest folder name
             echo '<script>(function(){'.
                     'var t= document.querySelector("ul.feTree");  if (!t) return;'.
@@ -1448,10 +1480,6 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                     '}'.
                     'fit();  if (window.ResizeObserver) new ResizeObserver(fit).observe(t);'.
                  '})();</script>';
-        if ($fe_treesize)
-            echo '<div style="margin: 6px 0 0 4px; font-size: 13px;"><i class="fas fa-hdd" style="color: #1a7f37;"></i> '.
-                 p2h_enc(lang('@Used space below BASE')).': <b>'.p2h_nice_filesize($treeTotal).'</b> '.
-                 '<small style="color: gray;">('.number_format((float)$treeTotal, 0, ',', ' ').' Bytes)</small></div>';
         $ruler= '<span style="left: 0;">Level:</span>';                    // The level axis below the tree
         for ($l= 0; $l <= 14; $l++) $ruler.= '<span style="left: '.(30 + 28 + 50*$l).'px;">'.$l.'</span>';
         echo '<div class="feRuler" style="width: '.(30 + 28 + 50*14 + 20).'px;">'.$ruler.'</div>';
