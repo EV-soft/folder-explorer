@@ -3776,6 +3776,7 @@ $result= '
 
   .grab-slider-wrapper {
     position: relative;
+    box-sizing: border-box;                         /* The border inside the width (it stuck out 2px at width 100%) */
     width: '.$wdth.';
     height: '.$vhgh.';
     border: 1px solid gray;
@@ -3816,6 +3817,8 @@ $result= '
     border: 1px solid #111;
     border-radius: calc('.$vhgh.' / 2);
     cursor: grab;
+    user-select: none;  -webkit-user-select: none;  /* A drag must not select the text (a native drag of selected text stopped the slider) */
+    transition: left 0.15s;
     background: white;
     color: #111;                                    /* Dark text on the white slider - also in the dark theme */
     border-color: white;
@@ -3860,16 +3863,28 @@ $result.= '
     if (!slider || !input || wrapper.dataset.p2hInit) return;  wrapper.dataset.p2hInit= "1";
     slider.style.touchAction= "none";
     slider.addEventListener("pointerdown", function(e) {
-      var startX= e.clientX - slider.offsetLeft, maxleft= wrapper.clientWidth - slider.offsetWidth;
-      try { slider.setPointerCapture(e.pointerId); } catch(err) {}
-      function move(ev) {
-        var left= Math.max(0, Math.min(maxleft, ev.clientX - startX)), ok= (left >= maxleft - 1);
-        slider.style.left= left + "px";
+      if (e.button > 0) return;                                 /* Left button, finger or pen */
+      e.preventDefault();                                       /* No text selection and no native drag (it cancelled the slide) */
+      var zoom= parseFloat(getComputedStyle(document.body).zoom) || 1;    /* View bar zoom on <body> */
+      var startX= e.clientX, startLeft= slider.offsetLeft, left= startLeft;
+      function maxleft() { return wrapper.clientWidth - slider.offsetWidth; }
+      function set(l) {
+        left= l;  var ok= (l >= maxleft() - 1);
+        slider.style.left= l + "px";
         wrapper.classList.toggle("human", ok);
-        input.value= ok ? "notbot" : "isbot";  slider.setAttribute("aria-valuenow", ok ? "1" : "0");    /* (was set by the keyboard only) */
+        input.value= ok ? "notbot" : "isbot";  slider.setAttribute("aria-valuenow", ok ? "1" : "0");
       }
-      function up() { slider.removeEventListener("pointermove", move); slider.removeEventListener("pointerup", up); slider.removeEventListener("pointercancel", up); }
-      slider.addEventListener("pointermove", move);  slider.addEventListener("pointerup", up);  slider.addEventListener("pointercancel", up);
+      try { slider.setPointerCapture(e.pointerId); } catch(err) {}
+      slider.style.transition= "none";                          /* Follow the pointer directly while dragging */
+      function move(ev) { set(Math.max(0, Math.min(maxleft(), startLeft + (ev.clientX - startX) / zoom))); }
+      function up() {
+        slider.removeEventListener("pointermove", move);  slider.removeEventListener("pointerup", up);
+        slider.removeEventListener("pointercancel", up);  slider.removeEventListener("lostpointercapture", up);
+        slider.style.transition= "";
+        set(left >= maxleft() * 0.8 ? maxleft() : 0);           /* Released after 80 %: slides to the end - else back to the start */
+      }
+      slider.addEventListener("pointermove", move);  slider.addEventListener("pointerup", up);
+      slider.addEventListener("pointercancel", up);  slider.addEventListener("lostpointercapture", up);
     });
     slider.addEventListener("keydown", function(e) {      /* Keyboard: Enter, Space, right arrow or End solves it (was: mouse only - the form could not be sent) */
       if (["Enter", " ", "ArrowRight", "End"].indexOf(e.key) < 0) return;
