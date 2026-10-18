@@ -24,4 +24,21 @@ In simple mode: it speeds up and works like a typical file-browser without analy
 
 Recently added context menus that you can activate by right-clicking on a file or folder row in the table (still demo).
 
-Tested to run on latest PHP 8.3 (PHP 7.0 required)
+### Requirements:
+- PHP 8.0 or newer (the code uses named arguments). Tested on PHP 8.3.
+- `short_open_tag` is **not** required.
+
+### Installation:
+1. Copy the files to a folder on your web server.
+2. Open `folder-explorer.php` in the browser.
+3. The bundled `php2html.lib.php` is used, unless a shared copy exists in `../p2h/v1.4.x/`.
+
+### Security / configuration:
+- Browsing is restricted to `$fe_root_path` (default: the folder containing `folder-explorer.php`)
+  and its subfolders. Paths outside it (also via `../`) fall back to the root.
+  Set `$fe_root_path` near the top of `folder-explorer.php` to change it.
+- Accounts are defined in `$auth_users` as bcrypt hashes. To create a new account,
+  try to log in with the wanted name and password: the error message shows a
+  `name: hash` line that you can copy into `$auth_users`.
+- Change or remove the demo accounts before you put the program on a public server.
+- The full variable dump in the "Develop" card is only shown for `fe-admin` with `?debug` in the URL.

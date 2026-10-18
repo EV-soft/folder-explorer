@@ -1,4 +1,4 @@
-<?  $DocFileLib='../php2html.lib.php';    $DocVer='1.4.2';    $DocRev='2024-08-10';      $DocIni='evs';  $ModNo=0; ## File informative only
+<?php  $DocFileLib='../php2html.lib.php';    $DocVer='1.4.2';    $DocRev='2024-08-10';      $DocIni='evs';  $ModNo=0; ## File informative only
 { ## Group ******************** System HEAD: **************************
 #   PHP to HTML generator - "Clever-Html-Engine" for front-end design, with lots of advanced features.
 #

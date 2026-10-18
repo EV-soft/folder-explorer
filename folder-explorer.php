@@ -1,4 +1,4 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.4.0';    $DocRev='2024-08-30';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.5.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-24 EV-soft *** See the file: LICENSE';
 
 $sys= $GLOBALS["gbl_ProgRoot"]= './';
@@ -10,12 +10,14 @@ $needPolyfill=    '0';
 $needFontawesome= '2';
 $needTinymce=     '0';
 
-// require_once ($sys.'php2html.lib.php');    // Creating HTML-functions
-require_once ('../p2h/v1.4.x/php2html.lib.php');    // Creating HTML-functions
+// Use the bundled library, unless a shared copy is installed beside the project:
+$p2h_lib= is_file(__DIR__.'/../p2h/v1.4.x/php2html.lib.php') ? __DIR__.'/../p2h/v1.4.x/php2html.lib.php' : __DIR__.'/php2html.lib.php';
+require_once ($p2h_lib);    // Creating HTML-functions
 
 ##### SPECIAL this page only:
 define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
 define ('p2h_PATH', ''); // $p);             // $p = pathinfo($p)['dirname'];
+defined('p2h_ICONV_INPUT_ENC') || define('p2h_ICONV_INPUT_ENC', 'UTF-8');  // PHP 7.1+ uses UTF-8 filenames on Windows too
 
 $is_https = isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] == 'on' || $_SERVER['HTTPS'] == 1)
     || isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https';
@@ -28,8 +30,8 @@ defined('p2h_FILE_EXTENSION')    || define('p2h_FILE_EXTENSION', $p2h_AppConf['a
 defined('p2h_UPLOAD_EXTENSION')  || define('p2h_UPLOAD_EXTENSION', $p2h_AppConf['allowed_upload_extensions']?? '');
 defined('p2h_EXCLUDE_ITEMS')     || define('p2h_EXCLUDE_ITEMS', $p2h_AppConf['exclude_items']?? '');
 defined('p2h_DOC_VIEWER')        || define('p2h_DOC_VIEWER', $p2h_AppConf['online_viewer']?? '');
-define ('p2h_READONLY', $p2h_AppConf['use_auth'] ?? ''
-            && !empty($p2h_AppConf['readonly_users']) 
+define ('p2h_READONLY', ($p2h_AppConf['use_auth'] ?? false)
+            && !empty($p2h_AppConf['readonly_users'])
             && isset($_SESSION[p2h_SESSION_ID]['logged']) 
             && in_array($_SESSION[p2h_SESSION_ID]['logged'], 
             $p2h_AppConf['readonly_users']));
@@ -46,6 +48,27 @@ $auth_users = array(    # hash                                              # us
 );  # To create a new user: Login with wrong password. Error shows you a korrect user: hash comination. Copy this to a new record in $auth_users
 
 $locked_path= 'ev-soft.work/fe/locked2/demo/';
+
+## Browsing is restricted to this folder and its subfolders (no access above it):
+$fe_root_path= $fe_root_path ?? __DIR__;
+
+function p2h_js($str) { // Encode a PHP string as a safe JavaScript string literal
+    return json_encode((string)$str, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+}
+
+function p2h_norm_path($path) { // Unified slashes, no trailing slash
+    return rtrim(str_replace('\\', '/', $path), '/');
+}
+
+function p2h_safe_path($requested, $root) { // Resolve $requested and accept it only inside $root
+    $root = p2h_norm_path(realpath($root) ?: $root);
+    if ($requested === null || $requested === '') return $root;
+    $real = realpath($requested);
+    if ($real === false) $real = realpath('/'. ltrim($requested, '/'));
+    if ($real === false || !is_dir($real)) return $root;
+    $real = p2h_norm_path($real);
+    return ($real === $root || strpos($real.'/', $root.'/') === 0) ? $real : $root;
+}
 
 function hex_dump($string, $line_sep='\n',$bytes_per_line=16,$pad_char='·',$want_array=false) { // https://stackoverflow.com/questions/1057572/how-can-i-get-a-hex-dump-of-a-string-in-php
     if (!is_scalar($string)) throw new InvalidArgumentException('$string argument must be a string');
@@ -99,12 +122,14 @@ function p2h_get_size($file) {  // Recover all file sizes larger than > 2GB.  32
     static $iswin;
     static $isdarwin;
     static $exec_works;
+    if (PHP_INT_SIZE >= 8) { return @filesize($file); }    // 64-bit PHP handles large files natively
     if (!isset($iswin))      {$iswin = (strtoupper(substr(PHP_OS, 0, 3)) == 'WIN'); }
     if (!isset($isdarwin))   {$isdarwin = (strtoupper(substr(PHP_OS, 0)) == "DARWIN"); }    //  MacOS
     if (!isset($exec_works)) {$exec_works = (function_exists('exec') && !ini_get('safe_mode') && @exec('echo EXEC') == 'EXEC'); }
 
     if ($exec_works) {    // try a shell command
-        $cmd = ($iswin) ? "for %F in (\"$file\") do @echo %~zF" : ($isdarwin ? "stat -f%z \"$file\"" : "stat -c%s \"$file\"");
+        $arg = escapeshellarg($file);   // Never put a raw filename in a shell command
+        $cmd = ($iswin) ? "for %F in ($arg) do @echo %~zF" : ($isdarwin ? "stat -f%z $arg" : "stat -c%s $arg");
         @exec($cmd, $output);
         if (is_array($output) && ctype_digit($size = trim(implode("\n", $output)))) { return $size; }
     }
@@ -127,7 +152,7 @@ function p2h_nice_filesize($size)    // Output nice rounded filesize
 }
 
 function p2h_get_file_icon_class($path) { // Get CSS classname for file
-    global $is_archive;   $is_image;   $is_audio;   $is_video;   $is_text;
+    global $is_archive, $is_image, $is_audio, $is_video, $is_text;
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
     $icoc = '';     $showType = 'File'; // default
     if (in_array($ext,['ico','gif','jpg','jpeg','jpc','jp2','jpx','xbm','wbmp','png','bmp','tif','tiff','ttf','eot','woff','woff2','svg']) )
@@ -187,15 +212,16 @@ $p2h_Style = '
         box-shadow: 2px 2px 1px lightgray;
     }
     
-    .table td.div.file-name-div {   /* live-preview */
+    .file-name-div {   /* live-preview */
         position: relative;
     }
     .live-preview-img {
         display: none;
         border: 1px solid lightgray;
         position: absolute;
-        top: 180px;
-        left: 330px;
+        top: 1.4em;
+        left: 40px;
+        z-index: 10;
         max-width: 800px;
         background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAKklEQVR42mL5//8/Azbw+PFjrOJMDCSCUQ3EABZc4S0rKzsaSvTTABBgAMyfCMsY4B9iAAAAAElFTkSuQmCC)
     }
@@ -473,15 +499,20 @@ function p2h_get_directoryInfo($directory) {    // Get directory total size
     global $calc_folder;
     if ($calc_folder== true) { //  Slower output
       $size = 0;  $fileCount= 0;  $dirCount= 0;     $arrNames= [];
-      foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory)) as $fileinfo)
-      if ($fileinfo->isFile()) { 
-        $size +=     $fileinfo->getSize(); 
-        $arrNames[]= $fileinfo->getPathname(). ' ('.$fileinfo->getSize().' b)';
-        $fileCount++; 
-      }
-      else $dirCount++;
-          
-      $dirCount= $dirCount / 2 - 1; // counting: '.' and '..' in each directory
+      try {
+        $iter= new RecursiveIteratorIterator(
+                 new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+                 RecursiveIteratorIterator::SELF_FIRST,
+                 RecursiveIteratorIterator::CATCH_GET_CHILD);   // Skip unreadable subfolders instead of failing
+        foreach ($iter as $fileinfo) {
+          if ($fileinfo->isFile()) {
+            $size +=     $fileinfo->getSize();
+            $arrNames[]= p2h_norm_path($fileinfo->getPathname());
+            $fileCount++;
+          }
+          elseif ($fileinfo->isDir()) $dirCount++;
+        }
+      } catch (Exception $e) { /* Unreadable folder: return what was found */ }
       return [$size, $fileCount, $dirCount, $arrNames];
     }
     else return [lang('@Folder')]; //  Quick output
@@ -496,11 +527,13 @@ function p2h_fileView($view_title, $file, $ext, $file_path, $filesize_raw, $mime
     
     $is_image = false;
     $file_url = $file;
-    
+    $filenames = false;     // Archive listing is not implemented yet
+    $content = '';
+
 $result= '
     <div class="left" style=" /* width: 320px; */ overflow-x:visible; margin-left: 5px; background-color: white;">
-        <div class="break-word"><i>Content:</i> <b>'. $view_title. /* ' '. p2h_enc(p2h_convert_win($file)).  */'</b></div>'.
-        '<i>MIME-type:</i> '.$mime_type. '<br>'.
+        <div class="break-word"><i>Content:</i> <b>'. p2h_enc($view_title). /* ' '. p2h_enc(p2h_convert_win($file)).  */'</b></div>'.
+        '<i>MIME-type:</i> '.p2h_enc($mime_type). '<br>'.
         // <div class="break-word">'.
         '<div >'.
             '<i>'.lang('@Full path').'</i>: '. p2h_enc(p2h_convert_win($file_path)). '<br>'.
@@ -595,20 +628,22 @@ function p2h_folders($path)
     //foreach ($folders as $fold) echo $fold;
 }
 
-function listFolders($dir,$currentDir='') {
-    $arrItems = scandir($dir);
-    unset($arrItems[array_search('.', $arrItems, true)]);    unset($arrItems[array_search('..', $arrItems, true)]);
+function listFolders($dir,$currentDir='',$depth=0) {
+    if ($depth > 14) return;     // Same depth as the 'Level' ruler above the tree
+    $arrItems = @scandir($dir);
+    if (!is_array($arrItems)) return;    // Unreadable folder
+    $arrItems = array_diff($arrItems, ['.', '..']);
     if (count($arrItems) < 1) return;    // prevent empty elements
     $file= 0;
     echo '<ul>';
         foreach($arrItems as $item){
-            if(is_dir($dir.'/'.$item)) 
+            if(is_dir($dir.'/'.$item) && !is_link($dir.'/'.$item))  // Do not follow symlinks (loops)
             {echo '├ '.
-                  '<a href= "'.end(explode('/',__FILE__)).'?show=/'.$dir.'/'.$item. '" 
-                      title="'.$dir.'/'.'">'.
-                      ($currentDir==$item ? '<b>' : ''). $item. ($currentDir==$item ? '</b>' : '').
-                  '</a>'.'/'; 
-             listFolders($dir.'/'.$item,$currentDir);
+                  '<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '"
+                      title="'.p2h_enc($dir).'/'.'">'.
+                      ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
+                  '</a>'.'/';
+             listFolders($dir.'/'.$item,$currentDir,$depth+1);
             } else $file++;
         }
     echo '</ul>';
@@ -663,7 +698,7 @@ function p2h_fileExplore($path,$parentDir) {
             //if (is_file($file_path)) 
             //    $fileRef[]= $file_path;
         } else { 
-            $ext= '<a href="'.basename(__FILE__).'?show='.$_SERVER['DOCUMENT_ROOT'].$currentPath.'&amp;calc=true" title="'.lang('@Analyse folder content').'"> 
+            $ext= '<a href="'.basename(__FILE__).'?show='.urlencode($file_path).'&amp;calc=true" title="'.lang('@Analyse folder content').'">
                         <pre style="margin: 3px 0 0;"><i style="margin:0 8px;" class="far fa-folder colr0 bgclgold"></i>'.lang('@FOLDER').'</pre>'.
                   '</a>';
             $foldhint = ' data-title="'.lang('@Calculation of files in folder, is disabled').'" title="" ';
@@ -676,8 +711,7 @@ function p2h_fileExplore($path,$parentDir) {
         $modif = date('Y-m-d H:i', $ftime);
         $perms = substr(decoct(fileperms($file_path)), -4);
         if (function_exists('posix_getpwuid') && function_exists('posix_getgrgid')) {
-                // $owner = posix_getpwuid(fileowner($file_path));
-                $owner = posix_getpwuid(posix_getpwuid(fileowner($file_path)))['name'];
+                $owner = posix_getpwuid(fileowner($file_path)) ?: ['name' => fileowner($file_path)];
                 $group = posix_getgrgid(filegroup($file_path));
                 $posix = lang('@Owner : Group');
         } else {
@@ -700,7 +734,7 @@ function p2h_fileExplore($path,$parentDir) {
         str_WithHint($labl='<form name="doZip'.$ix.'" style="display:inline;"><button name="zipClone'.$ix.'" '. // p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3)
                           'style= "border-color: darkgrey; padding-inline-start: 5px; padding-inline-end: 5px;">
                           <i class="far fa-file-archive colr9"></i></button></form>', 
-                          $hint='@Create a ZipClone/backup of folder:'. '<b>'.$path.'/'.$fld.'</b><br>Files with prefix: _CLONE. will not be included! <br>(it is created with ZipClone-backup) ').
+                          $hint='@Create a ZipClone/backup of folder:'. '<b>'.p2h_enc($path.'/'.$fld).'</b><br>Files with prefix: _CLONE. will not be included! <br>(it is created with ZipClone-backup) ').
              '</div>';
             // if (isset($_GET['zipClone'.$ix])) { echo p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3); unset($_GET['zipClone'.$ix]); }
     } else { $buttns= ''; $meter= 0; }
@@ -709,13 +743,13 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['ix']= $ix;
         $rec['name']= '<div style="white-space: nowrap; margin: 3px 0 0 0;">'. '<div style="display: inline;"><i class="far fa-folder colr0" style="background-color: gold;"></i>'.
           // str_WithHint($labl='<a href="'.basename(__FILE__). '?show='.$path.'/'.$fld. '" class="txtbutt">&nbsp;'. $fld.'</a>', 
-             str_WithHint($labl='<a href="'.basename(__FILE__). '?show='.$path.'/'.$fld. '" class="txtbutt">&nbsp;'. $fld.'</a>', 
-             $hint=lang('@Show content in subfolder: <b>').$fld.'</b>').'</div>'. $buttns. '</div>';
+             str_WithHint($labl='<a href="'.basename(__FILE__). '?show='.urlencode($file_path). '" class="txtbutt">&nbsp;'. p2h_enc($fld).'</a>',
+             $hint=lang('@Show content in subfolder: <b>').p2h_enc($fld).'</b>').'</div>'. $buttns. '</div>';
         $rec['ext']= $ext;
         $rec['size']= $sortsize.'<div title="'.number_format((float)$foldsize, 0,',',' ').' Bytes" style="font-family:monospace; color:green;">'.$showsize.'</div>';
         $rec['modifyed']= $sorttime.$modif;
         $rec['perms']= $perms;
-        $rec['owner']= $owner['name'];      //$rec['group']= $group['name'];
+        $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
         $rec['access']= '-';
         $rec['space']= '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
                         <small style="/* width: 40px; */ display: inline-block; text-align: right; left: 40%; top: -16px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
@@ -725,20 +759,20 @@ function p2h_fileExplore($path,$parentDir) {
         // FOLDER Context-Menu: 
         Pmnu_($elem='tabl_row'.($ix-1000),$capt='@<small>FOLDER:</small> '. // $capt='@Regarding FOLDER:<br>'.
                                                 // '<i class="'.$icoc.' fa-sm"></i>&nbsp;'. // Fails
-                                                 '<b>'.$fld.'</b>',
+                                                 '<b>'.p2h_enc($fld).'</b>',
                                                  $wdth='260px', icon:'', stck:'false', cntx:true, rtrn:true).
        // Pmnu_($elem='tabl_row'.($ix-1000),$capt='@Regarding FOLDER:',$wdth='260px',$icon='far fa-folder colr0 bgclgold',$stck='false',$attr='background-color:lightcyan;',$cntx=true,$rtrn=true).
        //     Pmnu_Item($labl='<b>'.$fld.'</b><br>', $icon='far fa-folder colr0 bgclgold',   $hint='', $type='custom',  $name='cust',$clck='', $attr="'background-color: white; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-top: 10px;'' ",$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Rename folder',       $icon='fas fa-pen-square colrorange',  $hint='@Give another name',        $type='plain',  $name='renm',$clck='console.log(\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Delete folder',       $icon='fas fa-trash-alt colrred',      $hint='@Erase the folder',         $type='plain',  $name='dele',$clck='console.log(\''.$labl.'\')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Rename folder',       $icon='fas fa-pen-square colrorange',  $hint='@Give another name',        $type='plain',  $name='renm',$clck='console.log('.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Delete folder',       $icon='fas fa-trash-alt colrred',      $hint='@Erase the folder',         $type='plain',  $name='dele',$clck='console.log('.p2h_js($fld).')' ,$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='',                     $icon='',                               $hint='',                                                                  $type='separator',rtrn:true).
-            Pmnu_Item($labl='@Copy folder',         $icon='fas fa-copy colrbrown',          $hint='@Make a copy with a new name',                                      $type='plain',  $name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Create ZIP',          $icon='far fa-file-archive colrbrown',  $hint='@Make a compressed file with the content of this subfolder',        $type='plain',  $name='crea',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Syncronize',          $icon='fas fa-sync colrbrown',          $hint='@Create a ZipClone/backup of this folder with another selected...', $type='plain',  $name='crea',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Go to',               $icon='fas fa-chevron-right colrblack', $hint='@Look at this subfolder',                                           $type='plain',  $name='upld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Copy folder',         $icon='fas fa-copy colrbrown',          $hint='@Make a copy with a new name',                                      $type='plain',  $name='dnld',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Create ZIP',          $icon='far fa-file-archive colrbrown',  $hint='@Make a compressed file with the content of this subfolder',        $type='plain',  $name='crea',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Syncronize',          $icon='fas fa-sync colrbrown',          $hint='@Create a ZipClone/backup of this folder with another selected...', $type='plain',  $name='crea',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Go to',               $icon='fas fa-chevron-right colrblack', $hint='@Look at this subfolder',                                           $type='plain',  $name='upld',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='',                     $icon='',                               $hint='',                                                                  $type='separator',rtrn:true).
-            Pmnu_Item($labl='@Folder property',     $icon='fa-solid fa-binoculars colrblue',$hint='@Look at the folder property',                                      $type='plain',  $name='prop',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Create new folder',   $icon='fas fa-plus colrgray',           $hint='@Make a new folder',                                                $type='plain',  $name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Folder property',     $icon='fa-solid fa-binoculars colrblue',$hint='@Look at the folder property',                                      $type='plain',  $name='prop',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Create new folder',   $icon='fas fa-plus colrgray',           $hint='@Make a new folder',                                                $type='plain',  $name='dnld',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='',                     $icon='',                               $hint='',                                                                  $type='separator',rtrn:true).
             Pmnu_Item($labl='@Still an inactive DEMO', $icon='fas fa-info-circle colrred fa-sm',     $hint='@Click outside menu to close',                                      $type='custom',  $name='cust',$clck='',
                       $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 8px; padding-bottom: 0; padding-top: 10px;' ",$akey='',$enabl='true',$rtrn=true).
@@ -773,7 +807,7 @@ function p2h_fileExplore($path,$parentDir) {
         $locSize+=  $filesize_raw;
         $perms = substr(decoct(fileperms($file_path)), -4);
         if (function_exists('posix_getpwuid') && function_exists('posix_getgrgid')) {
-            $owner = posix_getpwuid(fileowner($file_path));
+            $owner = posix_getpwuid(fileowner($file_path)) ?: ['name' => fileowner($file_path)];
             $group = posix_getgrgid(filegroup($file_path));
             $posix = lang('@Owner : Group');
         } else {
@@ -782,23 +816,25 @@ function p2h_fileExplore($path,$parentDir) {
             $posix = lang('@PHP posix functions is not accessible! Numeric id is shown in sted of name.');
         }
         if ($calc_folder) {
-            $meter= $filesize_raw / $maxsize;
+            $meter= $maxsize > 0 ? $filesize_raw / $maxsize : 0;
             $mime_type = p2h_get_mime_type($file_path);
             $fileInfo= p2h_fileView($view_title, $fld, $ext, $file_path, $filesize_raw, $mime_type);
-            $nameFld= '<div class="file-name-div" title="File content: '.$view_title.' '. '<i class="'.$icoc.'"></i>&nbsp;'. $fld.$fileInfo.'</div>';
-            if ($ix < 200) // Max $ix previews on one page
-            // if ($Path==$currentPath)
-            $nameFld.= '<div class="live-preview-img file-name-div"> <img src="'. p2h_enc($currentPath. $fld). '" alt="'.$view_title.'">'.$fileInfo.'</div>';
+            $preview= '';
+            if ($ix < 1200) // Max 200 previews on one page ($ix starts at 1000)
+                $preview= '<div class="live-preview-img">'.
+                          ($view_title == 'Image' ? '<img src="'. p2h_enc($currentPath. $fld). '" alt="'.$view_title.'" loading="lazy">' : '').
+                          $fileInfo.'</div>';
+            $nameFld= '<div class="file-name-div" title="File content: '.$view_title.'"><i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld). $preview. '</div>';
         } else
-            $nameFld= '<i class="'.$icoc.'"></i>&nbsp;'. $fld;
-        if ($ext>'') $ext = '.'.$ext;
+            $nameFld= '<i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld);
+        if ($ext>'') $ext = '.'.p2h_enc($ext);
         $rec['ix']= $ix;
         $rec['name']= $nameFld;
         $rec['ext']= $ext;
         $rec['size']= $sortsize.'<div title="'.number_format((float)$filesize_raw, 0,',',' ').' Bytes">'.$showsize.'</div>';
         $rec['modifyed']= $sorttime.$modif;
         $rec['perms']= $perms;
-        $rec['owner']= $owner['name'];      //$rec['group']= $group['name'];
+        $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
         $rec['access']= $accetime.$acces;
         $rec['space']= '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
                         <small style="text-align: right; display: inline-block; left: 40%; top: -16px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
@@ -806,17 +842,17 @@ function p2h_fileExplore($path,$parentDir) {
 
     $Context_Row.=
         // FILE Context-Menu: 
-        Pmnu_($elem='tabl_row'.($ix-1000),$capt='@<small>FILE:</small> '. '<b>'.$fld.'</b>',
+        Pmnu_($elem='tabl_row'.($ix-1000),$capt='@<small>FILE:</small> '. '<b>'.p2h_enc($fld).'</b>',
                                           $wdth='260px', icon:'', stck:'false', cntx:true, rtrn:true).
-            Pmnu_Item($labl='@Preview',        $icon='far fa-eye colrblack',         $hint='@Look at content in viewer',     $type='plain', $name='view', $clck='seecontent(\''.$currentPath.'\',\''.$fld.'\')', $attr='', $akey='', $enabl='true', $rtrn=true).
+            Pmnu_Item($labl='@Preview',        $icon='far fa-eye colrblack',         $hint='@Look at content in viewer',     $type='plain', $name='view', $clck='seecontent('.p2h_js($currentPath).','.p2h_js($fld).')', $attr='', $akey='', $enabl='true', $rtrn=true).
             Pmnu_Item($labl='@Edit content',   $icon='far fa-edit colrgreen',        $hint='@Open file in editor',           $type='plain', $name='edit', $clck='window.open(\'TEST\',\'_self\')', $attr='',$akey='', $enabl='true', $rtrn=true).
-            Pmnu_Item($labl='@Rename file',    $icon='fas fa-pen-square colrorange', $hint='@Give another name',             $type='plain', $name='renm', $clck='fileview(\''.$currentPath.'\',\''.$fld.'\')', $attr='',$akey='', $enabl='true', $rtrn=true).
-            Pmnu_Item($labl='@Delete file',    $icon='fas fa-trash-alt colrred',     $hint='@Erase the file',                $type='plain', $name='dele', $clck='fileview(\''.$currentPath.'\',\''.$fld.'\')', $attr='',$akey='', $enabl='true', $rtrn=true).
+            Pmnu_Item($labl='@Rename file',    $icon='fas fa-pen-square colrorange', $hint='@Give another name',             $type='plain', $name='renm', $clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')', $attr='',$akey='', $enabl='true', $rtrn=true).
+            Pmnu_Item($labl='@Delete file',    $icon='fas fa-trash-alt colrred',     $hint='@Erase the file',                $type='plain', $name='dele', $clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')', $attr='',$akey='', $enabl='true', $rtrn=true).
             Pmnu_Item($labl='',                $icon='', $hint='', $type='separator', rtrn:true).
-            Pmnu_Item($labl='@Copy file',      $icon='fas fa-copy colrbrown',           $hint='@Make a copy with a new name or in another folder', $type='plain',$name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Create ZIP',     $icon='far fa-file-archive colrbrown',   $hint='@Make a compressed file with the content of this file', $type='plain', $name='crea',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@Download',       $icon='fas fa-download colrbrown',       $hint='@Download to local storage',    $type='plain',$name='dnld',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
-            Pmnu_Item($labl='@File properties',$icon='fa-solid fa-binoculars colrblue', $hint='@Look at the files properties', $type='plain',$name='prop',$clck='fileview(\''.$currentPath.'\',\''.$fld.'\')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Copy file',      $icon='fas fa-copy colrbrown',           $hint='@Make a copy with a new name or in another folder', $type='plain',$name='dnld',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Create ZIP',     $icon='far fa-file-archive colrbrown',   $hint='@Make a compressed file with the content of this file', $type='plain', $name='crea',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@Download',       $icon='fas fa-download colrbrown',       $hint='@Download to local storage',    $type='plain',$name='dnld',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
+            Pmnu_Item($labl='@File properties',$icon='fa-solid fa-binoculars colrblue', $hint='@Look at the files properties', $type='plain',$name='prop',$clck='fileview('.p2h_js($currentPath).','.p2h_js($fld).')',$attr='',$akey='',$enabl='true',$rtrn=true).
             Pmnu_Item($labl='',                $icon='', $hint='', $type='separator', rtrn:true).
             Pmnu_Item($labl='@Still an inactive DEMO', $icon='fas fa-info-circle colrred fa-sm', $hint='@Click outside menu to close', $type='custom',$name='info',$clck='', $attr="'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",$attr='',$akey='',$enabl='true',$rtrn=true).
         Pmnu_end($labl='',$hint='',$attr='',$rtrn=true);
@@ -911,7 +947,7 @@ $result= '
               $type= 'html', $name='fsearch',
               $valu= '<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
               $form= '', $wdth='200px', $algn='left',$attr='onclick="ToggShow()" class="dropbtn" ',$rtrn=true,
-              $unit= '', $disa=($_POST['prgMode'] ?? '' != 'mode_A'), $rows='0', $step='', $list=[], $llgn='R', $bord='', $ftop='')
+              $unit= '', $disa=(($_POST['prgMode'] ?? '') != 'mode_A'), $rows='0', $step='', $list=[], $llgn='R', $bord='', $ftop='')
               . '
     <div id="FileSearch" class="dropdown-content" 
         title="'. lang('@Click to open folder containing this file ') .'">
@@ -923,8 +959,8 @@ $result= '
             $pos= strrpos($file,'/')+1;
             $dir= substr($file,0,$pos);
             $fil= substr($file,$pos);
-            $name_list .= '<a href="'. basename(__FILE__). '?show='.$dir.'" >'.
-                        '<span class="colrgray">'.(strlen($dir) > 32 ? '...'.substr($dir,-32) : $dir).':</span> '. $fil.'</a>';
+            $name_list .= '<a href="'. basename(__FILE__). '?show='.urlencode(rtrim($dir,'/')).'" >'.
+                        '<span class="colrgray">'.p2h_enc(strlen($dir) > 32 ? '...'.substr($dir,-32) : $dir).':</span> '. p2h_enc($fil).'</a>';
             }
             $result.= '<div style= "text-align:left;">'.$name_list.'</div>';
     $result.= '
@@ -937,108 +973,91 @@ return $result;
 // arrPretty(get_defined_vars(),'Defined_vars:');
 
 
+##### AUTHENTICATION:  -  must run before any file-system data is collected
+if (empty($auth_users)) $use_auth = false; else $use_auth = true;
+
+if (isset($_GET['logout'])) {
+    unset($_SESSION[p2h_SESSION_ID]['logged']);
+}
+
+if ($use_auth) {
+    $logged= $_SESSION[p2h_SESSION_ID]['logged'] ?? null;
+    if ($logged !== null && isset($auth_users[$logged])) {
+        // Logged:
+    } elseif (isset($_POST['p2h_usr'], $_POST['p2h_pwd'])) {
+        // Logging In:
+        unset($_SESSION[p2h_SESSION_ID]['logged']);
+        sleep(1);   // Slow down password guessing
+        $usr= (string)$_POST['p2h_usr'];
+        $pwd= (string)$_POST['p2h_pwd'];
+        if (isset($auth_users[$usr][0]) && password_verify($pwd, $auth_users[$usr][0])) {
+            if (!headers_sent()) session_regenerate_id(true);    // Prevent session fixation
+            $_SESSION[p2h_SESSION_ID]['logged'] = $usr;
+            p2h_set_msg(lang('@You are logged in as: ').p2h_enc($usr));
+        } else {
+            // Shows a hash of the typed password, so a new account can be added to $auth_users:
+            $temp= p2h_enc($usr).': '.password_hash($pwd, PASSWORD_BCRYPT, ['cost' => 12]);
+            p2h_set_msg('@Login failed: Invalid account name and/or password. ', 'error');
+            $_SESSION[p2h_SESSION_ID]['message'].= ' '.$temp;
+        }
+    } else unset($_SESSION[p2h_SESSION_ID]['logged']);
+} else $_SESSION[p2h_SESSION_ID]['logged']= $_SESSION[p2h_SESSION_ID]['logged'] ?? 'guest';
+
+$is_logged= isset($_SESSION[p2h_SESSION_ID]['logged']);
+
+
 ##### PREPARE DATA:
-$calc_folder= ($_POST['prgMode'] ?? '' == 'mode_A');
-$currPath= __DIR__; // Initial path if 'show' is not set
-
-if     (isset($_POST['show']))  { $currPath= '//'.ltrim($_POST['show'],'/'); } # safer
-elseif (isset($_GET ['show']))  { $currPath= '//'.ltrim($_GET ['show'],'/'); } # unsafe
-if (isset($_POST['csvFile']))   { $csvFile= $_POST['csvFile']; }
-for ($ix=0;$ix<50;$ix++)
-    if (isset($_GET['zipClone'.$ix])) { echo p2h_folder_backup($currDir=$path.'/'.$fld, $subdirs= 3); unset($_GET['zipClone'.$ix]); }
-
-
+$calc_folder= (($_POST['prgMode'] ?? '') == 'mode_A');
 if (isset($_GET['calc'])) {
     $calc_folder= true;
 }
 
-if (isset($_GET['logout'])) {
-    unset($_SESSION[p2h_SESSION_ID]['logged']);
-    // p2h_redirect(p2h_SELF_URL);
+$root_path= p2h_norm_path(realpath($fe_root_path) ?: $fe_root_path);
+$currPath= p2h_safe_path($_POST['show'] ?? $_GET['show'] ?? '', $root_path);  // Never outside $root_path
+if (isset($_POST['csvFile']))   { $csvFile= basename($_POST['csvFile']); }   // No paths in export filename
+
+$root_dir= basename(p2h_norm_path($_SERVER['DOCUMENT_ROOT'] ?? ''));  // web
+$parentDir= basename(dirname($currPath));
+$currentDir= basename($currPath);
+
+// URL of the current folder (for image previews) - only when it is below DOCUMENT_ROOT:
+$docRoot= p2h_norm_path(realpath($_SERVER['DOCUMENT_ROOT'] ?? '') ?: '');
+$currentPath= null;
+if ($docRoot > '' && ($currPath === $docRoot || strpos($currPath.'/', $docRoot.'/') === 0)) {
+    $rel= trim(substr($currPath, strlen($docRoot)), '/');
+    $currentPath= '/'. ($rel > '' ? implode('/', array_map('rawurlencode', explode('/', $rel))). '/' : '');
 }
 
-$root_dir= end(explode('/',$_SERVER['DOCUMENT_ROOT'])); // web
-$parentDir= array_reverse(explode('/',$currPath))[2] ?? '';
-$currentDir= end(explode('/',$currPath));
-$currentPath= substr($currPath,strlen($root_dir)+strpos($currPath,$root_dir)).'/';
-
-// Build Breadcrumbs:
-$publ= false;   $lnkPath= '//';     $breadcrumbs= '';
-foreach($JumpTo= explode('/',$path ?? ''.$currPath) as $jt) // if ($jt[0]>'') 
-{ 
-    $lnkPath.= $jt.'/';
-    if ($jt==$currentDir) $breadcrumbs.= '<b>'.$jt.'</b>';
-    else    if ($publ)  {
-        $url= basename(__FILE__) .'?show='.rtrim($lnkPath,'/');
-        if ($jt==$currentDir) $GLOBALS['goUp']= ''; else $GLOBALS['goUp']= $url;
-        $breadcrumbs.= '<a href="'.$url.'" class="txtbutt">'.$jt.'</a>'.'&nbsp; / ';
-    }
-    if ($jt==$root_dir) $publ= true;
-}
-
-$data= p2h_fileExplore($currPath,$parentDir);
-$arrfolds= $data[0];
-$arrfiles= $data[1];
-$objNames= $data[2];
-$arrFnames= []; $i= 0;
-if (!$objNames==null)
-    foreach ($objNames as $obj) $arrFnames[]= [ $i++, substr($obj,strrpos($obj,DIRECTORY_SEPARATOR)+1)];
-// arrPretty($arrFnames,'arrFnames:');
-
-// $arrfolds= $GLOBALS['folders']; $arrfiles= $GLOBALS['files'];
-
-$tabldata= [];
-if (is_array($arrfolds) and (count($arrfolds)>0)) $tabldata= $arrfolds;
-if (is_array($arrfiles) and (count($arrfiles)>0)) $tabldata= array_merge($tabldata,$arrfiles);
-
-
-if (empty($auth_users)) $use_auth = false; else $use_auth = true;
-
-// Auth:
-if ($use_auth) {
-    if (isset($_SESSION[p2h_SESSION_ID]['logged'], $auth_users[$_SESSION[p2h_SESSION_ID]['logged'][0]])) {
-        // Logged:
-    } elseif (isset($_POST['p2h_usr'], $_POST['p2h_pwd'])) {
-        // Logging In:
-        sleep(1);
-        for ($i=1; $i<=5; $i++) $test[$i]= false;
-        if (function_exists('password_verify')) {
-            if ($test[1]= isset($auth_users[$_POST['p2h_usr']][0]) && 
-                $test[2]= isset($_POST['p2h_pwd'])              && 
-                $test[3]= password_verify($_POST['p2h_pwd'], $auth_users[$_POST['p2h_usr']][0]) && 
-                $test[4]= true /* $is_human= (true!=true) */    && 
-                $test[5]= true /* $Legal_BasePath= */
-               )
-            {   $_SESSION[p2h_SESSION_ID]['logged'] = $_POST['p2h_usr'];
-                p2h_set_msg(lang('@You are logged in as: ').$_POST['p2h_usr']);
-                // p2h_redirect(p2h_SELF_URL . '?show='); // $_POST['show']
-            } else {
-                unset($_SESSION[p2h_SESSION_ID]['logged']);
-                $temp= $_POST['p2h_usr'].': '.password_hash($_POST['p2h_pwd'], PASSWORD_BCRYPT, [12]);
-                $chk= '';
-                for ($i=1; $i<=5; $i++) if ($test[$i]==true) $chk=$chk.'ok '; else $chk=$chk.'fail ';
-                p2h_set_msg('@Login failed: Wrong Base-path and/or Invalid account name and/or password or is robot ('.$chk.') '.$temp, 'error');
-               // p2h_redirect(p2h_SELF_URL);
-               // if ($_POST['p2h_pwd']) echo $_POST['p2h_usr'].': '.password_hash($_POST['p2h_pwd'], PASSWORD_BCRYPT, [12]);
-            }
-        } else {
-            p2h_set_msg('@Password_hash not supported, Upgrade PHP version', 'error');
-            unset($_SESSION[p2h_SESSION_ID]['logged']);
-        }
+// Build Breadcrumbs (from $root_path down to the current folder):
+$breadcrumbs= '';   $GLOBALS['goUp']= '';
+$lnkPath= $root_path;
+$crumbs= array_merge([basename($root_path) ?: '/'],
+                     array_filter(explode('/', substr($currPath, strlen($root_path))), 'strlen'));
+foreach ($crumbs as $n => $jt) {
+    if ($n > 0) $lnkPath.= '/'.$jt;
+    $url= basename(__FILE__) .'?show='.urlencode($lnkPath);
+    if ($lnkPath === $currPath) $breadcrumbs.= '<b>'.p2h_enc($jt).'</b>';
+    else {
+        $GLOBALS['goUp']= $url;     // Ends as link to the parent folder
+        $breadcrumbs.= '<a href="'.p2h_enc($url).'" class="txtbutt">'.p2h_enc($jt).'</a>'.'&nbsp; / ';
     }
 }
 
+$tabldata= [];  $arrFnames= [];  $arrNames= [];
+$totFolds= 0;   $totFiles= 0;    $totSize= 0;   $locSize= 0;   $filesIncurrent= 0;   $Context_Row= '';
+if ($is_logged) {
+    $data= p2h_fileExplore($currPath,$parentDir);
+    $arrfolds= $data[0];
+    $arrfiles= $data[1];
+    $objNames= $data[2];
+    $i= 0;
+    if (!$objNames==null)
+        foreach ($objNames as $obj) $arrFnames[]= [ $i++, basename($obj)];
 
-// update root path
-if ($use_auth &&                    isset($_SESSION[p2h_SESSION_ID]['logged'])) {
-    $root_path = isset($directories_users[$_SESSION[p2h_SESSION_ID]['logged']]) 
-                     ? $directories_users[$_SESSION[p2h_SESSION_ID]['logged']] 
-                     : __DIR__;
-} else $root_path= $locked_path;
+    if (is_array($arrfolds) and (count($arrfolds)>0)) $tabldata= $arrfolds;
+    if (is_array($arrfiles) and (count($arrfiles)>0)) $tabldata= array_merge($tabldata,$arrfiles);
+}
 
-// clean and check $root_path
-$root_path = rtrim($root_path, '\\/');
-$root_path = str_replace('\\', '/', $root_path);
 /* 
 if (!@is_dir($root_path)) {
 
@@ -1108,9 +1127,9 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         htm_wrapp_($ViewHeight='300px; text-align:left; ');
 
         // $base= $_SERVER['DOCUMENT_ROOT'];        // $base= substr($base,0,-13);
-        $base= __DIR__.'';        // $base= substr($base,0,-13);
+        $base= $root_path;          // $base= substr($base,0,-13);
                     # $body,$algn='left',$marg='8px',$styl='box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; ',$attr='background-color: white; ');
-        htm_TextDiv(body:'BASE: <big><b>'.$base.'</b>/'.'</big><br>All folders with name="'.$currentDir.'" (current folder), are marked with bold text.',
+        htm_TextDiv(body:'BASE: <big><b>'.p2h_enc($base).'</b>/'.'</big><br>All folders with name="'.p2h_enc($currentDir).'" (current folder), are marked with bold text.',
                     algn:'left',marg:'8px',styl:'box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; border: solid 1px lightgray; background-color: white; ');
         echo '<style> ul { padding-left: 50px; line-height: 1.2; } </style>';
         listFolders($base,$currentDir);
@@ -1139,8 +1158,8 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                ($calc_folder == true ? 
                '<i>Content:</i> Folders: '.$totFolds.' - Files: '.markAllChars($filesIncurrent.'/','i','style="opacity:0.5;"').$totFiles. ' - ' : '' ).
                'Space: '.markAllChars(p2h_nice_filesize($locSize).'/','i','style="opacity:0.5;"').p2h_nice_filesize($totSize).
-               ' - Free: '.   p2h_nice_filesize(disk_free_space( __FILE__ )).
-               ' of total: '. p2h_nice_filesize(disk_total_space(__FILE__ )). 
+               ' - Free: '.   p2h_nice_filesize(@disk_free_space($currPath)).
+               ' of total: '. p2h_nice_filesize(@disk_total_space($currPath)). 
                '</span>'.
            '</span> <br>
             <div style="width: 800px; margin: auto; padding-top: 10px;">'. 
@@ -1160,7 +1179,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                 str_sp(2).
                 htm_LinkButt(labl:'@Language', hint:'@Open the translate language page', attr:'', 
                              link:'translate.page.php', targ:'_blank', rtrn:true).
-                '<span style= "padding: 0 12px;"> Logged as: <b>'.$_SESSION[p2h_SESSION_ID]['logged'].'</b></span>'.
+                '<span style= "padding: 0 12px;"> Logged as: <b>'.p2h_enc($_SESSION[p2h_SESSION_ID]['logged']).'</b></span>'.
                 '</form>'.
                 '<abbr class="hint" >
                     <form name="zzz" style=" display: inline-block; ">
@@ -1330,13 +1349,15 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         htm_nl(1);
     htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
   */  
-    $fileName= 'http://ev-soft.work/fe/'. '_assets/font-awesome6/6.1.1/LICENSE.txt';
-    $fileContent= file_get_contents ($fileName);
-    
+    // Demo of the HEX-viewer on a local file (previously fetched over HTTP on every page load):
+    $fileName= 'README.md';
+    $fileContent= (string)@file_get_contents(__DIR__.'/'.$fileName, false, null, 0, 2048);  // First 2 KB only
+    $hexView= str_replace('&amp;nbsp;', '&nbsp;', p2h_enc(hex_dump($fileContent,"\n",16,"·")));
+
     htm_Card_(capt:'HEX-view file: '.$fileName,icon:'fas fa-eye',hint: '',form:'',acti:'',clas:'cardW640',
                 wdth: '',styl:'background-color: white;',attr:'', show : true, head : 'background-color: white;');
         htm_wrapp_($ViewHeight='500px');
-            htm_TextDiv('<pre><code>'.hex_dump($fileContent,"<br>",16,"·").'</code></pre>',algn:'left',marg:'12px',styl:'',attr:'font-family:monospace; width:580px; background-color:lightcyan;'); 
+            htm_TextDiv('<pre><code>'.$hexView.'</code></pre>',algn:'left',marg:'12px',styl:'',attr:'font-family:monospace; width:580px; background-color:lightcyan;');
         htm_wrapp_end();
         htm_nl(1);
     htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
@@ -1347,14 +1368,14 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         Pmnu_(elem:'tblSpan',capt:'@Regarding PROGRAM:',wdth:'260px',icon:'',stck:'false', cntx:true, rtrn:true).
             Pmnu_Item(labl:'@Program menu:',          icon:'fas fa-wrench fa-sm', hint:'@Program functions. Go to: Admin / Settings, if you want to save permanently', vrnt:'custom',   name:'cust',clck:'',
                       attr:"'background-color: yellow; height: 44px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;'' ",shrt:'',enbl:'false',rtrn:true).
-            Pmnu_Item(labl:'@Program settings',       icon:'fa fa-cog colrgray',         hint:'@Change program settings',   vrnt:'plain', name:'sett',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
-            Pmnu_Item(labl:'@User settings',          icon:'fa fa-user colrgray',        hint:'@Change user settings',      vrnt:'plain', name:'user',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
-            Pmnu_Item(labl:$labl='@Help',             icon:'fa fa-question',             hint:'@Go to program help',        vrnt:'plain', name:'help',clck:'console.log(\''.$labl.'\')'  ,attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:'@Program settings',       icon:'fa fa-cog colrgray',         hint:'@Change program settings',   vrnt:'plain', name:'sett',clck:'console.log('.p2h_js($labl).')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:'@User settings',          icon:'fa fa-user colrgray',        hint:'@Change user settings',      vrnt:'plain', name:'user',clck:'console.log('.p2h_js($labl).')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='@Help',             icon:'fa fa-question',             hint:'@Go to program help',        vrnt:'plain', name:'help',clck:'console.log('.p2h_js($labl).')'  ,attr:'',shrt:'',enbl:'true',rtrn:true).
             Pmnu_Item(labl:$labl='',                  icon:'',                           hint:'',                           vrnt:'separator',rtrn:true).
-            Pmnu_Item(labl:$labl='@Create New Item',  icon:'fa fa-plus-square colrgray', hint:'@Create new file or folder', vrnt:'plain', name:'crea',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
-            Pmnu_Item(labl:$labl='@Upload',           icon:'fas fa-upload colrgray',     hint:'@Upload local file',         vrnt:'plain', name:'upld',clck:'console.log(\''.$labl.'\')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='@Create New Item',  icon:'fa fa-plus-square colrgray', hint:'@Create new file or folder', vrnt:'plain', name:'crea',clck:'console.log('.p2h_js($labl).')' , attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='@Upload',           icon:'fas fa-upload colrgray',     hint:'@Upload local file',         vrnt:'plain', name:'upld',clck:'console.log('.p2h_js($labl).')' , attr:'',shrt:'',enbl:'true',rtrn:true).
             Pmnu_Item(labl:$labl='',                  icon:'',                           hint:'',                           vrnt:'separator',rtrn:true).
-            Pmnu_Item(labl:$labl='@Logout',           icon:'fas fa-sign-out-alt',        hint:'@Leave the program in locked mode',vrnt:'plain', name:'logu',clck:'console.log(\''.$labl.'\')' ,attr:'',shrt:'',enbl:'true',rtrn:true).
+            Pmnu_Item(labl:$labl='@Logout',           icon:'fas fa-sign-out-alt',        hint:'@Leave the program in locked mode',vrnt:'plain', name:'logu',clck:'console.log('.p2h_js($labl).')' ,attr:'',shrt:'',enbl:'true',rtrn:true).
             Pmnu_Item(labl:$labl='@Still an inactive DEMO', icon:'fas fa-info-circle colrred fa-sm', hint:'@Click outside menu to close',     vrnt:'custom', name:'cust',clck:'',
                       attr:"'background-color: lightcyan; height: 24px; border-style: solid; border-width: 5px 1px 5px 1px; border-color: lightgray; border-radius: 10px; padding-top: 10px;' ",shrt:'',enbl:'true',rtrn:true).
         Pmnu_end(labl:'',hint:'',attr:'',rtrn:true).
@@ -1394,7 +1415,14 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     htm_nl(1);
     htm_Card_(capt:'Develop: ',icon:'fas fa-eye',hint: '',form:'',acti:'',clas:'cardW640',
                 wdth: '',styl:'background-color: white;',attr:'', show : true, head: 'background-color: white;');
-        arrPretty(get_defined_vars(),'Defined_vars:');
+        // Full variable dump only for the admin with ?debug - it contains password hashes, session and server data:
+        if (isset($_GET['debug']) && ($_SESSION[p2h_SESSION_ID]['logged'] ?? '') == 'fe-admin') {
+            $dump= get_defined_vars();
+            unset($dump['auth_users']);
+            arrPretty($dump,'Defined_vars:');
+        } else
+            arrPretty(['currPath' => $currPath, 'root_path' => $root_path, 'calc_folder' => $calc_folder,
+                       'folders' => $totFolds, 'files' => $totFiles, 'size' => $totSize], 'Status:');
     htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
     CardOff($First=1,$Last=1);
