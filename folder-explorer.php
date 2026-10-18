@@ -119,6 +119,10 @@ function fe_name_allowed($name) { // Never server scripts, server config or hidd
     return !preg_match('/'.FE_DENY_EXT.'/i', $name);
 }
 
+function fe_hint($html, $hint, $styl= '') { // The library hint (not the title tooltip of the browser) - opens just below $html
+    return '<abbr class="hint feHint"'.($styl > '' ? ' style="'.$styl.'"' : '').'>'.$html.'<data-hint>'.$hint.'</data-hint></abbr>';
+}
+
 function fe_is_admin() { // The logged user may remove the restrictions
     return in_array($_SESSION[p2h_SESSION_ID]['logged'] ?? '', $GLOBALS['fe_admins'] ?? [], true);
 }
@@ -454,6 +458,10 @@ $p2h_Style = '
     color: blue;
 }
  
+/* fe_hint(): the hint opens below its own element (abbr.hint data-hint is otherwise placed from the nearest positioned box) */
+abbr.hint.feHint { position: relative; display: inline-block; text-decoration: none; }
+abbr.hint.feHint:hover data-hint, abbr.hint.feHint:focus-within data-hint { left: 0; top: calc(100% + 4px); }
+
 /* Exchange area upload (fe-upload.js) */
 .fe-drop { border: 2px dashed #9bbbd6; border-radius: 10px; padding: 12px; margin: 6px 0; text-align: center; background: #f7fbff; }
 .fe-drop.fe-over { border-color: green; background: #eaffea; }
@@ -699,16 +707,11 @@ $result= '
     </div>
     
     <div> '; 
-        $result.= '<b><a download '.urlQuery(p2h_PATH,'dl',$file_url). ' title="'. 
-                    lang('@Get a copy locally').'"><i class="fa fa-download colrDwn fa-sm"></i> '.
-                    lang('@Download').
-                  '</a></b> &nbsp;&nbsp;&nbsp;';
+        $result.= fe_hint('<b><a download '.urlQuery(p2h_PATH,'dl',$file_url).'><i class="fa fa-download colrDwn fa-sm"></i> '.
+                    lang('@Download').'</a></b>', lang('@Get a copy locally')).' &nbsp;&nbsp;&nbsp;';
         if (!p2h_READONLY) { // prevent "File not found!" 
-            $result.= '<b><a target="_blank" title="'.
-                    lang('@View the file content') .'" 
-                    href="'. p2h_enc($file_url). '"><i class="fa fa-external-link-square-alt colrShw fa-sm"></i> '.
-                    lang('@Open'). 
-                    '</a></b> &nbsp;&nbsp;&nbsp;';
+            $result.= fe_hint('<b><a target="_blank" href="'. p2h_enc($file_url). '"><i class="fa fa-external-link-square-alt colrShw fa-sm"></i> '.
+                    lang('@Open').'</a></b>', lang('@View the file content')).' &nbsp;&nbsp;&nbsp;';
         }
 /*
         // ZIP actions
@@ -761,10 +764,9 @@ function listFolders($dir,$currentDir='',$depth=0) {
         foreach($arrItems as $item){
             if(is_dir($dir.'/'.$item) && !is_link($dir.'/'.$item))  // Do not follow symlinks (loops)
             {echo '├ '.
-                  '<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '"
-                      title="'.p2h_enc($dir).'/'.'">'.
+                  fe_hint('<a href= "'.basename(__FILE__).'?show='.urlencode($dir.'/'.$item). '">'.
                       ($currentDir==$item ? '<b>' : ''). p2h_enc($item). ($currentDir==$item ? '</b>' : '').
-                  '</a>'.'/';
+                  '</a>', p2h_enc($dir).'/').'/'; 
              if (!$pathOnly || fe_in_dir($GLOBALS['currPath'], p2h_norm_path($dir.'/'.$item)))
                  listFolders($dir.'/'.$item,$currentDir,$depth+1);
             } else $file++;
@@ -822,11 +824,11 @@ function p2h_fileExplore($path,$parentDir) {
             //if (is_file($file_path)) 
             //    $fileRef[]= $file_path;
         } else { 
-            $ext= '<a href="'.basename(__FILE__).'?show='.urlencode($file_path).'&amp;calc=true" title="'.lang('@Analyse folder content').'">
+            $ext= fe_hint('<a href="'.basename(__FILE__).'?show='.urlencode($file_path).'&amp;calc=true">
                         <pre style="margin: 3px 0 0;"><i style="margin:0 8px;" class="far fa-folder colr0 bgclgold"></i>'.lang('@FOLDER').'</pre>'.
-                  '</a>';
+                  '</a>', lang('@Analyse folder content'));
             $foldhint = ' data-title="'.lang('@Calculation of files in folder, is disabled').'" title="" ';
-            $showsize = '<div style="width:100%;text-align:center;" title="'.lang('@Not calculated ! - Calculation of files in folder, is disabled').'">-</div>';
+            $showsize = '<div style="width:100%;text-align:center;">'.fe_hint('-', lang('@Not calculated ! - Calculation of files in folder, is disabled')).'</div>';
         }
         // $sortsize = '<span style="display:none;">'.str_pad($foldsize, 18, "0", STR_PAD_LEFT).' </span>';
         $sortsize = '<span class="sortPrefix">'. $foldsize.  ' </span>';
@@ -870,7 +872,7 @@ function p2h_fileExplore($path,$parentDir) {
              str_WithHint($labl='<a href="'.basename(__FILE__). '?show='.urlencode($file_path). '" class="txtbutt">&nbsp;'. p2h_enc($fld).'</a>',
              $hint=lang('@Show content in subfolder: <b>').p2h_enc($fld).'</b>').'</div>'. $buttns. '</div>';
         $rec['ext']= $ext;
-        $rec['size']= $sortsize.'<div title="'.number_format((float)$foldsize, 0,',',' ').' Bytes" style="font-family:monospace; color:green;">'.$showsize.'</div>';
+        $rec['size']= $sortsize.'<div style="font-family:monospace; color:green;">'.fe_hint($showsize, number_format((float)$foldsize, 0,',',' ').' Bytes').'</div>';
         $rec['modifyed']= $sorttime.$modif;
         $rec['perms']= $perms;
         $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
@@ -948,7 +950,7 @@ function p2h_fileExplore($path,$parentDir) {
                 $preview= '<div class="live-preview-img">'.
                           ($view_title == 'Image' ? '<img src="'. p2h_enc($currentPath. $fld). '" alt="'.$view_title.'" loading="lazy">' : '').
                           $fileInfo.'</div>';
-            $nameFld= '<div class="file-name-div" title="File content: '.$view_title.'"><i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld). $preview. '</div>';
+            $nameFld= '<div class="file-name-div"><i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld). $preview. '</div>';
         } else
             $nameFld= '<i class="'.$icoc.'"></i>&nbsp;'. p2h_enc($fld);
         // In the exchange area: the name is a download link, and Download / Delete in the menu work
@@ -957,14 +959,14 @@ function p2h_fileExplore($path,$parentDir) {
                ($fe_unlocked ? basename(__FILE__).'?dla='.rawurlencode(p2h_norm_path($file_path)) : '');
         $can_dl= ($exch_file && fe_can('r')) || $fe_unlocked;
         if ($can_dl)
-            $nameFld= '<a href="'.p2h_enc($dlUrl).'" download title="'.lang('@Download to your PC').'"><i class="fas fa-download colr9"></i></a> '.$nameFld;
+            $nameFld= fe_hint('<a href="'.p2h_enc($dlUrl).'" download><i class="fas fa-download colr9"></i></a>', lang('@Download to your PC')).' '.$nameFld;
         $clckDl=  $can_dl ? 'location.href='.p2h_js($dlUrl)  : 'fileview('.p2h_js($currentPath).','.p2h_js($fld).')';
         $clckDel= ($exch_file && fe_can('w')) ? 'feDelete('.p2h_js($fld).')'     : 'fileview('.p2h_js($currentPath).','.p2h_js($fld).')';
         if ($ext>'') $ext = '.'.p2h_enc($ext);
         $rec['ix']= $ix;
         $rec['name']= $nameFld;
         $rec['ext']= $ext;
-        $rec['size']= $sortsize.'<div title="'.number_format((float)$filesize_raw, 0,',',' ').' Bytes">'.$showsize.'</div>';
+        $rec['size']= $sortsize.'<div>'.fe_hint($showsize, number_format((float)$filesize_raw, 0,',',' ').' Bytes').'</div>';
         $rec['modifyed']= $sorttime.$modif;
         $rec['perms']= $perms;
         $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
@@ -1075,7 +1077,7 @@ function p2h_getFileList($dir, $recurse=false, $depth=false)    // Create list o
 
 function SearchSub(&$arrNames) { global $calc_folder;
 $result= '
-<span class="" title="'.($calc_folder== true ? lang('@Enter search string...') : lang('@Only active in advanced mode!') ). '">'.
+<span>'.     // (htm_Input below has the hint)
     htm_Input($labl= 'Search', plho: '@Enter...', icon: '', hint: '@Search for a file in sub-folders, and open that folder',
               vrnt: $type= 'html', name: 'fsearch',
               valu: '<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
@@ -1083,10 +1085,11 @@ $result= '
               unit: '', disa: (($_POST['prgMode'] ?? '') != 'mode_A'), rows: '0', step: '', list: [], llgn: 'R', bord: '', ftop: '')
               . '
     <div id="FileSearch" class="dropdown-content" 
-        title="'. lang('@Click to open folder containing this file ') .'">
-        <input type="text" placeholder="Search.." id="searchInput" onkeyup="filterFunction()" z-index:202;
-            title="'. lang('@Type a search string: Part of the file- / folder-name').'"
-            style="width:200px; text-align:left; font-family:arial; border: 1px solid black;">';
+        >
+        <input type="text" placeholder="'.p2h_enc(lang('@Part of a file or folder name...')).'" id="searchInput" onkeyup="filterFunction()" z-index:202;
+            aria-label="'. p2h_enc(lang('@Type a search string: Part of the file- / folder-name')).'"
+            style="width:200px; text-align:left; font-family:arial; border: 1px solid black;">
+        <div style="font-size: 11px; color: gray; text-align: left; padding: 2px 6px;">'. lang('@Click to open folder containing this file ') .'</div>';
         $name_list= ''; // List to search for file names in sub-folders 
         foreach($arrNames as $file) {
             $pos= strrpos($file,'/')+1;
@@ -1381,24 +1384,44 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         $exch_used= fe_dir_size($exch_path);
         htm_Card_(capt:'@Exchange area',icon:'fas fa-exchange-alt',hint:'@Exchange files between this server and your own PC',form:'',acti:'',clas:'cardW800',
                   wdth:'',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
-            if (fe_is_admin()) {    // Remove / restore the restrictions - admins only
-                $unlockForm= '<form method="post" action="'.basename(__FILE__).'" style="display:inline;">'.csrf_field(true).
-                             '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
-                             '<input type="hidden" name="fe_unlock" value="'.($fe_unlocked ? '0' : '1').'">';
+            if (fe_is_admin()) {    // Remove / restore the restrictions - admins only: a lock icon among the card's tool icons
+                $ulHint= $fe_unlocked ? lang('@<b>RESTRICTIONS REMOVED:</b> Click to restore the restrictions')
+                                      : lang('@<b>REMOVE RESTRICTIONS:</b> see the whole account, upload any file type, no quota - only for you, only in this session');
+                // The form (also the button without JavaScript):
+                echo '<div id="feUnlockBox" style="float: right; margin: 0 10px 4px 8px;">'.
+                        '<form id="feUnlockForm" method="post" action="'.basename(__FILE__).'" style="display:inline;">'.csrf_field(true).
+                        '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
+                        '<input type="hidden" name="fe_unlock" value="'.($fe_unlocked ? '0' : '1').'">'.
+                        '<button type="submit" class="txtbutt" style="border-radius: 54px; padding: 2px 12px; color: #b00020; background: ivory;">'.
+                            '<i class="fas fa-'.($fe_unlocked ? 'lock' : 'unlock').'"></i> '.p2h_enc(lang($fe_unlocked ? '@Restore restrictions' : '@Remove restrictions')).'</button>'.
+                        '</form>'.
+                     '</div>';
+                // The tool icon - moved into the card header beside the other tool icons:
+                echo '<abbr class="hint p2hCtrlHint" id="feUnlockTool" hidden>'.
+                        '<ic class="fas fa-'.($fe_unlocked ? 'lock-open' : 'lock').'" role="button" tabindex="0" '.
+                            'aria-label="'.p2h_enc(strip_tags($ulHint)).'" '.
+                            'style="height:12px; margin:5px 8px 0 0; font-size: 13px; cursor: pointer; color: '.($fe_unlocked ? '#d00000' : '#555').';"></ic>'.
+                        '<data-hint>'.$ulHint.'</data-hint>'.
+                     '</abbr>'.
+                     '<script>(function(){'.
+                        'var t= document.getElementById("feUnlockTool"), f= document.getElementById("feUnlockForm"), box= document.getElementById("feUnlockBox");'.
+                        'var card= t.closest("[id^=card]"), head= card && card.querySelector("[id^=chead]");'.
+                        'if (!head) return;'.
+                        'var tools= head.querySelectorAll("abbr.p2hCtrlHint"), last= tools[tools.length - 1];'.
+                        'head.insertBefore(t, last ? last.nextSibling : null);     /* floats right: after the last one = left of the group */'.
+                        't.hidden= false;  box.style.display= "none";'.
+                        't.querySelector("ic").addEventListener("click", function(e) {'.
+                            'e.stopPropagation();     /* not the card header click */'.
+                            ($fe_unlocked ? '' : 'if (!confirm('.p2h_js(lang('@Remove the restrictions for this session?')).')) return;').
+                            'f.submit();'.
+                        '});'.
+                     '})();</script>';
                 if ($fe_unlocked)
                     echo '<div class="p2hAlert p2hAlert-error" style="margin: 4px 10px 8px;" role="alert">'.
-                            '<i class="fas fa-unlock"></i> <b>'.p2h_enc(lang('@Restrictions removed')).'</b> - '.
+                            '<i class="fas fa-lock-open"></i> <b>'.p2h_enc(lang('@Restrictions removed')).'</b> - '.
                             p2h_enc(lang('@you can see and download everything below')).' <b>'.p2h_enc($root_path).'</b>, '.
                             p2h_enc(lang('@upload any file type (not hidden files) to the exchange area, with no size limit or quota of its own. Only for you, only in this session.')).
-                            ' '.$unlockForm.'<button type="submit" class="txtbutt" style="background: white; border-radius: 54px; padding: 2px 12px;">'.
-                            '<i class="fas fa-lock"></i> '.p2h_enc(lang('@Restore restrictions')).'</button></form>'.
-                         '</div>';
-                else
-                    echo '<div style="float: right; margin: 0 10px 4px 8px;">'.$unlockForm.
-                            '<button type="submit" class="txtbutt" style="border-radius: 54px; padding: 2px 12px; color: #b00020; background: ivory;" '.
-                            'title="'.p2h_enc(lang('@Administrator: see the whole account, upload any file type, no quota - for this session')).'" '.
-                            'onclick="return confirm('.p2h_enc(p2h_js(lang('@Remove the restrictions for this session?'))).');">'.
-                            '<i class="fas fa-unlock"></i> '.p2h_enc(lang('@Remove restrictions')).'</button></form>'.
+                            ' '.p2h_enc(lang('@Restore them with the lock icon in the card header.')).
                          '</div>';
             }
             echo '<div style="text-align:left; padding: 4px 10px; line-height: 1.6;">'.
@@ -1480,16 +1503,16 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     } else
     htm_Table(
         $TblCapt= array( //#['0:Label', '1:Width', '2:Type', '3:OutFormat', '4:horJust', '5:Tip', '6:placeholder', '7:Content';], ...
-          ['<span style="float:left; top: -5px; position: relative;" title="'.lang('@RightClick for program MENU').'">
-            <big><i>Showing:</i> ', '90%','html','','left','@Tip','?', $_SERVER['SERVER_NAME'].' // '.$breadcrumbs.'</big></span>'],
+          ['<abbr class="hint feHint" style="float:left; top: -5px; position: relative;">
+            <big><i>Showing:</i> ', '90%','html','','left','@Tip','?', $_SERVER['SERVER_NAME'].' // '.$breadcrumbs.'</big><data-hint>'.lang('@RightClick for program MENU').'</data-hint></abbr>'],
           ['<span style="float:right; white-space: nowrap; display: inline-block;">'.
-               '<span title="'.lang('@Space meaning file-space in local folder / total in subfolders').'">'.
+               '<abbr class="hint feHint">'.
                ($calc_folder == true ? 
                '<i>Content:</i> Folders: '.$totFolds.' - Files: '.markAllChars($filesIncurrent.'/','i','style="opacity:0.5;"').$totFiles. ' - ' : '' ).
                'Space: '.markAllChars(p2h_nice_filesize($locSize).'/','i','style="opacity:0.5;"').p2h_nice_filesize($totSize).
                ' - Free: '.   p2h_nice_filesize(@disk_free_space($currPath)).
-               ' of total: '. p2h_nice_filesize(@disk_total_space($currPath)). 
-               '</span>'.
+               ' of total: '. p2h_nice_filesize(@disk_total_space($currPath)).
+               '<data-hint style="white-space: normal;">'.lang('@Space meaning file-space in local folder / total in subfolders').'</data-hint></abbr>'.
            '</span> <br>
             <div style="width: 800px; margin: auto; padding-top: 10px;">'. 
                 '<form method="post" name= "frmMode" style="display:inline;">'. csrf_field(true).  // php2html 1.7 rejects a POST without the token
@@ -1502,9 +1525,8 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                             ['mode_S','Simple','@Do not spend time on calulating subfolders'],
                             ['mode_A','Advanced','@Advanced mode exploring all subfolders']
                           ],llgn:'R',bord:'',ftop:'').
-                    '<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" style="
-                                 border-radius:54px; height:33px; background-color: ivory; padding: 0 15px;" 
-                                 title="'. lang('@Analyse sub-folders in advanced mode...').'">'.
+                    fe_hint('<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" style="
+                                 border-radius:54px; height:33px; background-color: ivory; padding: 0 15px;">', lang('@Analyse sub-folders in advanced mode...')).
                 str_sp(2).
                 htm_LinkButt(labl:'@Language', hint:'@Open the translate language page', attr:'', 
                              link:'translate.page.php', targ:'_blank', rtrn:true).

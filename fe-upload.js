@@ -48,7 +48,7 @@
 
     function render() {
         if (!items.length) { list.innerHTML = '<small><i>' + esc(txt.none) + '</i></small>'; summary(); return; }
-        var h = '<div class="fe-wrap"><table><tr><th><input type="checkbox" id="feAll" title="' + esc(txt.all) + '" aria-label="' + esc(txt.all) + '"></th>' +
+        var h = '<div class="fe-wrap"><table><tr><th><abbr class="hint feHint"><input type="checkbox" id="feAll" aria-label="' + esc(txt.all) + '"><data-hint>' + esc(txt.all) + '</data-hint></abbr></th>' +
                 '<th>' + esc(txt.name) + '</th><th>' + esc(txt.size) + '</th><th>' + esc(txt.status) + '</th></tr>';
         items.forEach(function (it, i) {
             h += '<tr><td><input type="checkbox" data-i="' + i + '"' + (it.chk ? ' checked' : '') + (it.why || it.sent ? ' disabled' : '') +
