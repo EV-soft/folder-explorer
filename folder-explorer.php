@@ -1643,17 +1643,8 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                           ],llgn:'R',bord:'',ftop:'').
                     fe_hint('<input type="submit" value="'.lang('@Set adv. Mode').'" class="txtbutt" style="
                                  border-radius:54px; height:33px; background-color: ivory; padding: 0 15px;">', lang('@Analyse sub-folders in advanced mode...')).
-                str_sp(2).      // (Language and "Logged as": in the view bar)
+                str_sp(2).      // (Language, "Logged as" and Logout: in the view bar)
                 '</form>'.
-                '<abbr class="hint" >
-                    <form name="zzz" style=" display: inline-block; ">
-                        <button class="buttstyl" type= "submit" name="logout" style="color:white; background:green;" >'.
-                            ' <data-ic class="fas fa-sign-out-alt" style="font-size:18px; color:white;"> </data-ic> '.
-                            lang('@Logout'). '&nbsp; 
-                        </button>
-                    </form>
-                    <data-hint>'.lang('@Leave the program in locked mode').'</data-hint> 
-                 </abbr>'.                
             '</div>'
                 , '90%','html','','left'] 
         ), // $TblCapt
