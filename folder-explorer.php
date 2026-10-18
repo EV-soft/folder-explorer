@@ -475,6 +475,7 @@ ul.feTree a { text-decoration: none; }
 ul.feTree a:hover { text-decoration: underline; }
 ul.feTree .feLvl { position: absolute; width: 22px; top: 2px; text-align: right; font: 11px monospace; color: #8a94a0; }
 ul.feTree li.feHere > .feLvl { color: #b07d00; font-weight: bold; }
+.feTreeWrap { text-align: left; border: 1px solid gray; padding-bottom: 2px; overflow-x: auto; overflow-y: hidden; }
 .feRuler { position: relative; height: 18px; margin-top: 6px; border-top: 1px dashed #c5ccd3; font: 11px monospace; color: #8a94a0; white-space: nowrap; }
 .feRuler span { position: absolute; top: 3px; }
 ul.feTree .feTreeSize { font: 11px monospace; color: #5d6b78; }
@@ -1412,7 +1413,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                 algn:'center',styl:'color: gray;; font-weight:400; font-size: 12px;');
     p2h_show_message();
     htm_nl(1);
-    htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',
+    htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',vhgh:'360px',    // The card body scrolls: the size grip can show the whole tree
                 wdth:'',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
         // Card tool: show the used space of every folder in the tree (on/off for this session)
         if (isset($_GET['treesize'])) $_SESSION[p2h_SESSION_ID]['treesize']= ($_GET['treesize'] === '1');
@@ -1433,7 +1434,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                 'head.insertBefore(t, last ? last.nextSibling : null);     /* floats right: after the last one = left of the group */'.
                 't.querySelector("a").addEventListener("click", function(e) { e.stopPropagation(); });     /* not the card header click */'.
              '})();</script>';
-        htm_wrapp_($ViewHeight='300px; text-align:left; ');
+        echo '<div class="feTreeWrap">';                                  // No height of its own (a fixed height stopped the size grip)
 
         // $base= $_SERVER['DOCUMENT_ROOT'];        // $base= substr($base,0,-13);
         $base= $root_path;          // $base= substr($base,0,-13);
@@ -1485,7 +1486,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         for ($l= 0; $l <= 14; $l++) $ruler.= '<span style="left: '.(30 + 28 + 50*$l).'px;">'.$l.'</span>';
         echo '<div class="feRuler" style="width: '.(30 + 28 + 50*14 + 20).'px;">'.$ruler.'</div>';
 
-        htm_wrapp_end();
+        echo '</div>';     // feTreeWrap
     htm_Card_end($labl='', $icon='',  $hint='', name: '', form: '', subm: false, attr: '', akey: '', kind: 'save', simu: false);
     htm_nl(1);
 
