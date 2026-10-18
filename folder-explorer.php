@@ -1356,26 +1356,6 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     htm_Caption(labl:'Build with PHP2HTML v'.P2H_VERSION,icon:'',hint:'The shortcut to structured and compact code<br>Created by EV-soft.',
                 algn:'center',styl:'color: gray;; font-weight:400; font-size: 12px;');
     p2h_show_message();
-    if (fe_is_admin()) {    // Remove / restore the restrictions - admins only
-        $unlockForm= '<form method="post" action="'.basename(__FILE__).'" style="display:inline;">'.csrf_field(true).
-                     '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
-                     '<input type="hidden" name="fe_unlock" value="'.($fe_unlocked ? '0' : '1').'">';
-        if ($fe_unlocked)
-            echo '<div class="p2hAlert p2hAlert-error" style="max-width: 800px;" role="alert">'.
-                    '<i class="fas fa-unlock"></i> <b>'.p2h_enc(lang('@Restrictions removed')).'</b> - '.
-                    p2h_enc(lang('@you can see and download everything below')).' <b>'.p2h_enc($root_path).'</b>, '.
-                    p2h_enc(lang('@upload any file type (not hidden files) to the exchange area, with no size limit or quota of its own. Only for you, only in this session.')).
-                    ' '.$unlockForm.'<button type="submit" class="txtbutt" style="background: white; border-radius: 54px; padding: 2px 12px;">'.
-                    '<i class="fas fa-lock"></i> '.p2h_enc(lang('@Restore restrictions')).'</button></form>'.
-                 '</div>';
-        else
-            echo '<div style="margin: 4px auto; text-align: center;">'.$unlockForm.
-                    '<button type="submit" class="txtbutt" style="border-radius: 54px; padding: 2px 12px; color: #b00020; background: ivory;" '.
-                    'title="'.p2h_enc(lang('@Administrator: see the whole account, upload any file type, no quota - for this session')).'" '.
-                    'onclick="return confirm('.p2h_enc(p2h_js(lang('@Remove the restrictions for this session?'))).');">'.
-                    '<i class="fas fa-unlock"></i> '.p2h_enc(lang('@Remove restrictions')).'</button></form>'.
-                 '</div>';
-    }
     htm_nl(1);
     htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',
                 wdth:'',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
@@ -1401,8 +1381,28 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         $exch_used= fe_dir_size($exch_path);
         htm_Card_(capt:'@Exchange area',icon:'fas fa-exchange-alt',hint:'@Exchange files between this server and your own PC',form:'',acti:'',clas:'cardW800',
                   wdth:'',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+            if (fe_is_admin()) {    // Remove / restore the restrictions - admins only
+                $unlockForm= '<form method="post" action="'.basename(__FILE__).'" style="display:inline;">'.csrf_field(true).
+                             '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
+                             '<input type="hidden" name="fe_unlock" value="'.($fe_unlocked ? '0' : '1').'">';
+                if ($fe_unlocked)
+                    echo '<div class="p2hAlert p2hAlert-error" style="margin: 4px 10px 8px;" role="alert">'.
+                            '<i class="fas fa-unlock"></i> <b>'.p2h_enc(lang('@Restrictions removed')).'</b> - '.
+                            p2h_enc(lang('@you can see and download everything below')).' <b>'.p2h_enc($root_path).'</b>, '.
+                            p2h_enc(lang('@upload any file type (not hidden files) to the exchange area, with no size limit or quota of its own. Only for you, only in this session.')).
+                            ' '.$unlockForm.'<button type="submit" class="txtbutt" style="background: white; border-radius: 54px; padding: 2px 12px;">'.
+                            '<i class="fas fa-lock"></i> '.p2h_enc(lang('@Restore restrictions')).'</button></form>'.
+                         '</div>';
+                else
+                    echo '<div style="float: right; margin: 0 10px 4px 8px;">'.$unlockForm.
+                            '<button type="submit" class="txtbutt" style="border-radius: 54px; padding: 2px 12px; color: #b00020; background: ivory;" '.
+                            'title="'.p2h_enc(lang('@Administrator: see the whole account, upload any file type, no quota - for this session')).'" '.
+                            'onclick="return confirm('.p2h_enc(p2h_js(lang('@Remove the restrictions for this session?'))).');">'.
+                            '<i class="fas fa-unlock"></i> '.p2h_enc(lang('@Remove restrictions')).'</button></form>'.
+                         '</div>';
+            }
             echo '<div style="text-align:left; padding: 4px 10px; line-height: 1.6;">'.
-                 p2h_enc(lang('@The only folder where files can be uploaded and downloaded')).': '.
+                 p2h_enc($fe_unlocked ? lang('@Uploads go to this folder - downloads from everywhere') : lang('@The only folder where files can be uploaded and downloaded')).': '.
                  '<a href="'.basename(__FILE__).'?show='.urlencode($exch_path).'" class="txtbutt"><i class="far fa-folder colr0"></i> '.p2h_enc($exch_rel ?: basename($exch_path)).'</a>'.
                  ($in_exchange ? ' <small>('.p2h_enc(lang('@you are here')).')</small>' : '').'<br>'.
                  '<small>'.p2h_enc(lang('@Used')).': '.p2h_nice_filesize($exch_used).
