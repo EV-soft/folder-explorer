@@ -381,7 +381,7 @@ function p2h_get_mime_type($file_path) { // Get file mime type
     if (function_exists('finfo_open')) {
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime = finfo_file($finfo, $file_path);
-        finfo_close($finfo);
+        if (PHP_VERSION_ID < 80100) finfo_close($finfo);   // Freed automatically since 8.1 (deprecated in 8.5)
         return $mime; } 
     elseif (function_exists('mime_content_type')) { return mime_content_type($file_path); } 
     elseif (!stristr(ini_get('disable_functions'), 'shell_exec')) {
