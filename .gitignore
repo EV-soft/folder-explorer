@@ -1,0 +1,4 @@
+_cache/
+*.bak
+_trans.*.tmp.json
+sys_2Google.txt

@@ -1,4 +1,4 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.5.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='1.6.0';    $DocRev='2026-10-18';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-24 EV-soft *** See the file: LICENSE';
 
 $sys= $GLOBALS["gbl_ProgRoot"]= './';
@@ -10,9 +10,8 @@ $needPolyfill=    '0';
 $needFontawesome= '2';
 $needTinymce=     '0';
 
-// Use the bundled library, unless a shared copy is installed beside the project:
-$p2h_lib= is_file(__DIR__.'/../p2h/v1.4.x/php2html.lib.php') ? __DIR__.'/../p2h/v1.4.x/php2html.lib.php' : __DIR__.'/php2html.lib.php';
-require_once ($p2h_lib);    // Creating HTML-functions
+// The bundled library (php2html 1.7.3) - the calls in this file need 1.7 (an older shared copy in ../p2h/ would fail):
+require_once (__DIR__.'/php2html.lib.php');    // Creating HTML-functions
 
 ##### SPECIAL this page only:
 define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
@@ -943,11 +942,11 @@ function p2h_getFileList($dir, $recurse=false, $depth=false)    // Create list o
 function SearchSub(&$arrNames) { global $calc_folder;
 $result= '
 <span class="" title="'.($calc_folder== true ? lang('@Enter search string...') : lang('@Only active in advanced mode!') ). '">'.
-    htm_Input($labl= 'Search', $plho='@Enter...', $icon='', $hint='@Search for a file in sub-folders, and open that folder',
-              $type= 'html', $name='fsearch',
-              $valu= '<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
-              $form= '', $wdth='200px', $algn='left',$attr='onclick="ToggShow()" class="dropbtn" ',$rtrn=true,
-              $unit= '', $disa=(($_POST['prgMode'] ?? '') != 'mode_A'), $rows='0', $step='', $list=[], $llgn='R', $bord='', $ftop='')
+    htm_Input($labl= 'Search', plho: '@Enter...', icon: '', hint: '@Search for a file in sub-folders, and open that folder',
+              vrnt: $type= 'html', name: 'fsearch',
+              valu: '<div><i class="fa fa-search"></i> '.($calc_folder== true ? count($arrNames).' '.lang('@Files in subfolders') : lang('@Not active.')).'</div>',
+              form: '', wdth: '200px', algn: 'left',attr: 'onclick="ToggShow()" class="dropbtn" ',rtrn: true,
+              unit: '', disa: (($_POST['prgMode'] ?? '') != 'mode_A'), rows: '0', step: '', list: [], llgn: 'R', bord: '', ftop: '')
               . '
     <div id="FileSearch" class="dropdown-content" 
         title="'. lang('@Click to open folder containing this file ') .'">
@@ -1117,7 +1116,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     htm_Caption(labl:'Folder-explorer',icon:'',hint:'The advanced file-explorer with focus on folders and space taken up of files.',
                 algn:'center',styl:'color:'.$gbl_TitleColr.'; font-weight:600; font-size: 18px; padding: 4px;' );
     htm_nl(1);
-    htm_Caption(labl:'Build with PHP2HTML v4',icon:'',hint:'The shortcut to structured and compact code<br>Created by EV-soft.',
+    htm_Caption(labl:'Build with PHP2HTML v'.P2H_VERSION,icon:'',hint:'The shortcut to structured and compact code<br>Created by EV-soft.',
                 algn:'center',styl:'color: gray;; font-weight:400; font-size: 12px;');
     p2h_show_message();
     htm_nl(1);
@@ -1135,7 +1134,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         listFolders($base,$currentDir);
 
         htm_wrapp_end();
-    htm_Card_end($labl='', $icon='',  $hint='', $name='', $form='', $subm=false, $attr='', $akey='', $kind='save', $simu=false);
+    htm_Card_end($labl='', $icon='',  $hint='', name: '', form: '', subm: false, attr: '', akey: '', kind: 'save', simu: false);
     htm_nl(1);
 
     htm_Card_(capt:'Folder-Details',icon:'fas fa-info',hint: '',form:'xxx',acti:'',clas:'cardWmax',
@@ -1163,7 +1162,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                '</span>'.
            '</span> <br>
             <div style="width: 800px; margin: auto; padding-top: 10px;">'. 
-                '<form method="post" name= "frmMode" style="display:inline;">'.
+                '<form method="post" name= "frmMode" style="display:inline;">'. csrf_field(true).  // php2html 1.7 rejects a POST without the token
                 str_sp(2).
                 SearchSub($arrNames). ' '.
                 htm_Input(labl:'@Mode',plho:'@Select...',icon:'',
@@ -1214,14 +1213,14 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         ),
         $RowSuff= array(), // tabl_row.ix
         $TblNote= '<small>'.lang('@Filtering/Searching: Hold mouse over the colored row below the column headers.').'</small><br><br>'.
-                  htm_Fieldset_(capt:'@Future file features:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
-                      htm_Fieldset_(capt:'@Select:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
+                  htm_Fieldset(capt:'@Future file features:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
+                      htm_Fieldset(capt:'@Select:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
                       htm_AcceptButt(labl:'@All',  icon:'', hint:'@All files and folders', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'', idix:'').
                       htm_AcceptButt(labl:'@None', icon:'', hint:'@Deselect all', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'', idix:'').
                       htm_AcceptButt(labl:'@Inverse', icon:'', hint:'@Reverse all', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'', idix:'').
                       htm_Fieldset_end(rtrn:true).
                       
-                      htm_Fieldset_(capt:'@With selected do:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
+                      htm_Fieldset(capt:'@With selected do:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
                       htm_AcceptButt(labl:'@COPY',       icon:'', hint:'@Make a copy of selected file/folder(s)',                 form:'', wdth:'100px;', attr:$dis, akey:'', kind:'',     rtrn:true, tplc:'LblTip_text', tsty:'', acti:'fcopy("path","name")', idix:'').
                       htm_AcceptButt(labl:'@MOVE',       icon:'', hint:'@Transfer selected files/folder(s) to another folder(s)', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'crea', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'fmove("path","name")', idix:'').
                       htm_AcceptButt(labl:'@Create ZIP', icon:'', hint:'@Make a copy of selected file/folder in a ZIP-file',      form:'', wdth:'100px;', attr:$dis, akey:'', kind:'',     rtrn:true, tplc:'LblTip_text', tsty:'', acti:'f_zip("path","name")', idix:'').
@@ -1233,16 +1232,16 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                       htm_AcceptButt(labl:'@UPLOAD',     icon:'', hint:'@Transfer a file/folder(s) from a local folder',          form:'', wdth:'100px;', attr:$dis, akey:'', kind:'get_', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'fupld("path","name")', idix:'').
                       htm_Input(labl:'@Destination',plho:'Path ?',icon:'',hint:'@For COPY/MOVE/ZIP/UPLOAD If it is not the current folder',vrnt:'text',name:'dest',valu:'',form:'',wdth:'',algn:'',attr:'',rtrn:true,unit:'',disa:false,rows:'',step:'',list:[],llgn:'',bord:'',ftop:'20px;').
                   htm_Fieldset_end(rtrn:true),
-        $tabldata, 
-        $FilterOn= true,
-        $SorterOn= true,        # FIXIT: Sorting fails if there are both folders and files! (js-error coursed by empty td-fields)- Folders only is OK (BAD data before the first file ?)
-        $CreateRec=false,
-        $ModifyRec=false,
-        $ViewHeight= '650px',
-        $TblStyle= 'width:98%; cursor: alias; ',
-        $CalledFrom= __FILE__ ,
-        $MultiList= ['',''],
-        $ExportTo= $csvFile ?? ''
+        data: $tabldata, 
+        filt: $FilterOn= true,
+        sort: $SorterOn= true,        # FIXIT: Sorting fails if there are both folders and files! (js-error coursed by empty td-fields)- Folders only is OK (BAD data before the first file ?)
+        crea: $CreateRec=false,
+        modi: $ModifyRec=false,
+        vhgh: $ViewHeight= '650px',
+        styl: $TblStyle= 'width:98%; cursor: alias; ',
+        from: $CalledFrom= __FILE__ ,
+        list: $MultiList= ['',''],
+        expo: $ExportTo= $csvFile ?? ''
     );
     echo $Context_Row;
     

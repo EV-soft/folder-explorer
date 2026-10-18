@@ -1,11 +1,10 @@
-<?php $DocFile='../translate.inc.php';    $DocVers='1.2.0';    $DocRev1='2022-10-07';     $DocIni='evs';  $ModulNo=0; ## File informative only
-$©= 'Open source - 𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-2022 EV-soft *** See the file: LICENSE';
+<?php $DocFileInc='../translate.inc.php';    $DocVersInc='1.6.0';    $DocRev='2026-10-11';      $DocIni='evs';  $ModulNo=0; ## File informative only
+$©= 'Open source - 𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 ©  2019-2026 EV-soft *** See the file: LICENSE';
 
-$sys= $GLOBALS["gbl_ProgRoot"]= './'; 
-require_once ($sys.'php2html.lib.php');
-// require_once ($sys.'menu.inc.php');
+// Folder-explorer: the library lives in the same folder, and there is no menu.inc.php
+require_once (__DIR__.'/php2html.lib.php');
 // require_once ($sys.'translate.inc.php');
-require_once ($sys.'filedata.inc.php');
+require_once (__DIR__.'/filedata.inc.php');
 
 
 /**
@@ -15,21 +14,14 @@ require_once ($sys.'filedata.inc.php');
  */
 function scannLngStrings($code= 'dk') {
     global $arrLang, $App_Conf;
-    function scannfor($searchPref, $searchSuff='', &$count, &$longest, &$total, &$arrStrings, $flag='') { 
+    function scannfor($searchPref, $searchSuff, &$count, &$longest, &$total, &$arrStrings, $flag='') { 
         $gbl_ProgRoot= './'; 
-        $sys_Root= './';
+        $sys_Root= '../';
         ## Source files to scann:
         $lines = file(__FILE__);  // This file: translate.inc.php
-        $files= [$sys_Root.'php2html.lib.php',
-            //   $gbl_ProgRoot.'menu.inc.php',
-                $gbl_ProgRoot.'translate.page.php',
-                $gbl_ProgRoot.'filedata.inc.php',
-        ## Other project files to scann:
-                $gbl_ProgRoot.'folder-explorer.php'
-                
-                // './Proj.demo/CustomerOrder.page.php'
-                //  $gbl_ProgRoot.'folder-explorer.php'
-                ];
+        # All pages and includes of the project folder, the library and filedata.inc.php (was a fixed list: new pages were not scanned)
+        $files= array_merge([__DIR__.'/php2html.lib.php', __DIR__.'/filedata.inc.php', __DIR__.'/folder-explorer.php'],   # Folder-explorer: all in one folder
+                            glob($gbl_ProgRoot.'*.page.php') ?: [], glob($gbl_ProgRoot.'*.inc.php') ?: []);
         echo '<br><b>Searching </b>for string: '.$searchPref.'<small>';
         foreach ($files as $fname) { 
             $lin= file($fname); 
@@ -45,7 +37,7 @@ function scannLngStrings($code= 'dk') {
                 while (strpos($str,$searchPref)) {
                     $str= substr($str, strpos($str,$searchPref) +strlen($searchPref)-1);
                     $str= html_entity_decode($str);
-                    $longest= max($longest,strlen(utf8_decode(substr($str,0,strpos($str,$searchSuff)))));
+                    $longest= max($longest,mb_strlen((substr($str,0,strpos($str,$searchSuff)))));
                     $f= ''.htmlspecialchars(substr($str,0,strpos($str,$searchSuff)));  // Allow showing HTML tags
                     if (strpos($line, 'scannfor') == 0)                             // exclude scanfor parameters
                         $arrStrings[] = $f;                                         // = $flag.$f;  // Deactivate Flag
@@ -80,7 +72,7 @@ function scannLngStrings($code= 'dk') {
     $lang= 'en';    //  System
     //$code= 'de';  //  Analyse
     $name= ($_SESSION['currLang']['name'] ?? '');
-    $nati= ($_SESSION['currLang']['native'] ?? ''); // Update problem ! FIXIT
+    $nati= is_array($_SESSION['currLang'] ?? null) ? ($_SESSION['currLang']['native'] ?? '') : '';   # (translate.page set a text here)
     // $nati= $arrLang[$code]['native'];
     // arrPrint($_SESSION['currLang'],'$_SESSION["currLang"]');
     if(array_key_exists('en',$arrLang ?? [])) {echo 'Data: '.$arrLang['en']; }
@@ -96,37 +88,40 @@ function scannLngStrings($code= 'dk') {
     echo '<br>If some strings are missing in the language translate, the english text will be shown with prefix ???:';
     echo '<br>Let your browser search and mark this prefix, to get overview';
     echo '<br><br>Be aware of character: <b>"</b> inside strings, must be escaped as: <b>\"</b> without separating space !
-         <br>If you have trouble after editing _trans.sys.json, you can test the file in a 
-         <br>validator e.g.:  https://jsonformatter.curiousconcept.com/ <br>';
+         <br>If you have trouble after editing _trans.sys.json, you can test the file in
+         <br>a validator e.g.:  https://jsonformatter.curiousconcept.com/ <br>';
     echo '<br>To use your translate, the text should be copyed to the system-file: _trans.sys.json';
     echo '<br>If you have a complete translated language, do share it on GITHUB<br><br>';
     
     echo '<span style="padding-left:60px;">KEY (english)</span>   <span style="margin-left:300px;">TRANSLATED</span><br>';
     
-    echo '<textarea rows="30" id="EditText" name="EditText" style="line-height:100%; width:100%; white-space: pre; overflow-x: auto;" >';   // .$valu.'</textarea>';
-    $lf= '&#013;&#010;';
+    echo '<textarea rows="30" id="EditText" name="EditText" aria-label="'.sys_enc(strip_tags(lang('@The strings to translate (JSON)'))).'" style="line-height:100%; width:100%; white-space: pre; overflow-x: auto;" >';   // .$valu.'</textarea>';
+    $lf= "\n";                 # (was &#013;&#010; - a CR reference is a parse error in HTML)
     ## Translation Start:
-    echo $lf.'  {';
-    echo $lf.'    "code": "'.  $code.'",            '.str_sp(44-strlen('code": "'.  $code)).    '┐';         //  .'{ISO lngCode: en}",';
-    echo $lf.'    "name": "'.  $name.'",            '.str_sp(44-strlen('name": "'.  $name)).    '|';         //  .'{lngName: English}",';
-    echo $lf.'    "native": "'.$nati.'",            '.str_sp(44-strlen('native": "'.$nati)).    '|';         //  .'{lngName: Native}",';
-    echo $lf.'    "author": "-auto from source-",   '.str_sp(43-strlen('-auto from source-')).  '├—— Example'; 
-    echo $lf.'    "note": "'.''.'",                 '.str_sp(34-strlen('   ')).                 '|';         // setlocale(LC_TIME, 'da_DK','da','da_DK.utf8'); ?
-    echo $lf.'    "DateTime": "'.date("Y-m-d").'",  '.str_sp(42-strlen(date("Y-m-d"))).         '|';
-    echo $lf.'    "AppName": "PHP to HTML",         '.str_sp(36-strlen('PHP to HTML')).         '┘';
+    echo $lf.'{';
+    echo $lf.'  "code": "'.  $code.'",            '.str_sp(44-strlen('code": "'.  $code)).    '┐';         //  .'{ISO lngCode: en}",';
+    echo $lf.'  "name": "'.  $name.'",            '.str_sp(44-strlen('name": "'.  $name)).    '|';         //  .'{lngName: English}",';
+    echo $lf.'  "native": "'.$nati.'",            '.str_sp(44-strlen('native": "'.$nati)).    '|';         //  .'{lngName: Native}",';
+    echo $lf.'  "author": "-auto from source-",   '.str_sp(43-strlen('-auto from source-')).  '├—— Example'; 
+    echo $lf.'  "note": "'.''.'",                 '.str_sp(34-strlen('   ')).                 '|';         // setlocale(LC_TIME, 'da_DK','da','da_DK.utf8'); ?
+    echo $lf.'  "DateTime": "'.date("Y-m-d").'",  '.str_sp(42-strlen(date("Y-m-d"))).         '|';
+    echo $lf.'  "AppName": "PHP to HTML",         '.str_sp(36-strlen('PHP to HTML')).         '┘';
     // $transTable['en']['AppName'] = 'PHP to HTML';
-    echo $lf.'    "translation": {';
+    echo $lf.'  "translation": {';
     
     $n = count($arrStrings)-1; $i= 0;   $miss = 0;  $next= ',';
-    $googleFile = fopen("sys_2Google.txt", "w");
-    $temp = fopen('_trans.'.$code.'.tmp.json', "w");
+    $writeFiles= isset($_POST['btn_writeTransFiles']);      # Files are written only on request - not on every page view
+    $googleFile = fopen('php://temp', 'w+');                  # Built in memory, shown below, saved if requested
+    $temp = fopen('php://temp', 'w+');
     $prev= '';
     $strMiss= '';
+    $tempRows= [];  $jf= JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;   # The .tmp.json rows - JSON-encoded, joined at the end
     fwrite($temp,'"translation": {'.chr(13).chr(10));
     // $arrLang['en']= [];  // Build new translate table for english
     
     ## Translation Body:
-    $indx = array_search('da', array_column($arrLang, 'code'));
+    $indx = array_search($code, array_column($arrLang, 'code'));    # The language being analysed (was always 'da')
+    if ($indx === false) $indx= -1;                                   # Not in _trans.sys.json: everything is missing
     // echo $indx; 
     // arrPretty($arrLang[$indx]['translation'],'$arrLang[$indx][\'translation\']');
     foreach ($arrStrings as $str) {
@@ -135,25 +130,30 @@ function scannLngStrings($code= 'dk') {
         $str= trim($str,'@');
         $str= rtrim($str,'\\');
         $str= html_entity_decode(substr($str,strlen($flag)));   // echo ' ',$str;
+        $rawStr= str_replace("\\'", "'", $str);               # The key as lang() sees it (\' in the PHP source is ')
         $str= str_replace ('"', '\"', $str );
         $arrLang['en'][$str] = $str; 
-        $strLang= @$arrLang[$indx]['translation'][$str];    // Supress error messages
+        $strLang= $arrLang[$indx]['translation'][$str] ?? '';
         if (!$strLang) { $missing= ''.$code.' ???: '.$str; $miss= $miss+1; $strMiss.= '"'.$str.'"'.chr(13).chr(10); } 
         else             $missing= '';
         if ($i>=$n-2) $next= ''; 
         fwrite($googleFile, '"'.$str .'"'.$next.chr(13).chr(10));
-        echo $lf.str_pad(' ',6,' ').'"'.$str.'": '.space(55-strlen($str)).'"'.$missing.$strLang.'"';
-        if ($prev != $str)     // Prevent dublets
-            fwrite($temp, str_pad(' ',6,' ').'"'.$str.'":'.'"'.$missing.$strLang.'"');
-        if (($i<=$n) and ($prev != $str)) { echo ','; fwrite($temp,','.chr(13).chr(10)); } //  Not after the last!
+        echo $lf.str_pad(' ',4,' ').'"'.$str.'": '.space(55-strlen($str)).'"'.$missing.$strLang.'"';
+        if ($prev != $str)     // Prevent dublets - key and value JSON-encoded (quotes, backslashes, line breaks)
+            $tempRows[$rawStr]= str_pad(' ',6,' ').json_encode($rawStr, $jf).':'.json_encode($strLang ? $strLang : $code.' ???: '.$rawStr, $jf);
+        if (($i<=$n) and ($prev != $str)) echo ',';
         $prev= $str;
     }}
-    fwrite($temp, chr(13).chr(10).'}');
-    fclose($temp);
-    fclose($googleFile);
+    fwrite($temp, implode(','.chr(13).chr(10), $tempRows).chr(13).chr(10).'}');   # No comma after the last row
+    rewind($temp);        $tempData=   stream_get_contents($temp);        fclose($temp);
+    rewind($googleFile);  $googleData= stream_get_contents($googleFile);  fclose($googleFile);
+    if ($writeFiles) {
+        file_put_contents('_trans.'.$code.'.tmp.json', $tempData, LOCK_EX);
+        file_put_contents('sys_2Google.txt', $googleData, LOCK_EX);
+    }
     ## Translation End:
-    echo $lf.'      }';
-    echo $lf.'  },';
+    echo $lf.'    }';
+    echo $lf.'},';
     echo '</textarea><br>';
     
     // arrPrint($arrLang,'$arrLang');
@@ -164,58 +164,48 @@ function scannLngStrings($code= 'dk') {
  //   echo '<button type="button" data-title="'.lang('@Save the content in edit-window to file (Inactive DEMO)').'" onclick="file_save($doSave= true;)">
  //            <span >SAVE</span>
  //         </button>'. ' Demo!';
-    $workarea= $_POST['EditText'] ?? '';
-    if ($doSave == true)    // @FIXIT
-    //if ((isset($workarea)) and (strlen($workarea)>10))
-        { $f = fopen('new.json',"w");   
-            fwrite($f, $workarea);  fclose($f); 
-            set_msg('@File Saved Successfully');
-            toast(lang('@Saved in systemfile ').'new.json');
-        }
+    # (Removed: dead code that would write the posted text to new.json - $doSave was never true)
     
     htm_nl(2);
-    echo lang('@A file').'<b> _trans.'.$code.'.tmp.json</b> '.lang('@has been created with the content of translation-data<br>You can use it to update _trans.sys.json');
-    htm_Input($labl='_trans.'.$code.'.tmp.json',$plho='@Empty !',$icon='',$hint='@The newly generated file _trans.'.$code.'.tmp.json',
-              $type= 'area',$name='file',$valu= file_get_contents ('_trans.'.$code.'.tmp.json'),
-              $form='',$wdth='930px',$algn='left',$attr= 'wrap = "off"; overflow-x: auto;',$rtrn=false,$unit='',$disa=false,$rows='10');
+    htm_Form_(name:'transFiles', acti:'', mode:'POST');
+    echo '<button type="submit" name="btn_writeTransFiles" value="1">'.lang('@Write the files to the server').'</button> ';
+    echo $writeFiles ? '<b>'.lang('@The files have been written.').'</b>' : lang('@(The files are not changed by just viewing this page)');
+    htm_Form_end();
+    echo '<br>'.lang('@The file').'<b> _trans.'.$code.'.tmp.json</b> '.
+         lang('@contains the translation-data<br>You can use it to update _trans.sys.json.<br>').
+         lang('@You can also let Gemini translate all strings containing "en ???: " and get a complete translation group to substitupe in translate file.(_trans.sys.json)');
+    htm_Input($labl='_trans.'.$code.'.tmp.json',plho: '@Empty !',icon: '',hint: '@The newly generated file _trans.'.$code.'.tmp.json',
+              vrnt: $type= 'area',name: 'file',valu: $tempData,
+              form: '',wdth: '930px',algn: 'left',attr: ' wrap="off"',rtrn: false,unit: '',disa: false,rows: '10');
 
     htm_nl(2);
-    echo '<br><br>'.lang('@<b>A file with all keys: sys_2Google.txt has been created. </b><br>You can use it in Google translate.<br>');
+    echo '<br><br>'.lang('@<b>The file with all keys: sys_2Google.txt</b><br>You can use it in Google translate.<br>');
     echo lang('@Do copy-paste the content from this window...<br>');
                                  // $googleFile = fopen("sys_2Google.txt", "w");
                                  // $gog= file_get_contents ("sys_2Google.txt");
                                  // foreach ($gog as $line) $string= $string + '<br>' + $line;
     
-    htm_Input($labl='sys_2Google.txt',$plho='@Empty !',$icon='',$hint='@The newly generated file to Google-translate',
-              $type= 'area',$name='goog',$valu= file_get_contents ("sys_2Google.txt"),
-              $form='',$wdth='930px',$algn='left',$attr=' wrap = "off";',$rtrn=false,$unit='',$disa=false,$rows='10');
+    htm_Input($labl='sys_2Google.txt',plho: '@Empty !',icon: '',hint: '@The newly generated file to Google-translate',
+              vrnt: $type= 'area',name: 'goog',valu: $googleData,
+              form: '',wdth: '930px',algn: 'left',attr: ' wrap="off"',rtrn: false,unit: '',disa: false,rows: '10');
     htm_nl(2);
-    
-/* 
-    $i= 0;
-    echo '<br><br><b>Missing translate ?</b><br>Keys in language "'.$App_Conf['language'].' / '.$nati.'" with string the same as the key:<br>';
-    foreach ($arrLang[$code] ?? [] as $key => $value) { 
-        if (in_array($key,$arrLang[$code])) echo '<br>Same: '.$i++.' '.$key; 
-    }
-    if ($i==0) echo 'None<br>';
-    echo '<br><br>';
- */
+
     $i= 0;
     echo '<br><b>Outdated keys ?</b><br>Unused keys in language "'.$App_Conf['language'].' / '.$nati.'" in this project (maybe renamed key):<br>';
     foreach ($arrLang[$code] ?? [] as $key => $value) {
-       if (!in_array($key,$arrLang['en'])) echo '<br>Outd: '.$i++.' '.$key;
+       if (!in_array($key,$arrLang['en'])) echo '<br>Outd: '.$i++.' '.sys_enc($key);   # A translated key no longer used in the source
     }
     if ($i==0) echo 'None<br>';
     
     echo '<br><br><b>'.lang('@Status:').' '. round(100-($miss/$n*100)). ' % '.lang('@translated').'</b><br>'.lang('@There are missing').': '.$miss.' of '.count($arrStrings);
     echo '<br>';
-    htm_Input($labl='@Missing translate',$plho='@Empty !',$icon='',$hint=lang('@Missing in ').$nati,
-              $type= 'area',$name='goog',$valu=$strMiss,$form='',$wdth='930px',$algn='left',$attr= '',$rtrn=false,$unit='',$disa=false,$rows='10');
+    htm_Input($labl='@Missing translate',plho: '@Empty !',icon: '',hint: lang('@Missing in ').$nati,
+              vrnt: $type= 'area',name: 'goog',valu: $strMiss,form: '',wdth: '930px',algn: 'left',attr: '',rtrn: false,unit: '',disa: false,rows: '10');
 
-    $trns= file_get_contents ("_trans.sys.json");
+    $trns= file_get_contents (__DIR__.'/_trans.sys.json');
     echo '<br><br><b>Active translate table</b><br>';
-    htm_Input($labl='_trans.sys.json',$plho='@Empty !',$icon='',$hint='@Here you can see the actuel translate table',
-              $type= 'area',$name='goog',$valu=$trns, $form='',$wdth='930px',$algn='left',$attr=' wrap = "off";',$rtrn=false,$unit='',$disa=false,$rows='10');
+    htm_Input($labl='_trans.sys.json',plho: '@Empty !',icon: '',hint: '@Here you can see the actuel translate table',
+              vrnt: $type= 'area',name: 'goog',valu: $trns, form: '',wdth: '930px',algn: 'left',attr: ' wrap="off"',rtrn: false,unit: '',disa: false,rows: '10');
     echo '<br><br>';
 } // scannLngStrings();
 
@@ -247,24 +237,8 @@ function SelNew($langList) {
          '</div>';
 }
 
-
-    // $ISO639= ReadCSV($filepath='ISO639-1.csv');
-    // arrPrint($ISO639,'ISO639'); 
-#    foreach ($ISO639  as $lang) if (strlen($lang[0])==2) {
-#      echo '<br>'.'{';
-#      echo '<br>'.'  "code": "'.$lang[0].'",';
-#      echo '<br>'.'  "name": "'.$lang[1].'",';
-#      echo '<br>'.'  "native": "'.$lang[2].'",';
-#      echo '<br>'.'  "author": "-none-",';
-#      echo '<br>'.'  "note": "'.date("Y-m-d").'",';
-//                     DateTime
-#      echo '<br>'.'  "translation": {';
-#      echo '<br>'.'  }';
-#      echo '<br>'.'},';
-#    }
-
 function DBcorrect() {
-       $content = file_get_contents('../_trans.sys.json');
+       $content = file_get_contents(__DIR__.'/_trans.sys.json');
        $temp_list= [];
         if($content !== FALSE) {
             $lng = json_decode($content, TRUE);
@@ -274,8 +248,8 @@ function DBcorrect() {
                 $lang_rec["name"]        = $value["name"];                  // $value["name"];      Name in english
                 $lang_rec["native"]      = $value["native"];                // $value["native"];    Name translated from english
                 $lang_rec["author"]      = $value["author"];                // $value["author"];
-                $lang_rec["note"]        = $value["DateTime"];                  // $value["note"];
-                $lang_rec["DateTime"]    = $value["note"];              // $value["DateTime"]; // setlocale(LC_TIME, 'da_DK','da','da_DK.utf8'); ?
+                $lang_rec["note"]        = $value["DateTime"];              // $value["note"];
+                $lang_rec["DateTime"]    = $value["note"];                  // $value["DateTime"]; // setlocale(LC_TIME, 'da_DK','da','da_DK.utf8'); ?
                 $lang_rec["translation"] = $value["translation"];
 
                 $temp_list[]= $lang_rec;
@@ -283,7 +257,6 @@ function DBcorrect() {
             $temp_list= json_encode($temp_list,JSON_PRETTY_PRINT);
             $out = fopen('temp_list.out', "w"); fwrite($out, PHP_EOL. ($temp_list)); fclose($out);  // save pretty JSON-file
         }
-}
-// DBcorrect();
+}   // DBcorrect();
 
 ?>

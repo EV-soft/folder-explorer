@@ -25,13 +25,15 @@ In simple mode: it speeds up and works like a typical file-browser without analy
 Recently added context menus that you can activate by right-clicking on a file or folder row in the table (still demo).
 
 ### Requirements:
-- PHP 8.0 or newer (the code uses named arguments). Tested on PHP 8.3.
+- PHP 8.1 or newer. Tested on PHP 8.3.
 - `short_open_tag` is **not** required.
+- Built with [Clever-Html-Engine / PHP2HTML](https://github.com/EV-soft/Clever-Html-Engine) **1.7.3** (bundled).
 
 ### Installation:
 1. Copy the files to a folder on your web server.
 2. Open `folder-explorer.php` in the browser.
-3. The bundled `php2html.lib.php` is used, unless a shared copy exists in `../p2h/v1.4.x/`.
+3. The bundled `php2html.lib.php` (1.7.3) is always used.
+4. The web server must be able to write the folder `_cache/` (created automatically) - the library caches its CSS/JS there.
 
 ### Security / configuration:
 - Browsing is restricted to `$fe_root_path` (default: the folder containing `folder-explorer.php`)
@@ -41,4 +43,5 @@ Recently added context menus that you can activate by right-clicking on a file o
   try to log in with the wanted name and password: the error message shows a
   `name: hash` line that you can copy into `$auth_users`.
 - Change or remove the demo accounts before you put the program on a public server.
+- All POST forms carry a CSRF token (php2html 1.7) - a POST without a valid token is rejected with 403.
 - The full variable dump in the "Develop" card is only shown for `fe-admin` with `?debug` in the URL.
