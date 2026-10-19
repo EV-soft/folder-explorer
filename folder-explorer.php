@@ -482,9 +482,34 @@ function fe_utf8($txt, $cut= false) { // Text as UTF-8 - $cut: only the start wa
     return $txt;
 }
 
-function fe_xml_text($xml) { // The text of an office XML part: paragraphs and line breaks kept
+function fe_rtf_drop($r) { // RTF: away with the groups that are no text: {\* ...}, font / colour tables, pictures ... - with braces inside them
+    $n= strlen($r);  $out= '';  $i= 0;
+    while ($i < $n) {
+        if ($r[$i] === '{' && preg_match('~\G\{\\\\(\*|fonttbl|colortbl|stylesheet|info|pict|header|footer|listtable|listoverridetable|rsidtbl|xmlnstbl|latentstyles)~A', $r, $m, 0, $i)) {
+            $d= 0;
+            for ($j= $i; $j < $n; $j++) {               // To the brace that closes the group
+                if ($r[$j] === '\\') { $j++;  continue; }
+                if ($r[$j] === '{') $d++;
+                elseif ($r[$j] === '}' && --$d === 0) break;
+            }
+            $i= $j + 1;  $out.= '{}';          // (an empty group: a control word before it ends there - nsi{...}Hej is not nsiHej)
+            continue;
+        }
+        $out.= $r[$i++];
+    }
+    return $out;
+}
+
+function fe_xml_text($xml) { // The text of an office XML part: paragraphs and line breaks kept, a table row on one line
+    $xml= substr($xml, 0, 4000000);
+    $xml= preg_replace(['#<w:del\b[^>]*>.*?</w:del>#s', '#<w:delText\b[^>]*>.*?</w:delText>#s', '#<w:instrText\b[^>]*>.*?</w:instrText>#s',
+                        '#<text:tracked-changes\b.*?</text:tracked-changes>#s'], '', $xml);      // Deleted text (tracked changes) and field codes: not text
+    $xml= preg_replace(['#</w:p>(\s*</w:tc>)#', '#</text:p>(\s*</table:table-cell>)#',                  // The last paragraph of a cell: no new line
+                        '#</a:p>(\s*</a:txBody>\s*(?:<a:tcPr\b[^>]*/>|<a:tcPr\b.*?</a:tcPr>)?\s*</a:tc>)#s'], '$1', $xml);
+    $xml= preg_replace(['#</w:tc>|</table:table-cell>|</a:tc>#', '#</w:tr>|</table:table-row>|</a:tr>#'], ["\t", "\n"], $xml);   // Cells / rows
     $xml= preg_replace(['#<w:tab/>|<text:tab/>#', '#<w:br/>|<a:br/>|<text:line-break/>|</w:p>|</a:p>|</text:p>|</text:h>|</p>|</h[1-6]>|<br\s*/?>|</li>|</div>#i'], ["\t", "\n"], substr($xml, 0, 4000000));
-    return trim(preg_replace("/\n{3,}/", "\n\n", html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_XML1 | ENT_HTML5, 'UTF-8')));
+    $txt= html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_XML1 | ENT_HTML5, 'UTF-8');
+    return trim(preg_replace(["/\t+\n/", "/\n{3,}/"], ["\n", "\n\n"], $txt));
 }
 
 function fe_preview_text($file, $kind) { // Text for the preview: a text file, the list of an archive, the text of a document, or the first bytes (hex)
@@ -492,12 +517,12 @@ function fe_preview_text($file, $kind) { // Text for the preview: a text file, t
     if ($kind === 'hex') return fe_hexdump((string)file_get_contents($file, false, null, 0, 512), $file);
     if ($kind === 'doc' && $ext === 'rtf') {            // RTF: the text without the control words
         $r= (string)file_get_contents($file, false, null, 0, 400000);
-        $r= preg_replace('~\{\\\\(fonttbl|colortbl|stylesheet|info|pict|header|footer)(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}~', '', $r);    // Tables and pictures: not text
+        $r= fe_rtf_drop($r);                             // Tables, pictures, {\* ...}: not text
         $r= preg_replace_callback('~\\\\u(-?\d+) ?(?:\\\\\'[0-9a-f]{2}|\?)?~i', function($m) {     // \u230? = æ (and its fallback after it)
                 $n= (int)$m[1];  if ($n < 0) $n+= 65536;  return function_exists('mb_chr') ? (string)mb_chr($n, 'UTF-8') : '?'; }, $r);
         $r= preg_replace_callback("~\\\\'([0-9a-f]{2})~i", function($m) {                      // \'e6 = æ (Windows-1252)
                 return function_exists('iconv') ? (string)iconv('Windows-1252', 'UTF-8//IGNORE', chr(hexdec($m[1]))) : '?'; }, $r);
-        $r= preg_replace(['~\{\\\\\*[^{}]*\}~', '~\\\\(par|line)\b ?~', '~\\\\tab\b ?~', '~\\\\[a-z]+-?\d* ?~i', '~[{}]~'], ['', "\n", "\t", '', ''], $r);
+        $r= preg_replace(['~\\\\(par|line)\b ?~', '~\\\\tab\b ?~', '~\\\\[a-z]+-?\d* ?~i', '~[{}]~'], ["\n", "\t", '', ''], $r);
         return substr(fe_utf8(trim(preg_replace("/\n{3,}/", "\n\n", $r))), 0, 16384);
     }
     if ($kind === 'arch') {                             // tar, tar.gz, tgz, tar.bz2 - a single .gz: its text
@@ -628,7 +653,9 @@ function fe_preview_table($file) { // The first rows of a table: CSV / TSV, Exce
                 elseif (preg_match('#<v(?:\s[^>]*)?>(.*?)</v>#s', $inner, $m)) {
                     $v= html_entity_decode($m[1], ENT_QUOTES | ENT_XML1, 'UTF-8');
                     $val= $t === 's' ? ($shared[(int)$v] ?? '…') : ($t === 'b' ? ($v ? 'TRUE' : 'FALSE') : $v);
-                    if ($t === '' && !empty($dateXf[$sx]) && is_numeric($v)) {             // A date: the serial number of Excel as a date
+                    if (($t === '' || $t === 'n') && is_numeric($v) && preg_match('/\.\d{10,}/', $v))       // 0.10000000000000001 -> 0.1
+                        $val= rtrim(rtrim(sprintf('%.'.max(0, 15 - max(1, (int)floor(log10(max(abs((float)$v), 1e-300))) + 1)).'F', (float)$v), '0'), '.');
+                    if (($t === '' || $t === 'n') && !empty($dateXf[$sx]) && is_numeric($v)) {             // A date: the serial number of Excel as a date
                         $sec= (int)round(((float)$v - ($base1904 ? 24107 : 25569)) * 86400);
                         $val= (float)$v < 1 ? gmdate('H:i', (int)round((float)$v * 86400))          // A time only
                                             : gmdate(fmod((float)$v, 1) > 0 ? 'Y-m-d H:i' : 'Y-m-d', $sec);
