@@ -83,8 +83,9 @@ function p2h_js($str) { // Encode a PHP string as a safe JavaScript string liter
     return json_encode((string)$str, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
 }
 
-function p2h_norm_path($path) { // Unified slashes, no trailing slash
-    return rtrim(str_replace('\\', '/', $path), '/');
+function p2h_norm_path($path) { // Unified slashes, no trailing slash - but "/" stays "/"
+    $p= rtrim(str_replace('\\', '/', (string)$path), '/');
+    return $p === '' && $path !== '' && $path !== null ? '/' : $p;
 }
 
 function p2h_safe_path($requested, $root) { // Resolve $requested and accept it only inside $root
@@ -94,11 +95,11 @@ function p2h_safe_path($requested, $root) { // Resolve $requested and accept it 
     if ($real === false) $real = realpath('/'. ltrim($requested, '/'));
     if ($real === false || !is_dir($real)) return $root;
     $real = p2h_norm_path($real);
-    return ($real === $root || strpos($real.'/', $root.'/') === 0) ? $real : $root;
+    return ($real === $root || strpos($real.'/', rtrim($root, '/').'/') === 0) ? $real : $root;
 }
 
 function fe_in_dir($path, $dir) { // Is $path the folder $dir or below it (both normalized)
-    return $dir !== false && $dir !== '' && ($path === $dir || strpos($path.'/', $dir.'/') === 0);
+    return $dir !== false && $dir !== '' && ($path === $dir || strpos($path.'/', rtrim($dir, '/').'/') === 0);
 }
 
 function fe_can($right) { // Rights of the logged user: r= read (download, content), w= write (upload, copy, move, delete) - where: fe_can_read(), fe_can_write()
@@ -210,11 +211,11 @@ function fe_can_read($file) { // May the logged user download / see the content 
     return false;
 }
 
-function fe_unique($target) { // Never overwrite: "name (2).ext" - "folder (2)"
-    if (!file_exists($target)) return $target;
+function fe_unique($target) { // Never overwrite: "name (2).ext" - "folder (2)" - a link (also a broken one) counts as there
+    if (!file_exists($target) && !is_link($target)) return $target;
     $dir= dirname($target);  $b= pathinfo($target, PATHINFO_FILENAME);  $e= pathinfo($target, PATHINFO_EXTENSION);
     if (is_dir($target)) { $b= basename($target);  $e= ''; }
-    for ($n= 2; ; $n++) { $t= $dir.'/'.$b.' ('.$n.')'.($e > '' ? '.'.$e : '');  if (!file_exists($t)) return $t; }
+    for ($n= 2; ; $n++) { $t= $dir.'/'.$b.' ('.$n.')'.($e > '' ? '.'.$e : '');  if (!file_exists($t) && !is_link($t)) return $t; }
 }
 
 function fe_copy_tree($src, $dst, &$n, &$skip) { // Copy a file or a folder - only files the user may read, never over an existing file
@@ -226,7 +227,7 @@ function fe_copy_tree($src, $dst, &$n, &$skip) { // Copy a file or a folder - on
         foreach (scandir($src) ?: [] as $f) if ($f !== '.' && $f !== '..') fe_copy_tree($src.'/'.$f, $dst.'/'.$f, $n, $skip);
         return;
     }
-    if (!fe_can_read($src) || file_exists($dst) || !@copy($src, $dst)) { $skip++;  return; }
+    if (!fe_can_read($src) || file_exists($dst) || is_link($dst) || !@copy($src, $dst)) { $skip++;  return; }
     @touch($dst, filemtime($src));
     $n++;
 }
@@ -239,6 +240,11 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
         foreach ($items as $o) if ($o !== $src && fe_in_dir($src, $o)) continue 2;      // Inside another of the items: comes with it
         if (fe_in_dir($dest, $src) || ($op === 'move' && p2h_norm_path(dirname($src)) === $dest)) { $skip++;  continue; }  // Into itself - or moved where it is (a copy there: "name (2)")
         $dst= fe_unique($dest.'/'.basename($src));
+        if ($op === 'move' && $room !== PHP_INT_MAX && !fe_in_dir($src, $exch_path)) {     // Into the shared folder from outside it: its quota
+            $size= is_dir($src) ? fe_dir_size($src) : filesize($src);
+            if ($size > $room) { $skip++;  continue; }
+            $room-= $size;
+        }
         if ($op === 'move') {
             if (fe_can_write(p2h_norm_path(dirname($src))) && (!empty($fe_unlocked) || (basename($src)[0] !== '.' && (is_dir($src) || fe_name_allowed(basename($src)))))
                 && @rename($src, $dst)) { $n++;  $done[]= $src; }
@@ -255,7 +261,7 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
 
 function fe_sync_tree($src, $dst, &$n, &$skip) { // One way: copy what is missing or newer in $src to $dst - nothing is deleted, an older file is replaced
     fe_more_time();
-    if (is_link($src)) { $skip++;  return; }            // Never a link: a loop - or files outside the root
+    if (is_link($src) || is_link($dst)) { $skip++;  return; }       // Never a link: a loop - or files outside the root (also in the destination)
     if (is_dir($src)) {
         if (empty($GLOBALS['fe_unlocked']) && basename($src)[0] === '.') { $skip++;  return; }     // Hidden folders (.git ...)
         if (!is_dir($dst) && (file_exists($dst) || !@mkdir($dst, 0755))) { $skip++;  return; }
@@ -274,6 +280,7 @@ function fe_sync_tree($src, $dst, &$n, &$skip) { // One way: copy what is missin
 function fe_delete_tree($path, &$n, &$skip) { // Delete a file, or a folder with its content - a folder with something protected left (.htaccess ...) stays
     fe_more_time();
     if (is_dir($path) && !is_link($path)) {
+        if (empty($GLOBALS['fe_unlocked']) && basename($path)[0] === '.') { $skip++;  return; }     // A hidden folder: kept
         foreach (scandir($path) ?: [] as $f) if ($f !== '.' && $f !== '..') fe_delete_tree($path.'/'.$f, $n, $skip);
         if (@rmdir($path)) $n++; else $skip++;
         return;
@@ -327,9 +334,16 @@ function fe_unzip($zip, $dest, $room, &$n, &$skip) { // Unpack a ZIP in $dest: s
 }
 
 function fe_clean_name($name) { // A plain file name: no path, no control or reserved characters
-    $name= basename(str_replace('\\', '/', (string)$name));
-    $name= preg_replace('/[\x00-\x1F\x7F<>:"\/\\\\|?*]/u', '_', $name) ?? '';
-    return trim($name, " .");
+    $name= str_replace('\\', '/', (string)$name);
+    $name= substr($name, strrpos('/'.$name, '/'));     // The last part (not basename(): it takes "a:" for a drive on Windows - and depends on the locale)
+    $name= trim(preg_replace('/[\x00-\x1F\x7F<>:"\/\\\\|?*]/u', '_', $name) ?? '', " .");
+    if (DIRECTORY_SEPARATOR === '\\' && preg_match('/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i', $name)) $name= '_'.$name;   // Windows: a device, not a file
+    return $name;
+}
+
+function fe_given_name($name) { // The name of an existing file or folder of the current folder - as it is (it may have characters a new name may not)
+    $name= (string)$name;
+    return ($name === '' || $name === '.' || $name === '..' || strpbrk($name, "/\\\0") !== false) ? '' : $name;
 }
 
 const FE_DENY_EXT= '\.(php\d*|phtml|phar|pht|phps|cgi|pl|py|sh|asp|aspx|jsp|htaccess|htpasswd|ini)(\.|$)';   // Also used by fe-upload.js
@@ -567,8 +581,20 @@ function fe_preview_text($file, $kind) { // Text for the preview: a text file, t
             foreach ($sl as $no => $part) { $txt.= '--- '.$no." ---\n".fe_xml_text((string)$z->getFromName($part))."\n\n";  if (strlen($txt) > 16384) break; }
         } elseif ($ext === 'epub') {                    // The text of the chapters, in the order of their names
             $ch= [];
-            for ($i= 0; $i < $z->numFiles; $i++) if (preg_match('#\.x?html?$#i', $z->getNameIndex($i))) $ch[]= $z->getNameIndex($i);
-            natsort($ch);
+            $opf= preg_match('#full-path="([^"]+)"#', (string)$z->getFromName('META-INF/container.xml'), $om) ? html_entity_decode($om[1], ENT_QUOTES | ENT_XML1, 'UTF-8') : '';
+            $pkg= $opf > '' ? (string)$z->getFromName($opf) : '';
+            if ($pkg > '') {                            // The reading order: the spine of the package file
+                $dir= strpos($opf, '/') !== false ? substr($opf, 0, strrpos($opf, '/') + 1) : '';  $man= [];
+                if (preg_match_all('#<(?:\w+:)?item\b[^>]*>#', $pkg, $im))
+                    foreach ($im[0] as $tag)
+                        if (preg_match('#\bid="([^"]+)"#', $tag, $a) && preg_match('~\bhref="([^"#]+)~', $tag, $h)) $man[$a[1]]= $dir.rawurldecode(html_entity_decode($h[1], ENT_QUOTES | ENT_XML1, 'UTF-8'));
+                if (preg_match_all('#<(?:\w+:)?itemref\b[^>]*\bidref="([^"]+)"#', $pkg, $sp))
+                    foreach ($sp[1] as $id) if (isset($man[$id]) && $z->locateName($man[$id]) !== false) $ch[]= $man[$id];
+            }
+            if (!$ch) {                                 // No spine: the order of the names
+                for ($i= 0; $i < $z->numFiles; $i++) if (preg_match('#\.x?html?$#i', $z->getNameIndex($i))) $ch[]= $z->getNameIndex($i);
+                natsort($ch);
+            }
             foreach ($ch as $part) { $txt.= fe_xml_text(preg_replace('#<head.*?</head>#is', '', (string)$z->getFromName($part)))."\n\n";  if (strlen($txt) > 16384) break; }
         } else {                                        // docx - odt / odp
             $xml= $z->getFromName('word/document.xml');
@@ -612,7 +638,7 @@ function fe_preview_table($file) { // The first rows of a table: CSV / TSV, Exce
             if (@$xr->open($zp.'xl/sharedStrings.xml')) {
                 while ($xr->read() && count($shared) < 20000)
                     if ($xr->nodeType === XMLReader::ELEMENT && $xr->localName === 'si')
-                        $shared[]= html_entity_decode(strip_tags($xr->readInnerXml()), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                        $shared[]= html_entity_decode(strip_tags(preg_replace('#<rPh\b.*?</rPh>#s', '', $xr->readInnerXml())), ENT_QUOTES | ENT_XML1, 'UTF-8');   // (no phonetic guide)
                 $xr->close();
             }
         }
@@ -657,10 +683,12 @@ function fe_preview_table($file) { // The first rows of a table: CSV / TSV, Exce
                 $val= '';
                 if ($xr->isEmptyElement) continue;
                 $inner= $xr->readInnerXml();
-                if ($t === 'inlineStr') $val= html_entity_decode(strip_tags($inner), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                if ($t === 'inlineStr') $val= html_entity_decode(strip_tags(preg_replace('#<rPh\b.*?</rPh>#s', '', $inner)), ENT_QUOTES | ENT_XML1, 'UTF-8');
                 elseif (preg_match('#<v(?:\s[^>]*)?>(.*?)</v>#s', $inner, $m)) {
                     $v= html_entity_decode($m[1], ENT_QUOTES | ENT_XML1, 'UTF-8');
                     $val= $t === 's' ? ($shared[(int)$v] ?? '…') : ($t === 'b' ? ($v ? 'TRUE' : 'FALSE') : $v);
+                    if ($t === 'd' && preg_match('/^(\d{4}-\d\d-\d\d)(?:T(\d\d:\d\d))?/', $v, $dm))      // An ISO date: 2023-10-20T00:00:00
+                        $val= $dm[1].(isset($dm[2]) && $dm[2] !== '00:00' ? ' '.$dm[2] : '');
                     if (($t === '' || $t === 'n') && is_numeric($v) && preg_match('/\.\d{10,}/', $v))       // 0.10000000000000001 -> 0.1
                         $val= rtrim(rtrim(sprintf('%.'.max(0, 15 - max(1, (int)floor(log10(max(abs((float)$v), 1e-300))) + 1)).'F', (float)$v), '0'), '.');
                     if (($t === '' || $t === 'n') && !empty($dateXf[$sx]) && is_numeric($v)) {             // A date: the serial number of Excel as a date
@@ -712,7 +740,7 @@ function fe_rel_dir($base, $rel) { // Create the subfolders of a relative upload
         $part= fe_clean_name($part);
         if ($part === '' || $part[0] === '.') return false;
         $dir.= '/'.$part;
-        if (!is_dir($dir) && !@mkdir($dir, 0755)) return false;
+        if (is_link($dir) || (!is_dir($dir) && !@mkdir($dir, 0755))) return false;      // Never into a link
     }
     return $dir;
 }
@@ -823,6 +851,7 @@ function p2h_nice_filesize($size, $fix= false)    // Output nice rounded filesiz
     $units = array('&nbsp;B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
     $power = $size > 0 ? floor(log($size, 1024)) : 0;
     $num= $size / pow(1024, $power);
+    if (round($num, 2) >= 1024 && $power < count($units) - 1) { $power++;  $num/= 1024; }     // 1023.999 KB: 1.00 MB
     return sprintf('%s %s', $power && $fix ? number_format($num, 2, '.', '') : round($num, 2), $units[$power]);    // Bytes: always whole
 }
 
@@ -1816,6 +1845,7 @@ if ($use_auth) {
             unset($_SESSION[p2h_SESSION_ID]['unlocked'], $_SESSION[p2h_SESSION_ID]['basket'], $_SESSION[p2h_SESSION_ID]['fdl']);  // A new login: restrictions on, an empty basket
             p2h_set_msg(lang('@You are logged in as: ').p2h_enc($usr));
         } else {
+            if (!isset($auth_users[$usr][0])) password_verify($pwd, '$2y$10$kDgQcpPzD8aMOLCS/fb74.P/19oWozxK99H1enPpvLdVOhR64u9Du');  // The same time
             fe_login_tries(true);
             p2h_set_msg('@Login failed: Invalid account name and/or password. ', 'error');
         }
@@ -1967,12 +1997,12 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
             $dir= fe_rel_dir($upDest, is_string($rels[$i] ?? null) ? $rels[$i] : '');
             if     ($err !== UPLOAD_ERR_OK)          $why= lang('@upload error').' '.$err.($err <= 2 ? ' - '.lang('@the file is too large') : '');
             elseif (!fe_name_allowed($name))         $why= lang('@this file type is not allowed');
-            elseif ($size > $fe_max_upload)          $why= lang('@the file is too large');
+            elseif ($size > $fe_max_upload && !$fe_unlocked) $why= lang('@the file is too large');
             elseif ($used + $size > $quota)          $why= lang('@the shared folder is full');
             elseif ($dir === false)                  $why= lang('@the folder name is not allowed');
             else {
                 $target= $dir.'/'.$name;    $n= 2;      // Never overwrite: "name (2).ext"
-                while (file_exists($target))
+                while (file_exists($target) || is_link($target))
                     $target= $dir.'/'.pathinfo($name, PATHINFO_FILENAME).' ('.$n++.')'.(pathinfo($name, PATHINFO_EXTENSION) > '' ? '.'.pathinfo($name, PATHINFO_EXTENSION) : '');
                 if (move_uploaded_file($up['tmp_name'][$i], $target)) {
                     @chmod($target, 0644);  $used+= $size;
@@ -1999,7 +2029,7 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
 }
 
 if ($is_logged && isset($_POST['fe_delete'])) {      // Delete a file in the current folder
-    $name= fe_clean_name($_POST['fe_delete']);
+    $name= fe_given_name($_POST['fe_delete']);
     $file= realpath($currPath.'/'.$name);
     if (!fe_can('w') || !$can_write_here) fe_msg(p2h_enc(lang('@You may not write in this folder')), 'error');
     elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
@@ -2011,7 +2041,7 @@ if ($is_logged && isset($_POST['fe_delete'])) {      // Delete a file in the cur
 }
 if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename / move, copy, ZIP, unpack, new folder - in the current folder
     $act=  (string)$_POST['fe_act'];
-    $name= fe_clean_name($_POST['fe_name'] ?? '');
+    $name= fe_given_name($_POST['fe_name'] ?? '');
     $to=   trim(str_replace('\\', '/', (string)($_POST['fe_to'] ?? '')), '/ ');
     $file= $name === '' ? false : realpath($currPath.'/'.$name);
     $isDir= $file !== false && is_dir($file);
@@ -2048,7 +2078,8 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
         if (substr((string)($_POST['fe_to'] ?? ''), -1) === '/' || ($to !== '' && $into !== false && is_dir($into) && p2h_norm_path($into) !== p2h_norm_path($file)))
             $to= trim($to, '/').'/'.$name;
         $new= fe_clean_name($to);
-        $dir= $new === '' ? false : fe_rel_dir($currPath, $to);
+        $toDir= p2h_norm_path($currPath.'/'.(strpos($to, '/') !== false ? substr($to, 0, strrpos($to, '/')) : ''));
+        $dir= ($new === '' || (!$isDir && !fe_name_allowed($new)) || ($isDir && fe_in_dir($toDir, p2h_norm_path($file)))) ? false : fe_rel_dir($currPath, $to);   // Checked before folders are made
         $dirReal= $dir === false ? '' : p2h_norm_path(realpath($dir) ?: '');
         if ($dir === false || (!$isDir && !fe_name_allowed($new)) || !fe_can_write($dirReal) || ($isDir && fe_in_dir($dirReal, p2h_norm_path($file))))
             $err= lang('@Not an allowed name or folder').': '.$to;
@@ -2182,7 +2213,9 @@ if ($is_logged && isset($_POST['fe_bk'])) {
             $used= [];
             foreach ($basket as $src) {
                 $local= basename($src);
-                for ($k= 2; isset($used[strtolower($local)]); $k++) $local= basename($src).' ('.$k.')';  // Same name from two folders
+                for ($k= 2; isset($used[strtolower($local)]); $k++)                                     // Same name from two folders: "a (2).txt"
+                    $local= is_dir($src) || pathinfo($src, PATHINFO_EXTENSION) === '' ? basename($src).' ('.$k.')'
+                                                                                    : pathinfo($src, PATHINFO_FILENAME).' ('.$k.').'.pathinfo($src, PATHINFO_EXTENSION);
                 $used[strtolower($local)]= 1;
                 fe_zip_add($z, $src, $local, $n, $skip);
             }
@@ -2483,7 +2516,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     ### TRANSFER: the folders the user may write in, the basket (source -> destination), upload from the PC
     if ($is_logged) {
         $rootRel=  function($d) use ($root_path) { $r= ltrim(substr($d, strlen($root_path)), '/');  return $r === '' ? '/' : $r; };
-        $maxFile=  min($fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX, fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX);
+        $maxFile=  min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX, fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX);
         htm_Card_(capt:'@Transfer',icon:'fas fa-exchange-alt',hint:'@Collect files and folders in the basket, and copy or move them to another folder - upload from your PC and download to it',
                   form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
             if (fe_is_admin()) {    // Remove / restore the restrictions - admins only: a lock icon among the card's tool icons
