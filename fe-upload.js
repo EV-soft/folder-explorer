@@ -1,4 +1,4 @@
-/* fe-upload.js v:1.0.0 d:2026-10-18 i:evs  -  Folder-explorer: upload to the exchange area
+/* fe-upload.js v:1.0.0 d:2026-10-18 i:evs  -  Folder-explorer: upload to the current folder (a folder the user may write in)
  * - a list of the chosen files with check boxes; files that the server would refuse are marked and not sent
  * - drag and drop of files and folders, and "Choose a folder" (the folder structure is kept)
  * - sends the files in batches that fit PHP's max_file_uploads and post_max_size, with a progress bar
@@ -16,7 +16,9 @@
         prog = document.getElementById('feProg'),   files = document.getElementById('feFiles'),
         folder = document.getElementById('feFolder');
     var items = [];     // {file, rel, why, chk, status, row}
+    var emptyDirs = []; // Empty folders of a dropped folder: made on the server with the first batch
     var busy  = false;
+    var showUrl = form.action;      // "Show the folder" after the upload: the destination (the server says which)
     form.classList.add('fe-ready');
     files.removeAttribute('name');      // The files are sent by this script - not by the form
 
@@ -92,7 +94,7 @@
     });
     document.getElementById('feClear').addEventListener('click', function () {
         if (busy) return;
-        items = [];  render();
+        items = [];  emptyDirs = [];  render();
     });
 
     // Drag and drop: files, and folders (read recursively)
@@ -106,6 +108,7 @@
                 (function more() {      // readEntries returns at most 100 entries per call
                     reader.readEntries(function (ents) {
                         if (!ents.length) {
+                            if (!all.length && emptyDirs.indexOf(dir) < 0) emptyDirs.push(dir);     // An empty folder
                             Promise.all(all.map(function (en) { return readEntry(en, dir); })).then(resolve);
                         } else { all = all.concat(Array.prototype.slice.call(ents)); more(); }
                     }, function () { resolve(); });
@@ -131,6 +134,12 @@
         if (!jobs.length) Array.prototype.forEach.call(dt.files || [], function (f) { add(f, ''); });     // No folder support: plain files
         Promise.all(jobs).then(render);
     });
+    window.addEventListener('dragenter', function (e) {     // Files dragged onto the page while the card is folded: it opens (else nothing happened)
+        var types = e.dataTransfer ? Array.prototype.slice.call(e.dataTransfer.types || []) : [];
+        if (drop.offsetParent !== null || types.indexOf('Files') < 0) return;
+        var card = form.closest('[id^=card]'), open = card && window['CardMaximize' + card.id.slice(4)];
+        if (typeof open === 'function') { open();  card.scrollIntoView({block: 'center'}); }
+    });
     window.addEventListener('dragover', function (e) { e.preventDefault(); });     // A file dropped beside the zone
     window.addEventListener('drop',     function (e) { e.preventDefault(); });     // must not open it in the browser
 
@@ -154,6 +163,10 @@
             var fd = new FormData();
             fd.append('csrf_token', form.querySelector('input[name="csrf_token"]').value);
             fd.append('fe_ajax', '1');
+            var de = document.getElementById('feDest');      // The destination of the Transfer card (else: the hidden default)
+            fd.append('fe_dest', de ? de.value.trim() : ((form.querySelector('input[name="fe_dest"]') || {}).value || ''));
+            emptyDirs.forEach(function (d) { fd.append('fe_mkdir[]', d); });     // (with the first batch)
+            emptyDirs = [];
             batch.forEach(function (it) {
                 fd.append('fe_upload[]', it.file, it.file.name);
                 fd.append('fe_relpath[]', it.rel);
@@ -170,6 +183,7 @@
                 if (!r || xhr.status !== 200 || r.error) {
                     batch.forEach(function (it) { setStatus(it, (r && r.error) || (txt.server + ' (' + xhr.status + ')'), true); });
                 } else {
+                    if (r.show) showUrl = r.show;     // The destination - for "Show the folder"
                     (r.done || []).forEach(function (d) { var it = batch[d[0]]; if (it) { it.sent = true; it.chk = false; cfg.quotaLeft -= it.file.size; setStatus(it, txt.saved + ' ' + d[1]); } });
                     (r.fail || []).forEach(function (f) { var it = batch[f[0]]; if (it) setStatus(it, f[2], true); });
                 }
@@ -198,7 +212,7 @@
             var ok = items.filter(function (it) { return it.sent; }).length;
             render();
             sum.innerHTML = '<b>' + esc(txt.done) + '</b>: ' + ok + ' ' + esc(txt.uploaded) +
-                            ' &nbsp; <a href="' + esc(form.action) + '" class="txtbutt">' + esc(txt.show) + '</a>';
+                            ' &nbsp; <a href="' + esc(showUrl) + '" class="txtbutt">' + esc(txt.show) + '</a>';
         });
     });
 
