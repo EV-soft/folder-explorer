@@ -14,15 +14,40 @@ With Folder Explorer, you can browse files and folders on a web server and see u
 
 The file list are displayed in a table, where you can sort and filter the data.
 
-In advanced mode: content in subfolders is analyzed, so that file-data for the entire subtree can be displayed.
+**Analyse** mode: content in subfolders is analyzed, so that file-data for the entire subtree can be displayed.
 
 For example, you can search for a filename in the subtrees.
 
 File/Folder space is also displayed graphically.
 
-In simple mode: it speeds up and works like a typical file-browser without analyzing subfolder content.
+**Quick** mode: it speeds up and works like a typical file-browser without analyzing subfolder content.
+One button in the header of the *Folder-Details* card switches between the two modes (the search field is beside it).
 
-Recently added context menus that you can activate by right-clicking on a file or folder row in the table (still demo).
+Context menus can be activated by right-clicking on a file or folder row in the table (still demo).
+
+### Folder tree:
+- Drawn connector lines and folder icons; the level number of each folder at the far left and a level axis below the tree.
+- Only the current folder is shown in bold with an open folder icon.
+- The card tool *hdd* icon shows the used space of every folder as a column: size, a share bar and the total above the tree.
+  The bars can show the share of the parent folder or of BASE.
+- The card can be dragged to its full height with the size grip.
+
+### What is new in 2.0.0 (update from 1.4.0):
+- **Security:** browsing locked to `$fe_root_path`, login before any data is read, escaped output, CSRF token on every POST.
+- **Exchange area** for upload / download / delete between the server and your PC (drag and drop, folders, batches).
+- **Remove restrictions** for administrators (`$fe_admins`).
+- **Folder tree** with levels, connector lines and the used space of every folder.
+- **Quick / Analyse** in one toggle button (were *Simple / Advanced*); search and mode in the card header.
+- **View bar** with the logged in user and logout (the old Language and green Logout buttons are removed).
+- Library hints instead of browser tooltips everywhere; sizes in columns with 2 decimals.
+- Bundled php2html upgraded from 1.4.2 to 1.7.4 (+ fixes that come in 1.7.5). PHP 8.1 or newer is now required.
+
+### Updating from 1.4.0:
+1. Keep a copy of your `folder-explorer.php` (your `$auth_users`).
+2. Copy all the new files over the old ones, also the folder `_assets/` and the new `fe-upload.js`, `favicon.svg`, `_trans.sys.json`.
+3. Put your `$auth_users` lines back into the new `folder-explorer.php`. The 1.4 setting `$locked_path` is gone -
+   use `$fe_root_path` (see *Security / configuration*).
+4. The folders `_cache/` and `_exchange/` are created automatically - the web server must be able to write them.
 
 ### Exchange area - files between the server and your PC:
 - The folder `_exchange/` (set `$fe_exchange_path` to change it) is the **only** place where files can be
