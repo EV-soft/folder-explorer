@@ -368,6 +368,7 @@
       "Word":"Word",
       "The accounts file can not be read (an error in it) - the accounts in folder-explorer.php are used. Saving here writes a new file.":"Kontofilen kan ikke læses (der er en fejl i den) - kontoerne i folder-explorer.php bruges. Gemmer du her, skrives en ny fil.",
       "The password of the account was changed - log in again":"Kontoens adgangskode er ændret - log ind igen",
+      "The account does not exist any more":"Kontoen findes ikke længere - log ind med en anden konto",
       "Too many failed logins - wait 15 minutes and try again":"For mange mislykkede logins - vent 15 minutter og prøv igen",
       "Your own password: program menu - Change my password (it asks for the present password)":"Din egen adgangskode: programmenuen - Skift min adgangskode (den spørger om den nuværende)",
       "COPY / MOVE / Create ZIP go to the destination of the Transfer card - without one: this folder":"KOPIÉR / FLYT / Lav ZIP går til destinationen i kortet Overfør - uden en: denne mappe",

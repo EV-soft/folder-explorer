@@ -503,7 +503,9 @@ function fe_rtf_drop($r) { // RTF: away with the groups that are no text: {\* ..
 function fe_xml_text($xml) { // The text of an office XML part: paragraphs and line breaks kept, a table row on one line
     $xml= substr($xml, 0, 4000000);
     $xml= preg_replace(['#<w:del\b[^>]*>.*?</w:del>#s', '#<w:delText\b[^>]*>.*?</w:delText>#s', '#<w:instrText\b[^>]*>.*?</w:instrText>#s',
-                        '#<text:tracked-changes\b.*?</text:tracked-changes>#s'], '', $xml);      // Deleted text (tracked changes) and field codes: not text
+                        '#<text:tracked-changes\b.*?</text:tracked-changes>#s', '#<office:annotation\b.*?</office:annotation>#s', '#<office:annotation-end\b[^>]*/>#'],
+                       '', $xml);      // Deleted text (tracked changes), field codes and comments: not text
+    $xml= preg_replace_callback('#<text:s(?:\s+text:c="(\d+)")?\s*/>#', fn($m) => str_repeat(' ', min(200, max(1, (int)($m[1] ?? 1)))), $xml);  // Spaces
     $xml= preg_replace(['#</w:p>(\s*</w:tc>)#', '#</text:p>(\s*</table:table-cell>)#',                  // The last paragraph of a cell: no new line
                         '#</a:p>(\s*</a:txBody>\s*(?:<a:tcPr\b[^>]*/>|<a:tcPr\b.*?</a:tcPr>)?\s*</a:tc>)#s'], '$1', $xml);
     $xml= preg_replace(['#</w:tc>|</table:table-cell>|</a:tc>#', '#</w:tr>|</table:table-row>|</a:tr>#'], ["\t", "\n"], $xml);   // Cells / rows
@@ -632,14 +634,20 @@ function fe_preview_table($file) { // The first rows of a table: CSV / TSV, Exce
         $own= [];
         if (preg_match_all('#<numFmt [^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"#', $st, $mm, PREG_SET_ORDER))
             foreach ($mm as $f) $own[(int)$f[1]]= preg_match('/[dmy]/i', preg_replace('/"[^"]*"|\[[^\]]*\]/', '', html_entity_decode($f[2])));
-        if (preg_match('#<cellXfs[^>]*>(.*?)</cellXfs>#s', $st, $cx) && preg_match_all('#<xf [^>]*?numFmtId="(\d+)"#', $cx[1], $xm))
-            foreach ($xm[1] as $k => $id) $dateXf[$k]= ($id >= 14 && $id <= 22) || ($id >= 45 && $id <= 47) || !empty($own[(int)$id]);
+        if (preg_match('#<cellXfs[^>]*>(.*?)</cellXfs>#s', $st, $cx) && preg_match_all('#<xf\b([^>]*)>#', $cx[1], $xm))
+            foreach ($xm[1] as $k => $at) {
+                $id= preg_match('#numFmtId="(\d+)"#', $at, $im) ? (int)$im[1] : 0;
+                $dateXf[$k]= ($id >= 14 && $id <= 22) || ($id >= 45 && $id <= 47) || !empty($own[$id]);
+            }
         $z->close();
         $xr= new XMLReader();
         if (!@$xr->open($zp.$part)) return null;
-        $row= null;  $ci= 0;  $t= '';
+        $row= null;  $ci= 0;  $t= '';  $rn= 0;
         while ($xr->read()) {
             if ($xr->nodeType === XMLReader::ELEMENT && $xr->localName === 'row') {
+                $no= (int)$xr->getAttribute('r') ?: $rn + 1;
+                for ($k= 0; $k < min(5, $no - $rn - 1) && count($rows) < $max; $k++) $rows[]= [];      // Empty rows before it
+                $rn= $no;
                 if (count($rows) >= $max) { $more= true;  break; }
                 $row= [];
             } elseif ($xr->nodeType === XMLReader::ELEMENT && $xr->localName === 'c' && $row !== null) {
@@ -681,8 +689,8 @@ function fe_preview_table($file) { // The first rows of a table: CSV / TSV, Exce
             $r= [];
             if ($node) foreach ($node->children('urn:oasis:names:tc:opendocument:xmlns:table:1.0') as $c) {
                 $rep= min($cols, max(1, (int)$c->attributes('urn:oasis:names:tc:opendocument:xmlns:table:1.0')['number-columns-repeated']));
-                $txt= trim(strip_tags((string)$c->asXML()));
-                for ($k= 0; $k < $rep && count($r) < $cols; $k++) $r[]= $cell(html_entity_decode($txt, ENT_QUOTES | ENT_XML1, 'UTF-8'));
+                $txt= trim(preg_replace('/\s*[\n\t]\s*/', ' ', fe_xml_text((string)$c->asXML())));     // More paragraphs: one line
+                for ($k= 0; $k < $rep && count($r) < $cols; $k++) $r[]= $cell($txt);
             }
             while ($r && end($r) === '') array_pop($r);                // No empty cells at the end (repeated to the last column)
             $rrep= max(1, (int)$xr->getAttribute('table:number-rows-repeated'));
@@ -1825,6 +1833,10 @@ if (isset($_SESSION[p2h_SESSION_ID]['logged'], $_SESSION[p2h_SESSION_ID]['pwfp']
     && !hash_equals((string)$_SESSION[p2h_SESSION_ID]['pwfp'], substr(hash('sha256', (string)$auth_users[$_SESSION[p2h_SESSION_ID]['logged']][0]), 0, 16))) {
     unset($_SESSION[p2h_SESSION_ID]['logged'], $_SESSION[p2h_SESSION_ID]['unlocked'], $_SESSION[p2h_SESSION_ID]['basket'], $_SESSION[p2h_SESSION_ID]['fdl'], $_SESSION[p2h_SESSION_ID]['pwfp']);
     p2h_set_msg('@The password of the account was changed - log in again', 'error');
+}
+if ($use_auth && isset($_SESSION[p2h_SESSION_ID]['logged']) && !isset($auth_users[$_SESSION[p2h_SESSION_ID]['logged']])) {     // The account was deleted
+    unset($_SESSION[p2h_SESSION_ID]['logged'], $_SESSION[p2h_SESSION_ID]['unlocked'], $_SESSION[p2h_SESSION_ID]['basket'], $_SESSION[p2h_SESSION_ID]['fdl'], $_SESSION[p2h_SESSION_ID]['pwfp']);
+    p2h_set_msg('@The account does not exist any more', 'error');
 }
 if (isset($_SESSION[p2h_SESSION_ID]['logged']) && !isset($_SESSION[p2h_SESSION_ID]['pwfp']) && isset($auth_users[$_SESSION[p2h_SESSION_ID]['logged']][0]))
     $_SESSION[p2h_SESSION_ID]['pwfp']= substr(hash('sha256', (string)$auth_users[$_SESSION[p2h_SESSION_ID]['logged']][0]), 0, 16);     // (a session from before)
