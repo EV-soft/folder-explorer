@@ -564,6 +564,8 @@
       "You may write in":"Du må skrive i",
       "nothing - your account can only read":"intet - din konto kan kun læse",
       "also here":"også her",
+      "The folders your account may write in: upload, copy / move to, create ZIP and new folders - click one to open it":"De mapper, din konto må skrive i: uploade, kopiere / flytte til, lave ZIP og nye mapper - klik på en for at åbne den",
+      "You may also write in the folder you are in now - it is the destination, unless you choose another":"Du må også skrive i den mappe, du står i nu - den er destinationen, medmindre du vælger en anden",
       "Basket":"Kurv",
       "Put the checked rows in the basket":"Læg de markerede rækker i kurven",
       "empty - put files in it with the file menu (rest the mouse on a file name), or check rows in the table:":"tom - læg filer i den med filmenuen (hold musen på et filnavn), eller markér rækker i tabellen:",

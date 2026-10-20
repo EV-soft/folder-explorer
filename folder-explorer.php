@@ -2600,11 +2600,11 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
             $destDef= $can_write_here ? $currPath : ($wd[0] ?? '');      // The destination: the folder you are in - else the first write folder
             echo '<div class="feXfer">';
             // Where the user may write
-            echo '<div class="feXfRow"><b>'.p2h_enc(lang('@You may write in')).':</b> ';
+            echo '<div class="feXfRow"><abbr class="hint"><b>'.p2h_enc(lang('@You may write in')).':</b><data-hint>'.p2h_enc(lang('@The folders your account may write in: upload, copy / move to, create ZIP and new folders - click one to open it')).'</data-hint></abbr> ';
             if (!$wd) echo '<i>'.p2h_enc(lang('@nothing - your account can only read')).'</i>';
             foreach ($wd as $d)
                 echo '<a href="'.basename(__FILE__).'?show='.urlencode($d).'" class="txtbutt feXfDir"><i class="far fa-folder colr0"></i> '.p2h_enc($rootRel($d)).'</a> ';
-            echo $can_write_here ? ' <small class="feXfHere"><i class="fas fa-check"></i> '.p2h_enc(lang('@also here')).'</small>' : '';
+            echo $can_write_here ? ' <abbr class="hint"><small class="feXfHere"><i class="fas fa-check"></i> '.p2h_enc(lang('@also here')).'</small><data-hint>'.p2h_enc(lang('@You may also write in the folder you are in now - it is the destination, unless you choose another')).'</data-hint></abbr>' : '';
             echo '</div>';
             if ($wd && fe_can('w')) {      // Where uploads and the basket go - typed or chosen, it need not be the folder you are in
                 $opts= array_unique(array_merge($can_write_here ? [$currPath] : [], $wd));
