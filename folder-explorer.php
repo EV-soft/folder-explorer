@@ -2324,7 +2324,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
 
 ##### TRANSLATIONS (program menu): the changed texts of one language - administrators only
 if ($is_logged && isset($_POST['p2h_trans_lang'])) {
-    $fe_log_act= '@Translations';  $fe_log_obj= (string)$_POST['p2h_trans_lang'];
+    $fe_log_act= '@Translations';  $fe_log_obj= is_string($_POST['p2h_trans_lang']) ? $_POST['p2h_trans_lang'] : '';
     if (!fe_is_admin()) fe_msg(p2h_enc(lang('@Only an administrator can change the translations')), 'error');
     else { [$ok, $m]= p2h_trans_handle();  fe_msg(p2h_enc($m), $ok ? 'ok' : 'error'); }
     header('Location: '.basename(__FILE__).'?show='.urlencode($currPath).'&trans=1&tl='.urlencode(preg_replace('/[^A-Za-z-]/', '', $fe_log_obj)), true, 303);
@@ -3234,7 +3234,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Menus - how to open them', [
             '<b>File menu:</b> rest the mouse on a file name - or click it (also on a touch screen) - or right-click the row.',
             '<b>Folder menu:</b> right-click the row of a folder. A click on the folder name opens the folder.',
-            '<b>Program menu:</b> right-click the table outside a row: trash, users, your password, restrictions, help, about, log out.',
+            '<b>Program menu:</b> right-click the table outside a row: trash, your password, help, about, log out - administrators also: users, activity log, translations, restrictions.',
             '<b>Keyboard:</b> Tab to a file name and press Enter - the menu key or Shift+F10 opens the menu of the row (or the program menu) - arrow up / down in the menu - Esc closes it.',
             'Greyed actions may not be done here - the reason is shown at the bottom of the menu.',
         ]],
@@ -3418,7 +3418,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Folder name', 'Opens the folder', 'Folder menu'],
         ['Check box (Select)', 'Checks / unchecks the row', 'Menu of the row'],
         ['Size', 'Rest the mouse on it: the size in bytes', 'Menu of the row'],
-        ['The table outside the rows', '', 'Program menu: trash, users, password, restrictions, help, about, log out'],
+        ['The table outside the rows', '', 'Program menu: trash, password, help, about, log out - administrators also: users, activity log, translations, restrictions'],
         ['Column heading', 'Sorts by the column', ''],
         ['Folder in the tree', 'Opens the folder - the calculator counts its size', ''],
         ['Card header', 'Folds / opens the card', 'Card menu: applies to all cards'],
