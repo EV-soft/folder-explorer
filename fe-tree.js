@@ -115,7 +115,7 @@
         sw.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-rel') === rel ? 'true' : 'false'); });
         sw.hidden = false;
     }
-    queue = Array.prototype.slice.call(document.querySelectorAll('ul.feTree .feSizeCol[data-lazy]:not([data-manual])'));
+    queue = Array.prototype.filter.call(document.querySelectorAll('ul.feTree .feSizeCol[data-lazy]:not([data-manual])'), needed);    // Not inside a folder counted as a whole
     render();
     if (top && window.IntersectionObserver) {        // Only when the tree is shown - its card is folded at the start
         var io = new IntersectionObserver(function (es) {

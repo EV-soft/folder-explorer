@@ -288,6 +288,20 @@ function fe_sync_tree($src, $dst, &$n, &$skip) { // One way: copy what is missin
     else $skip++;
 }
 
+function fe_sync_need($src, $dst) { // The bytes fe_sync_tree() would add: what is missing or newer in $src (for the quota of the shared folder)
+    fe_more_time();
+    if (is_link($src) || is_link($dst)) return 0;
+    if (is_dir($src)) {
+        if ((empty($GLOBALS['fe_unlocked']) && basename($src)[0] === '.') || fe_is_trash($src)) return 0;
+        $b= 0;
+        foreach (scandir($src) ?: [] as $f) if ($f !== '.' && $f !== '..') $b+= fe_sync_need($src.'/'.$f, $dst.'/'.$f);
+        return $b;
+    }
+    if (!fe_can_read($src) || is_dir($dst)) return 0;
+    if (is_file($dst)) return filemtime($dst) >= filemtime($src) ? 0 : max(0, (int)filesize($src) - (int)filesize($dst));
+    return (int)filesize($src);
+}
+
 function fe_delete_tree($path, &$n, &$skip) { // Delete a file, or a folder with its content - a folder with something protected left (.htaccess ...) stays
     fe_more_time();
     if (is_dir($path) && !is_link($path)) {
@@ -880,6 +894,8 @@ function fe_ini_bytes($val) { // php.ini size ("8M") to bytes
 function fe_msg($html, $status= 'ok') { // Message shown on the next page (already translated and escaped) - and the result in the activity log ($fe_log_act)
     $_SESSION[p2h_SESSION_ID]['message']= $html;
     $_SESSION[p2h_SESSION_ID]['status']=  $status;
+    foreach (['currPath', 'dest', 'upDest', 'target'] as $v)     // Where it was done: the sizes of the tree are counted again
+        if (is_string($GLOBALS[$v] ?? null)) fe_size_forget(is_dir($GLOBALS[$v]) ? $GLOBALS[$v] : dirname($GLOBALS[$v]));
     if (!empty($GLOBALS['fe_log_act']))
         fe_log($GLOBALS['fe_log_act'], $GLOBALS['fe_log_obj'] ?? (isset($GLOBALS['currPath']) ? fe_show_path($GLOBALS['currPath']) : ''),
                ($status === 'error' ? '✗ ' : '').html_entity_decode(strip_tags(preg_replace(['#\s*-\s*<a\b[^>]*>.*?</a>#s', '#<br\s*/?>#i'], ['', ' - '], $html)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
@@ -1645,6 +1661,15 @@ function p2h_folders($path)
     //foreach ($folders as $fold) echo $fold;
 }
 
+function fe_size_forget($path) { // A folder was changed: its remembered size - and those of the folders above it - are counted again
+    global $root_path;
+    if (!is_string($path) || $path === '' || !isset($root_path)) return;
+    for ($d= p2h_norm_path($path); fe_in_dir($d, $root_path); $d= p2h_norm_path(dirname($d))) {
+        @unlink(sys_get_temp_dir().'/fe-size-'.md5(__FILE__.'|'.$d).'.txt');
+        if ($d === $root_path || dirname($d) === $d) break;
+    }
+}
+
 function fe_size_cache($dir, $bytes= null, &$age= null) { // The size of a folder, remembered 15 minutes (a temp file per folder) - for the tree
     // -1 = being counted (or the count ran out of time: then it is not tried again for 15 minutes)
     $f= sys_get_temp_dir().'/fe-size-'.md5(__FILE__.'|'.$dir).'.txt';
@@ -1666,7 +1691,7 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
     $sizes= $GLOBALS['fe_treesize'] ?? false;       // The card tool "Show used space"
     $pathOnly= $GLOBALS['fe_unlocked'] ?? false;    // Whole account: only the path to the current folder is opened (else far too many folders)
     $cur= $GLOBALS['currPath'];
-    $needOwn= $sizes && (fe_in_dir(p2h_norm_path($dir), $cur) || fe_in_dir($cur, p2h_norm_path($dir)));   // Below the current folder - or on the path to it
+    $needOwn= $sizes && (!empty($GLOBALS['calc_folder']) || fe_in_dir(p2h_norm_path($dir), $cur) || fe_in_dir($cur, p2h_norm_path($dir)));   // Analyse: every opened folder   // Below the current folder - or on the path to it
     $arrItems = @scandir($dir);
     if (!is_array($arrItems)) return 0;  // Unreadable folder
     $subs= [];  $own= 0;
@@ -1695,8 +1720,9 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
         if ($sizes) {
             $liX= $depth ? 35 + ($depth-1)*50 : 0;                         // This level from level 0
             $inCur= fe_in_dir($full, $GLOBALS['currPath']);                  // The current folder or below it: counted at once
-            $known= ($open && ($inCur || $onPath)) ? null : fe_size_cache($full);
-            $attr=  ($open && ($inCur || $onPath)) ? 'data-own="'.$mine.'"'
+            $addUp= $open && ($inCur || $onPath || !empty($GLOBALS['calc_folder']));     // Added up from its rows (Analyse: all opened folders)
+            $known= $addUp ? null : fe_size_cache($full);
+            $attr=  $addUp ? 'data-own="'.$mine.'"'
                   : ($known !== null && $known >= 0 ? 'data-size="'.$known.'"' : 'data-lazy="'.p2h_enc($full).'"'.($inCur || !empty($GLOBALS['calc_folder']) ? '' : ' data-manual="1"'));   // Analyse: all counted at once
             echo '<span class="feSizeCol" '.$attr.
                      ' style="left: calc(var(--feSizeX, 400px) - '.(30 + $liX).'px);">'.
@@ -2172,6 +2198,7 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
     fe_log('@Upload', is_string($upDest ?? null) ? fe_show_path($upDest) : '',
            ($error > '' ? '✗ '.$error : count($done).' '.lang('@files').($done ? ': '.implode(', ', array_map(fn($d) => basename($d[1]), $done)) : '')).
            ($fail ? ' - '.lang('@Not uploaded').': '.implode(', ', array_map(fn($f) => $f[1].' ('.$f[2].')', $fail)) : ''));
+    if (is_string($upDest ?? null)) fe_size_forget($upDest);       // (the JSON answer has no fe_msg)
     if ($ajax) {
         while (ob_get_level()) ob_end_clean();
         header('Content-Type: application/json; charset=utf-8');
@@ -2215,16 +2242,12 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
     if (!fe_can('w') || (!$can_write_here && $act !== 'sync')) $err= lang('@You may not write in this folder');
     elseif (!csrf_verify()) $err= lang('@The form has expired - reload the page and try again');
     elseif ($act === 'sync') {              // Synchronize a folder of this folder to a destination folder (it writes only there)
-        $dest= '';
-        foreach ([$root_path.'/'.ltrim($to, '/'), $to] as $try) {
-            $d= $to === '' ? false : realpath($try);
-            if ($d !== false && is_dir($d) && fe_in_dir(p2h_norm_path($d), $root_path)) { $dest= p2h_norm_path($d);  break; }
-        }
+        $dest= $to === '' ? '' : (string)fe_resolve_dest($to);     // As the other destinations: "sub", "root/sub" (as shown) or a whole path - never the trash
         if (!$isDir || p2h_norm_path(dirname(p2h_norm_path($file))) !== $currPath) $err= lang('@File not found').': '.$name;
         elseif ($dest === '')                                     $err= lang('@The destination folder is not found').': '.$to;
         elseif (!fe_can_write($dest))                             $err= lang('@You may not write in the destination folder').': '.$to;
         elseif (fe_in_dir($dest, p2h_norm_path($file)) || $dest === p2h_norm_path($file)) $err= lang('@Not an allowed name or folder').': '.$to;
-        elseif ($exch_path && fe_in_dir($dest, $exch_path) && !$fe_unlocked && fe_dir_size($file) > $fe_exchange_quota - fe_dir_size($exch_path))
+        elseif ($exch_path && fe_in_dir($dest, $exch_path) && !$fe_unlocked && fe_sync_need(p2h_norm_path($file), $dest) > $fe_exchange_quota - fe_dir_size($exch_path))   // What is copied (a second sync: little) - was the whole folder
                                                                   $err= lang('@the shared folder is full');
         else $target= $dest;
     }
@@ -2744,7 +2767,8 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     ### TRANSFER: the folders the user may write in, the basket (source -> destination), upload from the PC
     if ($is_logged) {
         $rootRel=  function($d) use ($root_path) { $r= ltrim(substr($d, strlen($root_path)), '/');  return $r === '' ? '/' : $r; };
-        $maxFile=  min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX, fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX);
+        $maxFile=  min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX,
+                       (fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX) - 65536);     // post_max_size: the whole request - room for the other fields (as fe-upload.js)
         htm_Card_(capt:'@Transfer',icon:'fas fa-exchange-alt',hint:'@Collect files and folders in the basket, and copy or move them to another folder - upload from your PC and download to it',
                   form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
             if (fe_is_admin()) {    // Remove / restore the restrictions - admins only: a lock icon among the card's tool icons
@@ -3256,7 +3280,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     // Limits (tab): the numbers of this installation - the settings of the program and of PHP
     $iniUp=   fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX;
     $iniPost= fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX;
-    $maxF=    min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, $iniUp, $iniPost);
+    $maxF=    min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, $iniUp, $iniPost < PHP_INT_MAX ? $iniPost - 65536 : $iniPost);
     $nice=    fn($b) => $b >= PHP_INT_MAX ? $tt('no limit') : p2h_nice_filesize($b);
     preg_match('/\(([^)]*)\)/', FE_DENY_EXT, $denyM);
     $deny=    implode(' ', array_map(fn($e) => '.'.($e === 'php\d*' ? 'php*' : $e), explode('|', $denyM[1] ?? '')));
