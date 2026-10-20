@@ -1103,7 +1103,10 @@ $p2h_Style = '
     [data-theme="dark"] .fe-drop { background: #1d2731; border-color: #4b6a85; color: #d6dde4; }
     [data-theme="dark"] .fe-drop.fe-over { background: #1f3a26; }
     [data-theme="dark"] .feFileName.feOn { background: #2d4a6b; color: #fff; }
-    [data-theme="dark"] .feNiceSec h4 { color: #8cc4f0; }
+    [data-theme="dark"] .feNiceSec h4, [data-theme="dark"] .feKeysWrap h4 { color: #8cc4f0; }
+    [data-theme="dark"] .feKeys th { color: #aeb8c2; border-color: #5a6672; }
+    [data-theme="dark"] .feKeys td { border-color: #3f4852; }
+    [data-theme="dark"] .feKeys kbd { background: #2b3036; border-color: #5a6672; color: #e3e7eb; }
     [data-theme="dark"] .feXfSum, [data-theme="dark"] .feBkList .feBkSize, [data-theme="dark"] .feUsrTbl th,
     [data-theme="dark"] .feSelDest, [data-theme="dark"] .feXfHere { color: #aeb8c2; }
     [data-theme="dark"] .feUsrNew td { border-top-color: #555; }
@@ -1125,6 +1128,15 @@ $p2h_Style = '
     .feNiceSec h4 { margin: 2px 0 2px; font-size: 13px; color: #1a5276; }
     .feNiceSec ul { margin: 0; padding-left: 16px; }
     .feNiceSec li { margin: 1px 0; }
+    .feKeysWrap { display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: 12.5px; line-height: 1.4; }
+    .feKeysWrap > div { flex: 1 1 380px; min-width: 0; }
+    .feKeysWrap h4 { margin: 2px 0 4px; font-size: 13px; color: #1a5276; }
+    .feKeys { border-collapse: collapse; width: 100%; margin-bottom: 4px; }
+    .feKeys th { text-align: left; font-size: 12px; color: #555; padding: 2px 6px; border-bottom: 2px solid #b8c4d0; }
+    .feKeys td { padding: 3px 6px; vertical-align: top; border-bottom: 1px solid #d5dde5; }
+    .feKeys kbd { display: inline-block; padding: 0 5px; font: 11.5px/1.5 monospace; white-space: nowrap; background: #fff;
+                  border: 1px solid #a9b4bf; border-bottom-width: 2px; border-radius: 4px; }
+    .feKeysNo { color: #999; }
     .feUsers { text-align: left; }
     .feUsrTbl { border-collapse: collapse; margin-bottom: 6px; }
     .feUsrTbl th { text-align: left; font-size: 12px; color: #555; padding: 2px 6px; border-bottom: 1px solid #ddd; }
@@ -3194,9 +3206,44 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             '<li>'.lang('@Images, video, audio and fonts - everywhere').'</li>'.
             '<li>'.lang('@Text and code with syntax colours, PDF, tables (CSV, TSV, Excel, Calc), the text of Word, ODT, PowerPoint, Impress, RTF and e-books, the file list of ZIP and tar archives - and the first bytes (hex) of any other file - only where you may download the file').'</li>'.
             '</ul>'.lang('@Not shown: 7z and rar archives (hex only), other sheets than the first.');
+    $mouse= [   // Mouse and keys: [where, click, right-click / long press] - translated (_trans.sys.json)
+        ['File name', 'File menu - resting the mouse on it opens it too', 'File menu'],
+        ['File icon', 'Rest the mouse on it: preview of the file', 'File menu'],
+        ['Folder name', 'Opens the folder', 'Folder menu'],
+        ['Check box (Select)', 'Checks / unchecks the row', 'Menu of the row'],
+        ['Size', 'Rest the mouse on it: the size in bytes', 'Menu of the row'],
+        ['The table outside the rows', '', 'Program menu: trash, users, password, restrictions, help, about, log out'],
+        ['Column heading', 'Sorts by the column', ''],
+        ['Folder in the tree', 'Opens the folder - the calculator counts its size', ''],
+        ['Card header', 'Folds / opens the card', 'Card menu: applies to all cards'],
+        ['Grip in the card header', 'Drag: moves the card', ''],
+        ['Corner of the card', 'Drag: the size - double-click: the original size', ''],
+    ];
+    $keys= [    // [keys, where, what]
+        ['Ctrl+A', 'Table', 'Checks all rows'],
+        ['Ctrl+Shift+A', 'Table', 'Unchecks all rows'],
+        ['Delete', 'Table', 'Deletes the checked rows (none checked: the row you are on) - into the trash'],
+        ['F2', 'Table', 'Renames the row you are on (or the one checked row)'],
+        ['Enter | Space', 'File name, card header', 'Opens the file menu - folds / opens the card'],
+        ['Menu key | Shift+F10', 'Row - outside the rows', 'Menu of the row - the program menu'],
+        ['Arrow up / down', 'Menu', 'The next / previous item'],
+        ['Esc', 'Menu, preview', 'Closes it (Tab closes a menu too)'],
+        ['Alt+Arrow up / down', 'In a card', 'Moves the card up / down'],
+        ['Arrows (Shift: 50 px), Home', 'Corner of the card', 'Changes the size - Home: the original size'],
+        ['F11', 'Everywhere', 'Full screen on / off'],
+    ];
+    $cell= fn($t) => $t === '' ? '<span class="feKeysNo">-</span>' : p2h_enc(lang('@'.$t));
+    $body3= '<div class="feKeysWrap"><div><h4>'.p2h_enc(lang('@Mouse')).'</h4><table class="feKeys"><tr><th>'.p2h_enc(lang('@Where')).'</th><th>'.p2h_enc(lang('@Click')).'</th>'.
+            '<th>'.p2h_enc(lang('@Right-click / long press')).'</th></tr>'.
+            implode('', array_map(fn($r) => '<tr><td><b>'.$cell($r[0]).'</b></td><td>'.$cell($r[1]).'</td><td>'.$cell($r[2]).'</td></tr>', $mouse)).'</table>'.
+            '<small>'.p2h_enc(lang('@Touch screens: a tap is a click - a long press is a right-click.')).'</small></div>'.
+            '<div><h4>'.p2h_enc(lang('@Shortcut keys')).'</h4><table class="feKeys"><tr><th>'.p2h_enc(lang('@Keys')).'</th><th>'.p2h_enc(lang('@Where')).'</th><th>'.p2h_enc(lang('@What')).'</th></tr>'.
+            implode('', array_map(fn($r) => '<tr><td>'.implode(' / ', array_map(fn($k) => '<kbd>'.p2h_enc(preg_match('/^(Space|Menu key|Arrow|Alt\+Arrow|Arrows)/', trim($k)) ? lang('@'.trim($k)) : trim($k)).'</kbd>', explode(' | ', $r[0]))).'</td><td>'.$cell($r[1]).'</td><td>'.$cell($r[2]).'</td></tr>', $keys)).'</table>'.
+            '<small>'.p2h_enc(lang('@Not while you type in a field - and not while a dialog is open.')).'</small></div></div>';
     htm_Tabs_(head:'', styl:'', rtrn:false);
     htm_Tab(labl:'@Nice to know:',body:$body1, name:'nice',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightyellow;', bclr:'lightyellow;', dflt:true);
     htm_Tab(labl:'@File-viewers:',body:$body2, name:'view',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',bclr:'lightgray;');
+    htm_Tab(labl:'@Mouse and keys:',body:$body3, name:'keys',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eef4fb;',bclr:'#eef4fb;');
     htm_Tabs_end(foot:'', styl:'', rtrn:false);
     /* 
     htm_TextDiv(lang('@Nice to know:').'<br>
