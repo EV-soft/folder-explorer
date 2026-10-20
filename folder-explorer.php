@@ -11,7 +11,7 @@ $needPolyfill=    '0';
 $needFontawesome= '2';
 $needTinymce=     '0';
 
-// The bundled library (php2html 1.7.7) - the calls in this file need 1.7 (an older shared copy in ../p2h/ would fail):
+// The bundled library (php2html 1.8.0 - with p2h_audit.inc.php and p2h_trans.inc.php) - the calls in this file need 1.8 (an older shared copy in ../p2h/ would fail):
 require_once (__DIR__.'/php2html.lib.php');    // Creating HTML-functions
 ## The activity log (program menu: Activity log - administrators): who did what, when and from where. A PHP file: opened in the browser it shows nothing.
 $gbl_AuditFile= $gbl_AuditFile ?? __DIR__.'/fe-audit.log.php';

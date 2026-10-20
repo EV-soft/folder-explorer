@@ -195,12 +195,12 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 ### Requirements:
 - PHP 8.1 or newer. Tested on PHP 8.3.
 - `short_open_tag` is **not** required.
-- Built with [Clever-Html-Engine / PHP2HTML](https://github.com/EV-soft/Clever-Html-Engine) **1.7.7** (bundled).
+- Built with [Clever-Html-Engine / PHP2HTML](https://github.com/EV-soft/Clever-Html-Engine) **1.8.0** (bundled, with its modules `p2h_audit.inc.php` and `p2h_trans.inc.php`).
 
 ### Installation:
 1. Copy the files to a folder on your web server.
 2. Open `folder-explorer.php` in the browser.
-3. The bundled `php2html.lib.php` (1.7.7) is always used.
+3. The bundled `php2html.lib.php` (1.8.0) is always used.
 4. The web server must be able to write the folder `_cache/` (created automatically) - the library caches its CSS/JS there.
 
 ### Security / configuration:
