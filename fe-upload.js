@@ -24,7 +24,7 @@
 
     function human(n) {
         var u = ['B', 'KB', 'MB', 'GB'], i = 0;
-        while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+        while (+n.toFixed(1) >= 1024 && i < u.length - 1) { n /= 1024; i++; }      // 1023.99 KB: 1.0 MB
         return (i ? n.toFixed(1) : n) + ' ' + u[i];
     }
     function esc(s) {

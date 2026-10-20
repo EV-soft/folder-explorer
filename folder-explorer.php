@@ -317,15 +317,15 @@ function fe_unzip($zip, $dest, $room, &$n, &$skip) { // Unpack a ZIP in $dest: s
         $bad=   !$parts || $name[0] === '/' || preg_match('#^[a-z]:#i', $name);
         foreach ($parts as $part) if ($part[0] === '.') $bad= true;       // .. and hidden files / folders
         if ($bad || (!$isDir && !fe_name_allowed(end($parts)))) { $skip++;  continue; }
+        if (!$isDir && $total + $st['size'] > $room) { $skip++;  continue; }      // Too large: skipped (not counted - a smaller file after it may fit), no folders made for it
         $dir= fe_rel_dir($dest, implode('/', $parts).($isDir ? '/-' : ''));
         if ($dir === false) { $skip++;  continue; }
         if ($isDir) continue;
-        if (($total+= $st['size']) > $room) { $skip++;  continue; }
         $target= fe_unique($dir.'/'.fe_clean_name(end($parts)));
         $in=  $z->getStream($st['name']);
         $out= $in ? @fopen($target, 'xb') : false;
         if (!$out) { if ($in) fclose($in);  $skip++;  continue; }
-        stream_copy_to_stream($in, $out, $st['size']);      // Never more than the ZIP says (a false size in the ZIP)
+        $total+= (int)stream_copy_to_stream($in, $out, $st['size']);      // Never more than the ZIP says (a false size in the ZIP)
         fclose($in);  fclose($out);
         @touch($target, $st['mtime']);
         $n++;
@@ -1995,12 +1995,12 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
             $err= (int)$up['error'][$i];    $size= (int)$up['size'][$i];    $name= fe_clean_name($orig);
             if (substr(trim(basename(strtr((string)$orig, '\\', '/'))), 0, 1) === '.') $name= '.'.$name;   // A hidden file stays hidden - and is refused
             if ($err === UPLOAD_ERR_NO_FILE) continue;
-            $dir= fe_rel_dir($upDest, is_string($rels[$i] ?? null) ? $rels[$i] : '');
             if     ($err !== UPLOAD_ERR_OK)          $why= lang('@upload error').' '.$err.($err <= 2 ? ' - '.lang('@the file is too large') : '');
             elseif (!fe_name_allowed($name))         $why= lang('@this file type is not allowed');
             elseif ($size > $fe_max_upload && !$fe_unlocked) $why= lang('@the file is too large');
             elseif ($used + $size > $quota)          $why= lang('@the shared folder is full');
-            elseif ($dir === false)                  $why= lang('@the folder name is not allowed');
+            elseif (($dir= fe_rel_dir($upDest, is_string($rels[$i] ?? null) ? $rels[$i] : '')) === false)       // Folders made only for an accepted file
+                                                     $why= lang('@the folder name is not allowed');
             else {
                 $target= $dir.'/'.$name;    $n= 2;      // Never overwrite: "name (2).ext"
                 while (file_exists($target) || is_link($target))
@@ -2088,7 +2088,11 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
                                                            && basename($target) !== $name))     // Only upper / lower case changed: allowed
             $err= lang('@There is a file with this name already').': '.$to;
     }
-    if ($err === '' && ($act === 'copy' || $act === 'zip') && ($isDir ? fe_dir_size($file) : filesize($file)) > $room) $err= lang('@the shared folder is full');
+    if ($err === '' && ($act === 'move' || $act === 'copy'))      // The destination decides: "sub/name" may be in the shared folder - a move inside it adds nothing
+        $room= $exch_path && !$fe_unlocked && fe_in_dir($dirReal, $exch_path) && !($act === 'move' && fe_in_dir(p2h_norm_path($file), $exch_path))
+             ? $fe_exchange_quota - fe_dir_size($exch_path) : PHP_INT_MAX;
+    if ($err === '' && in_array($act, ['copy', 'zip', 'move'], true) && $room < PHP_INT_MAX && ($isDir ? fe_dir_size($file) : filesize($file)) > $room)
+        $err= lang('@the shared folder is full');
     if ($err === '') {
         if ($act === 'sync')      { fe_sync_tree($file, $target, $n, $skip);  $ok= true; }
         elseif ($act === 'mkdir') $ok= @mkdir($target, 0755);

@@ -17,7 +17,7 @@
 
     function nice(n, fix) {      // Like p2h_nice_filesize(): 2 decimals in the column
         var u = [' B', 'KB', 'MB', 'GB', 'TB', 'PB'], i = 0;
-        while (n >= 1024 && i < u.length - 1) { n /= 1024;  i++; }
+        while (+n.toFixed(2) >= 1024 && i < u.length - 1) { n /= 1024;  i++; }     // 1023.999 KB: 1.00 MB
         return (i ? (fix ? n.toFixed(2) : String(Math.round(n * 100) / 100)) : String(n)) + ' ' + u[i];
     }
     function bytesTxt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
