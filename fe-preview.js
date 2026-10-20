@@ -330,6 +330,7 @@
             b.addEventListener('click', function (ev) { ev.preventDefault();  ev.stopPropagation();  hideMenu();  fn(); });
             menu.appendChild(b);
         }
+        if (P.trash) item('fas fa-trash-restore', P.trashT, function () { location.href = P.urlTrash; });
         if (P.admin) item('fas fa-users', P.users, function () { location.href = P.urlUsers; });
         if (P.admin && P.urlLog) item('fas fa-clipboard-list', P.logT, function () { location.href = P.urlLog; });
         item('fas fa-key', P.pwT, function () { location.href = P.urlPw; }, !P.pw);
@@ -429,6 +430,46 @@
         var r = (t.getBoundingClientRect ? t : nm).getBoundingClientRect();
         showMenu(nm, {x: r.left, y: r.bottom});
         var first = menu.querySelector('.fePmItem:not(:disabled)');  if (first) first.focus();
+    });
+    // ---------- Keyboard in the table: Ctrl+A checks all rows, Ctrl+Shift+A none - Delete - F2 rename ----------
+    function rowFacts(tr) {
+        var nm = tr && (tr.querySelector('.feFileName') || tr.querySelector('.feBp[data-fm]'));
+        try { return nm ? JSON.parse(nm.dataset.fm) : null; } catch (e) { return null; }
+    }
+    function checkedRows() {
+        return Array.prototype.slice.call(document.querySelectorAll('[id^=tblSpan] table input[type=checkbox]:checked'))
+            .map(function (c) { return c.closest('tr'); }).filter(function (tr) { return tr && tr.querySelector('.feBp'); });
+    }
+    function cannot(f) {                                // Why the row can not be changed - '' = it can
+        if (f.e === 1 && typeof window.feAct === 'function') return '';
+        return f.e === 0 ? T.onlyEx : f.e === 2 ? T.noRight : T.locked;
+    }
+    function say(txt) { if (typeof window.sysAlert === 'function') window.sysAlert(txt); else alert(txt); }
+    document.addEventListener('keydown', function (e) {
+        if (e.defaultPrevented || e.altKey || e.metaKey || typeof window.fePost !== 'function') return;
+        var t = document.activeElement, tbl = document.querySelector('[id^=tblSpan]');
+        if (!tbl || document.querySelector('dialog[open]')) return;
+        if (t && t.closest && t.closest('textarea, select, [contenteditable=true], .fePm, input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit])')) return;
+        if (e.ctrlKey && (e.key === 'a' || e.key === 'A')) {                // Check all - or none
+            if (typeof window.feSel !== 'function') return;
+            e.preventDefault();  window.feSel(e.shiftKey ? 'none' : 'all');  return;
+        }
+        if (e.ctrlKey || e.shiftKey || (e.key !== 'Delete' && e.key !== 'F2')) return;
+        var tr = t && t.closest && t.closest('tr'), here = tr && tbl.contains(tr) ? rowFacts(tr) : null, rows = checkedRows();
+        if (e.key === 'Delete') {
+            if (rows.length) { e.preventDefault();  hideMenu();  if (typeof window.feDo === 'function') window.feDo('delete');  return; }
+            if (!here) return;
+            e.preventDefault();  hideMenu();
+            if (cannot(here)) { say(cannot(here));  return; }
+            if (here.dir) confirmDo(T.delDQ + '\n' + here.n, function () { post([['fe_sel', 'delete'], ['fe_bp[]', here.b]]); });
+            else if (typeof window.feDelete === 'function') window.feDelete(here.n);
+            return;
+        }
+        var f = here || (rows.length === 1 ? rowFacts(rows[0]) : null);    // F2: the row you are on - or the one checked row
+        if (!f) return;
+        e.preventDefault();  hideMenu();
+        if (cannot(f)) { say(cannot(f));  return; }
+        ask(T.moveQ, f.n, function (to) { if (to !== f.n) window.feAct('move', f.n, to); });
     });
     addEventListener('scroll', function (e) { if (!(menu && menu.contains(e.target))) hideMenu(); }, true);
     addEventListener('keydown', function (e) { if (e.key === 'Escape') hideMenu(); });

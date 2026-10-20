@@ -11,7 +11,7 @@ $needPolyfill=    '0';
 $needFontawesome= '2';
 $needTinymce=     '0';
 
-// The bundled library (php2html 1.7.3) - the calls in this file need 1.7 (an older shared copy in ../p2h/ would fail):
+// The bundled library (php2html 1.7.7) - the calls in this file need 1.7 (an older shared copy in ../p2h/ would fail):
 require_once (__DIR__.'/php2html.lib.php');    // Creating HTML-functions
 ## The activity log (program menu: Activity log - administrators): who did what, when and from where. A PHP file: opened in the browser it shows nothing.
 $gbl_AuditFile= $gbl_AuditFile ?? __DIR__.'/fe-audit.log.php';
@@ -67,6 +67,13 @@ $fe_root_path= $fe_root_path ?? __DIR__;
 $fe_exchange_path=  $fe_exchange_path  ?? $fe_root_path.'/_exchange';
 $fe_max_upload=     $fe_max_upload     ?? 20 * 1024 * 1024;     // Max size per file (bytes) - PHP's upload_max_filesize / post_max_size also apply
 $fe_exchange_quota= $fe_exchange_quota ?? 200 * 1024 * 1024;    // Max total size of the shared folder (bytes) - other write folders have no quota of their own
+
+## The trash: deleted files and folders are moved here - a hidden folder, closed for direct web access and never shown in the tree.
+## Program menu - Trash: restore them, or delete them for good. After $fe_trash_days days they are deleted for good, and when the trash
+## holds more than $fe_trash_max bytes the oldest go first. $fe_trash_days= 0: no trash - deleted at once.
+$fe_trash_path= $fe_trash_path ?? __DIR__.'/.fe-trash';
+$fe_trash_days= $fe_trash_days ?? 30;
+$fe_trash_max=  $fe_trash_max  ?? 500 * 1024 * 1024;
 
 ## "Remove restrictions" (admins only, per session): browse, download and write everywhere below $fe_unlocked_root,
 ## any file type (never hidden files like .htaccess) and no quota / size limit of its own.
@@ -226,7 +233,7 @@ function fe_copy_tree($src, $dst, &$n, &$skip) { // Copy a file or a folder - on
     fe_more_time();
     if (is_link($src)) { $skip++;  return; }            // Never a link: a loop - or files outside the root
     if (is_dir($src)) {
-        if (empty($GLOBALS['fe_unlocked']) && basename($src)[0] === '.') { $skip++;  return; }     // Hidden folders (.git ...)
+        if ((empty($GLOBALS['fe_unlocked']) && basename($src)[0] === '.') || fe_is_trash($src)) { $skip++;  return; }     // Hidden folders (.git ...) - the trash
         if (!is_dir($dst) && !@mkdir($dst, 0755)) { $skip++;  return; }
         foreach (scandir($src) ?: [] as $f) if ($f !== '.' && $f !== '..') fe_copy_tree($src.'/'.$f, $dst.'/'.$f, $n, $skip);
         return;
@@ -267,7 +274,7 @@ function fe_sync_tree($src, $dst, &$n, &$skip) { // One way: copy what is missin
     fe_more_time();
     if (is_link($src) || is_link($dst)) { $skip++;  return; }       // Never a link: a loop - or files outside the root (also in the destination)
     if (is_dir($src)) {
-        if (empty($GLOBALS['fe_unlocked']) && basename($src)[0] === '.') { $skip++;  return; }     // Hidden folders (.git ...)
+        if ((empty($GLOBALS['fe_unlocked']) && basename($src)[0] === '.') || fe_is_trash($src)) { $skip++;  return; }     // Hidden folders (.git ...) - the trash
         if (!is_dir($dst) && (file_exists($dst) || !@mkdir($dst, 0755))) { $skip++;  return; }
         foreach (scandir($src) ?: [] as $f) if ($f !== '.' && $f !== '..') fe_sync_tree($src.'/'.$f, $dst.'/'.$f, $n, $skip);
         return;
@@ -293,12 +300,113 @@ function fe_delete_tree($path, &$n, &$skip) { // Delete a file, or a folder with
     else $skip++;
 }
 
+function fe_trash_dir() { // The trash folder - created and closed for direct web access - false: no trash
+    global $fe_trash_path, $fe_trash_days;
+    static $dir= null;
+    if ($dir === null) $dir= ((int)$fe_trash_days > 0 && is_string($fe_trash_path) && $fe_trash_path !== '') ? fe_exchange_init($fe_trash_path) : false;
+    return $dir;
+}
+
+function fe_is_trash($path) { // The trash folder - or below it: never shown, browsed, copied or zipped
+    $t= fe_trash_dir();
+    return $t !== false && fe_in_dir(p2h_norm_path($path), $t);
+}
+
+function fe_rm_all($path) { // Delete a folder of the program (in the trash) with all its content - a link is removed, never followed
+    if (is_dir($path) && !is_link($path)) {
+        foreach (scandir($path) ?: [] as $f) if ($f !== '.' && $f !== '..') fe_rm_all($path.'/'.$f);
+        return @rmdir($path);
+    }
+    return @unlink($path);
+}
+
+function fe_trash_move($path, $dst, &$n, &$skip) { // As fe_delete_tree() - but into the trash ($dst): what is protected stays where it is
+    fe_more_time();
+    if (is_dir($path) && !is_link($path)) {
+        if (empty($GLOBALS['fe_unlocked']) && basename($path)[0] === '.') { $skip++;  return; }     // A hidden folder: kept
+        if (!is_dir($dst) && !@mkdir($dst, 0755)) { $skip++;  return; }
+        foreach (scandir($path) ?: [] as $f) if ($f !== '.' && $f !== '..') fe_trash_move($path.'/'.$f, $dst.'/'.$f, $n, $skip);
+        $mt= @filemtime($path);
+        if (@rmdir($path)) { $n++;  if ($mt) @touch($dst, $mt); }
+        else $skip++;
+        return;
+    }
+    if ((!empty($GLOBALS['fe_unlocked']) || fe_name_allowed(basename($path))) && @rename($path, $dst)) $n++;
+    else $skip++;
+}
+
+function fe_trash_put($path, &$n, &$skip) { // Delete: into the trash - false: no trash (the caller deletes it for good)
+    $t= fe_trash_dir();
+    if ($t === false) return false;
+    $id= date('Ymd-His').'-'.bin2hex(random_bytes(4));
+    if (!@mkdir($t.'/'.$id, 0755)) return false;
+    $n0= $n;
+    fe_trash_move($path, $t.'/'.$id.'/'.basename($path), $n, $skip);
+    if ($n === $n0) { fe_rm_all($t.'/'.$id);  return true; }           // Nothing of it could be moved
+    @file_put_contents($t.'/'.$id.'.json', json_encode(['n' => basename($path), 'f' => p2h_norm_path(dirname($path)),
+        'd' => is_dir($t.'/'.$id.'/'.basename($path)) ? 1 : 0, 'u' => $_SESSION[p2h_SESSION_ID]['logged'] ?? '', 't' => time(),
+        's' => fe_dir_size($t.'/'.$id)], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    fe_trash_trim();
+    if (!is_file($t.'/'.$id.'.json')) $GLOBALS['fe_trash_big']= true;  // Bigger than the trash: deleted for good at once
+    return true;
+}
+
+function fe_trash_list() { // The trash, the newest first: id => [n name, f from folder, d 1 = a folder, u user, t time, s bytes]
+    $t= fe_trash_dir();  $list= [];
+    if ($t === false) return $list;
+    foreach (glob($t.'/*.json') ?: [] as $j) {
+        $id= basename($j, '.json');
+        $m=  json_decode((string)@file_get_contents($j), true);
+        if (preg_match('/^\d{8}-\d{6}-[0-9a-f]{8}$/', $id) && is_array($m) && isset($m['n'], $m['f'], $m['t']) && fe_clean_name((string)$m['n']) === $m['n']
+            && file_exists($t.'/'.$id.'/'.$m['n'])) $list[$id]= $m;
+    }
+    uasort($list, fn($a, $b) => $b['t'] <=> $a['t']);
+    return $list;
+}
+
+function fe_trash_drop($id) { // Delete one item of the trash for good
+    $t= fe_trash_dir();
+    if ($t === false || !preg_match('/^\d{8}-\d{6}-[0-9a-f]{8}$/', (string)$id)) return;
+    fe_rm_all($t.'/'.$id);  @unlink($t.'/'.$id.'.json');
+}
+
+function fe_trash_trim() { // Away with the old ones - and the oldest, while the trash is too big - and what was left by a broken delete
+    global $fe_trash_days, $fe_trash_max;
+    $t= fe_trash_dir();
+    if ($t === false) return;
+    $list= fe_trash_list();  $sum= 0;
+    foreach ($list as $id => $m) {                      // The newest first
+        $sum+= (int)($m['s'] ?? 0);
+        if ($m['t'] < time() - (int)$fe_trash_days * 86400 || $sum > $fe_trash_max) { fe_trash_drop($id);  unset($list[$id]); }
+    }
+    foreach (scandir($t) ?: [] as $f)
+        if (preg_match('/^(\d{8}-\d{6}-[0-9a-f]{8})(\.json)?$/', $f, $mm) && !isset($list[$mm[1]]) && @filemtime($t.'/'.$f) < time() - 3600) fe_rm_all($t.'/'.$f);
+}
+
+function fe_trash_may($m) { // May the logged user see / restore / delete this item of the trash: administrators all - others what came from their write folders
+    return fe_can('w') && (fe_is_admin() || fe_can_write((string)$m['f']));
+}
+
+function fe_trash_restore($id, $m) { // Back to its folder (made again, if it is gone) - a name taken there: "name (2)" - [true, new path] or [false, error]
+    global $exch_path, $fe_unlocked, $fe_exchange_quota;
+    $src= fe_trash_dir().'/'.$id.'/'.$m['n'];
+    if (!fe_can_write($m['f']))                                          return [false, lang('@You may not write in the folder').': '.fe_show_path($m['f'])];
+    if (empty($fe_unlocked) && empty($m['d']) && !fe_name_allowed($m['n'])) return [false, lang('@This file can not be changed here')];
+    if (!is_dir($m['f']) && !@mkdir($m['f'], 0755, true))               return [false, lang('@It could not be done')];
+    if ($exch_path && empty($fe_unlocked) && fe_in_dir($m['f'], $exch_path) && fe_dir_size($exch_path) + (int)($m['s'] ?? 0) > $fe_exchange_quota)
+                                                                         return [false, lang('@the shared folder is full')];
+    $dst= fe_unique($m['f'].'/'.$m['n']);
+    if (!@rename($src, $dst))                                            return [false, lang('@It could not be done')];
+    fe_trash_drop($id);
+    return [true, $dst];
+}
+
 function fe_zip_add($z, $path, $local, &$n, &$skip) { // Add a file or a folder to a ZIP - only files the user may read
     fe_more_time();
     if (is_link($path)) { $skip++;  return; }           // Never a link: a loop - or files outside the root
     if ($n + $skip >= 20000) { $skip++;  return; }      // At most 20000 files - the rest is counted as skipped (and told)
     if (is_dir($path)) {
-        if (empty($GLOBALS['fe_unlocked']) && basename($path)[0] === '.') { $skip++;  return; }
+        if ((empty($GLOBALS['fe_unlocked']) && basename($path)[0] === '.') || fe_is_trash($path)) { $skip++;  return; }
         $z->addEmptyDir($local);
         foreach (scandir($path) ?: [] as $f) if ($f !== '.' && $f !== '..') fe_zip_add($z, $path.'/'.$f, $local.'/'.$f, $n, $skip);
     } elseif (fe_can_read($path) && $z->addFile($path, $local)) $n++;
@@ -773,7 +881,7 @@ function fe_msg($html, $status= 'ok') { // Message shown on the next page (alrea
     $_SESSION[p2h_SESSION_ID]['status']=  $status;
     if (!empty($GLOBALS['fe_log_act']))
         fe_log($GLOBALS['fe_log_act'], $GLOBALS['fe_log_obj'] ?? (isset($GLOBALS['currPath']) ? fe_show_path($GLOBALS['currPath']) : ''),
-               ($status === 'error' ? '✗ ' : '').html_entity_decode(strip_tags(preg_replace('#<br\s*/?>#i', ' - ', $html)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+               ($status === 'error' ? '✗ ' : '').html_entity_decode(strip_tags(preg_replace(['#\s*-\s*<a\b[^>]*>.*?</a>#s', '#<br\s*/?>#i'], ['', ' - '], $html)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 }
 
 function fe_log($acti, $targ= '', $note= '', $user= null) { // One event in the activity log (p2h_audit.inc.php) - the logged user by default
@@ -802,6 +910,10 @@ function fe_login_tries($fail= null) { // Failed logins from this address to thi
     if ($fail === true)  { @file_put_contents($f, (string)++$n, LOCK_EX);  if (mt_rand(1, 20) === 1) fe_temp_cleanup(); }
     if ($fail === false) @unlink($f);
     return $n;
+}
+
+function fe_trash_link() { // " - Open the trash" after a message of a delete
+    return fe_trash_dir() === false ? '' : ' - <a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode((string)($GLOBALS['currPath'] ?? '')).'&trash=1').'">'.p2h_enc(lang('@Open the trash')).'</a>';
 }
 
 function fe_redirect($dir) { // Post/Redirect/Get - back to the folder
@@ -1538,7 +1650,7 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
     fe_more_time();
     foreach ($arrItems as $item) {
         if ($item === '.' || $item === '..') continue;
-        if (is_dir($dir.'/'.$item)) { if (!is_link($dir.'/'.$item)) $subs[]= $item; }  // Do not follow symlinks (loops)
+        if (is_dir($dir.'/'.$item)) { if (!is_link($dir.'/'.$item) && !fe_is_trash($dir.'/'.$item)) $subs[]= $item; }  // Do not follow symlinks (loops) - never the trash
         elseif ($needOwn && is_file($dir.'/'.$item)) $own+= (int)@filesize($dir.'/'.$item);
     }
     if (!$subs) return $own;             // No sub folders: no empty list
@@ -1586,7 +1698,7 @@ function p2h_fileExplore($path,$parentDir) {
           //if (substr($obj, 0, 1)   == '.') { continue; }   // Hidden file
             $pathName = $path. '/'. $obj;
             if     (@is_file($pathName))                                    { $files[]   = $obj; } 
-            elseif (@is_dir ($pathName) && ($obj != '.') && ($obj != '..')) { $folders[] = $obj; }
+            elseif (@is_dir ($pathName) && ($obj != '.') && ($obj != '..') && !fe_is_trash($pathName)) { $folders[] = $obj; }     // Never the trash
         }
     }
     $maxsize= 0;    $foldsize= 0;   $filesIncurrent= 0;     $ix = 1000;     $arrNames= [];   $Context_Row= ''; //  folder checkbox id
@@ -1919,6 +2031,7 @@ if (isset($_GET['calc'])) {
 
 $root_path= p2h_norm_path(($fe_unlocked ? realpath($fe_unlocked_root) : false) ?: realpath($fe_root_path) ?: $fe_root_path);
 $currPath= p2h_safe_path($_POST['show'] ?? $_GET['show'] ?? '', $root_path);  // Never outside $root_path
+if (fe_is_trash($currPath)) $currPath= $root_path;                             // The trash is only seen in its card (program menu: Trash)
 
 ##### RIGHTS: write in the account's write folders - read (download, content) there and in the shared folder ($fe_exchange_path)
 $exch_path=      $is_logged ? fe_exchange_init($fe_exchange_path) : false;
@@ -2058,7 +2171,9 @@ if ($is_logged && isset($_POST['fe_delete'])) {      // Delete a file in the cur
     elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
     elseif ($file === false || !is_file($file) || p2h_norm_path(dirname(p2h_norm_path($file))) !== $currPath || !fe_name_allowed($name))
                             fe_msg(p2h_enc(lang('@File not found')).': '.p2h_enc($name), 'error');
-    elseif (@unlink($file)) fe_msg(p2h_enc(lang('@Deleted')).': <b>'.p2h_enc($name).'</b>');
+    elseif (($inTrash= fe_trash_put($file, $tn, $ts)) && $tn)
+                            fe_msg(p2h_enc(lang(empty($fe_trash_big) ? '@Moved to the trash' : '@Deleted - too big for the trash')).': <b>'.p2h_enc($name).'</b>'.fe_trash_link());
+    elseif (!$inTrash && @unlink($file)) fe_msg(p2h_enc(lang('@Deleted')).': <b>'.p2h_enc($name).'</b>');
     else                    fe_msg(p2h_enc(lang('@Could not delete')).': '.p2h_enc($name), 'error');
     fe_redirect($currPath);
 }
@@ -2314,8 +2429,10 @@ if ($is_logged && isset($_POST['fe_sel'])) {
     elseif ($op === 'delete') {
         if (!fe_can('w') || !$can_write_here) fe_msg(p2h_enc(lang('@You may not write in this folder')), 'error');
         else {
-            foreach ($items as $it) fe_delete_tree($it, $n, $skip);
-            fe_msg(p2h_enc(lang('@Deleted')).': '.$n.' '.p2h_enc(lang('@files / folders')).
+            $inTrash= false;
+            foreach ($items as $it) if (fe_trash_put($it, $n, $skip)) $inTrash= true;  else fe_delete_tree($it, $n, $skip);
+            fe_msg(p2h_enc(lang(!$inTrash ? '@Deleted' : (empty($fe_trash_big) ? '@Moved to the trash' : '@Deleted - too big for the trash'))).': '.$n.' '.p2h_enc(lang('@files / folders')).
+                   ($inTrash ? fe_trash_link() : '').
                    ($skip ? ' - '.$skip.' '.p2h_enc(lang('@not deleted (protected files are kept, and the folders they are in)')) : ''), $skip ? 'error' : 'ok');
         }
     }
@@ -2332,6 +2449,24 @@ if ($is_logged && isset($_POST['fe_sel'])) {
         fe_msg(p2h_enc(lang('@Nothing of it may be downloaded')).$skipTxt(), 'error');
     }
     fe_redirect($currPath);
+}
+if ($is_logged && isset($_POST['fe_trash'])) {     // The trash (program menu): restore - delete for good - empty
+    [$op, $id]= array_pad(explode(':', (string)$_POST['fe_trash'], 2), 2, '');
+    $list= array_filter(fe_trash_list(), 'fe_trash_may');
+    $fe_log_act= ['restore' => '@Restore from the trash', 'drop' => '@Delete for good', 'empty' => '@Empty the trash'][$op] ?? '';
+    $fe_log_obj= isset($list[$id]) ? fe_show_path($list[$id]['f'].'/'.$list[$id]['n']) : '';
+    if (!csrf_verify())        fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
+    elseif ($op === 'empty') { foreach ($list as $i => $m) fe_trash_drop($i);
+                               fe_msg(p2h_enc(lang('@The trash is emptied')).': '.count($list).' '.p2h_enc(lang('@files / folders'))); }
+    elseif (!isset($list[$id])) fe_msg(p2h_enc(lang('@Not found in the trash')), 'error');
+    elseif ($op === 'drop')   { fe_trash_drop($id);  fe_msg(p2h_enc(lang('@Deleted for good')).': <b>'.p2h_enc($list[$id]['n']).'</b>'); }
+    elseif ($op === 'restore') {
+        [$ok, $res]= fe_trash_restore($id, $list[$id]);
+        if ($ok) fe_msg(p2h_enc(lang('@Restored')).': <b>'.p2h_enc(fe_show_path($res)).'</b>');
+        else     fe_msg(p2h_enc($res), 'error');
+    }
+    header('Location: '.basename(__FILE__).'?show='.urlencode($currPath).'&trash=1', true, 303);
+    exit;
 }
 if (isset($_POST['csvFile']))   { $csvFile= basename($_POST['csvFile']); }   // No paths in export filename
 
@@ -2528,6 +2663,36 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
             if (!empty($fe_users_broken)) echo '<div class="p2hAlert p2hAlert-error" role="alert">'.p2h_enc(lang('@The accounts file can not be read (an error in it) - the accounts in folder-explorer.php are used. Saving here writes a new file.')).'</div>';
             echo '</table><small>'.p2h_enc(lang('@Saved in')).' <code>'.p2h_enc(basename($fe_users_file)).'</code>'.
                  (is_file($fe_users_file) ? '' : ' - '.p2h_enc(lang('@until the first save the accounts in folder-explorer.php are used'))).'</small> &nbsp; '.
+                 '<a href="'.p2h_enc($act).'" class="txtbutt feXfBtn"><i class="fas fa-times"></i> '.p2h_enc(lang('@Close')).'</a></div>';
+        htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
+        htm_nl(1);
+    }
+    if (isset($_GET['trash']) && fe_can('w') && fe_trash_dir() !== false) {     // The trash
+        fe_trash_trim();
+        $list= array_filter(fe_trash_list(), 'fe_trash_may');
+        $act=  basename(__FILE__).'?show='.urlencode($currPath);
+        htm_Card_(capt:'@Trash',icon:'fas fa-trash-restore',hint:'@Deleted files and folders - restore them to their folder, or delete them for good',
+                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+            echo '<div class="feUsers"><form id="feTrashForm" method="post" action="'.p2h_enc($act.'&trash=1').'">'.csrf_field(true).'</form>';
+            if (!$list) echo '<p><i>'.p2h_enc(lang('@The trash is empty')).'</i></p>';
+            else {
+                echo '<table class="feUsrTbl feTrashTbl"><tr><th>'.p2h_enc(lang('@Name')).'</th><th>'.p2h_enc(lang('@From the folder')).'</th><th>'.p2h_enc(lang('@Size')).'</th>'.
+                     '<th>'.p2h_enc(lang('@Deleted')).'</th><th>'.p2h_enc(lang('@By')).'</th><th></th></tr>';
+                foreach ($list as $id => $m)
+                    echo '<tr><td><i class="far fa-'.(empty($m['d']) ? 'file' : 'folder').'"></i> '.p2h_enc($m['n']).'</td><td>'.p2h_enc(fe_show_path($m['f'])).'</td>'.
+                         '<td style="white-space:nowrap;">'.p2h_nice_filesize((int)($m['s'] ?? 0)).'</td><td style="white-space:nowrap;">'.date('Y-m-d H:i', (int)$m['t']).'</td>'.
+                         '<td>'.p2h_enc((string)($m['u'] ?? '')).'</td><td style="white-space:nowrap;">'.
+                         fe_hint('<button type="submit" form="feTrashForm" name="fe_trash" value="restore:'.p2h_enc($id).'" class="txtbutt feXfBtn" aria-label="'.p2h_enc(lang('@Restore')).'">'.
+                                 '<i class="fas fa-undo"></i></button>', p2h_enc(lang('@Restore - back to its folder (a name taken there: name (2))'))).' '.
+                         fe_hint('<button type="submit" form="feTrashForm" name="fe_trash" value="drop:'.p2h_enc($id).'" class="txtbutt feXfBtn feUsrDel" aria-label="'.p2h_enc(lang('@Delete for good')).'" '.
+                                 'onclick="return feConfirmSubmit(this, '.p2h_enc(p2h_js(lang('@Delete for good').': '.$m['n'].' ?')).')"><i class="fas fa-times"></i></button>', p2h_enc(lang('@Delete for good'))).
+                         '</td></tr>';
+                echo '</table>';
+            }
+            echo '<small>'.p2h_enc(lang('@Deleted for good after').' '.(int)$fe_trash_days.' '.lang('@days').' - '.lang('@and the oldest first, when the trash holds more than')).' '.
+                 p2h_nice_filesize($fe_trash_max).'</small> &nbsp; '.
+                 ($list ? '<button type="submit" form="feTrashForm" name="fe_trash" value="empty:" class="txtbutt feXfBtn feUsrDel" '.
+                          'onclick="return feConfirmSubmit(this, '.p2h_enc(p2h_js(lang('@Empty the trash').' ('.count($list).') ?')).')"><i class="fas fa-trash-alt"></i> '.p2h_enc(lang('@Empty the trash')).'</button> ' : '').
                  '<a href="'.p2h_enc($act).'" class="txtbutt feXfBtn"><i class="fas fa-times"></i> '.p2h_enc(lang('@Close')).'</a></div>';
         htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
         htm_nl(1);
@@ -2787,7 +2952,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                       htm_AcceptButt(labl:'@COPY',       icon:'', hint:'@Copy the checked files / folders to the destination folder (below) - never over an existing file', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'',     rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("copy")', idix:'').
                       htm_AcceptButt(labl:'@MOVE',       icon:'', hint:'@Move the checked files / folders to the destination folder (below)',       form:'', wdth:'100px;', attr:$dis, akey:'', kind:'crea', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("move")', idix:'').
                       htm_AcceptButt(labl:'@Create ZIP', icon:'', hint:'@One ZIP file with the checked files / folders - in the destination folder (below)', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'',     rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("zip")', idix:'').
-                      htm_AcceptButt(labl:'@DELETE',     icon:'', hint:'@Delete the checked files / folders (folders with their content) - you are asked first', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'eras', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("delete")', idix:'').
+                      htm_AcceptButt(labl:'@DELETE',     icon:'', hint:fe_trash_dir() !== false ? '@Move the checked files / folders to the trash (program menu: Trash) - you are asked first' : '@Delete the checked files / folders (folders with their content) - you are asked first', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'eras', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("delete")', idix:'').
                       htm_AcceptButt(labl:'@Property',   icon:'', hint:'@Number and size of the checked files and folders',  form:'', wdth:'100px;', attr:$dis, akey:'', kind:'spc1', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("prop")', idix:'').
                       htm_AcceptButt(labl:'@DOWNLOAD',   icon:'', hint:'@Download the checked files / folders to your PC - more than one file as a ZIP', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'get_', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("download")', idix:'').
                       htm_Fieldset_end(rtrn:true).
@@ -2853,7 +3018,7 @@ run_Script('
     function feSel(how) { feRows().forEach(function(c) { c.checked= how === "all" ? true : (how === "none" ? false : !c.checked); }); }
     function feDo(op) {     /* File features below the table */
         var T= '.p2h_js(json_encode(['check'=>lang('@Check one or more rows in the table first'), 'noUp'=>lang('@You may not upload to this folder'),
-                                     'delQ'=>lang('@Delete the checked files and folders (folders with all their content)?'), 'title'=>lang('@The checked rows'),
+                                     'delQ'=>lang(fe_trash_dir() !== false ? '@Move the checked files and folders to the trash?' : '@Delete the checked files and folders (folders with all their content)?'), 'title'=>lang('@The checked rows'),
                                      'files'=>lang('@Files'), 'folders'=>lang('@Folders'), 'size'=>lang('@Size of the files'), 'bytes'=>lang('@bytes')])).';
         T= JSON.parse(T);
         if (op === "upload") {
@@ -2918,7 +3083,7 @@ run_Script('
         fePost([["fe_act", act], ["fe_name", name], ["fe_to", to || ""]]);
     }
     function feDelete(name) {
-        var q= '.p2h_js(lang('@Delete the file').': ').' + name + " ?", go= function() { fePost([["fe_delete", name]]); };
+        var q= '.p2h_js(lang(fe_trash_dir() !== false ? '@Move the file to the trash' : '@Delete the file').': ').' + name + " ?", go= function() { fePost([["fe_delete", name]]); };
         if (typeof sysConfirm === "function") sysConfirm(q, go);  else if (confirm(q)) go();
     }
 ');
@@ -2934,13 +3099,14 @@ echo '<script src="fe-preview.js?v='.@filemtime(__DIR__.'/fe-preview.js').'" def
     'bkIn'=>lang('@Put in the basket'), 'bkOut'=>lang('@Take out of the basket'), 'unzip'=>lang('@Unpack here'),
     'prog'=>['title'=>'Folder-explorer', 'admin'=>fe_is_admin() ? 1 : 0, 'pw'=>fe_may_change_pw($_SESSION[p2h_SESSION_ID]['logged'] ?? '') ? 1 : 0,
              'unl'=>$fe_unlocked ? 1 : 0, 'out'=>$use_auth ? basename(__FILE__).'?logout=1&t='.urlencode((string)($_SESSION['csrf_token'] ?? '')) : '',
-             'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlLog'=>basename(__FILE__).'?show='.urlencode($currPath).'&log=1', 'logT'=>lang('@Activity log'), 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
+             'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlLog'=>basename(__FILE__).'?show='.urlencode($currPath).'&log=1', 'logT'=>lang('@Activity log'),
+             'trash'=>fe_can('w') && fe_trash_dir() !== false ? 1 : 0, 'urlTrash'=>basename(__FILE__).'?show='.urlencode($currPath).'&trash=1', 'trashT'=>lang('@Trash'), 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
              'users'=>lang('@Users ...'), 'pwT'=>lang('@Change my password'), 'lock'=>lang('@Remove restrictions'), 'unlock'=>lang('@Restore restrictions'),
              'lockQ'=>lang('@Remove the restrictions for this session?'), 'help'=>lang('@Help'), 'about'=>lang('@About Folder-explorer'), 'out_'=>lang('@Log out'),
              'aboutTxt'=>'Folder-explorer '.FE_VERSION.' ('.FE_DATE.")\n".'PHP2HTML / Clever-Html-Engine '.P2H_VERSION."\n".(fe_is_admin() ? 'PHP '.PHP_VERSION."\n" : '').
                          lang('@User').': '.($_SESSION[p2h_SESSION_ID]['logged'] ?? '')."\n\n".'© 2019-2026 EV-soft - github.com/EV-soft/folder-explorer'],
     'goto'=>lang('@Open the folder'), 'dirZip'=>lang('@Download as ZIP'), 'dirProp'=>lang('@Folder properties'), 'moveD'=>lang('@Rename / move folder'),
-    'copyD'=>lang('@Copy folder'), 'delD'=>lang('@Delete folder'), 'delDQ'=>lang('@Delete the folder with all its content?'),
+    'copyD'=>lang('@Copy folder'), 'delD'=>lang('@Delete folder'), 'delDQ'=>lang(fe_trash_dir() !== false ? '@Move the folder with all its content to the trash?' : '@Delete the folder with all its content?'),
     'delFQ'=>lang('@Delete the file').':', 'newD'=>lang('@New folder'), 'newQ'=>lang('@Name of the new folder:'),
     'sync'=>lang('@Synchronize to ...'), 'syncQ'=>lang('@Destination folder below the root (e.g. _exchange/backup) - what is missing or newer here is copied there, an older file there is replaced, nothing is deleted:'),
     'dests'=>array_map(fn($d) => ltrim(substr($d, strlen($root_path)), '/') ?: '/', fe_write_dirs()),
@@ -2980,7 +3146,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Menus - how to open them', [
             '<b>File menu:</b> rest the mouse on a file name - or click it (also on a touch screen) - or right-click the row.',
             '<b>Folder menu:</b> right-click the row of a folder. A click on the folder name opens the folder.',
-            '<b>Program menu:</b> right-click the table outside a row: users, your password, restrictions, help, about, log out.',
+            '<b>Program menu:</b> right-click the table outside a row: trash, users, your password, restrictions, help, about, log out.',
             '<b>Keyboard:</b> Tab to a file name and press Enter - the menu key or Shift+F10 opens the menu of the row (or the program menu) - arrow up / down in the menu - Esc closes it.',
             'Greyed actions may not be done here - the reason is shown at the bottom of the menu.',
         ]],
@@ -2991,6 +3157,8 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Select and do', [
             'Check the rows in the column <b>Select</b> - or <b>All / None / Inverse</b> below the table.',
             'For the checked rows: <b>COPY, MOVE, Create ZIP</b> (to the field Destination), <b>DELETE, Property, DOWNLOAD</b> - and <b>Basket</b>.',
+            '<b>Keyboard:</b> Ctrl+A checks all rows, Ctrl+Shift+A none - Delete deletes the checked rows (none checked: the row you are on) - F2 renames the row you are on (or the one checked row).',
+            '<b>Trash:</b> what you delete goes to the trash (program menu: Trash) - restore it there, or delete it for good. After some time it is deleted for good.',
         ]],
         ['Transfer', [
             '<b>Basket:</b> collect files and folders from any folder, choose the <b>destination</b>, then copy or move them there - or download them as one ZIP.',

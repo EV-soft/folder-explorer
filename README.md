@@ -156,6 +156,9 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 | `$fe_max_time` | 300 s | long work (Analyse, sizes, copy, ZIP) may extend PHP's time limit up to this |
 | `$gbl_SessionKeep` | `true` | an open page keeps the login alive |
 | `$gbl_AuditFile` | `fe-audit.log.php` | the activity log (program menu - Activity log) |
+| `$fe_trash_path` | `.fe-trash` | the trash (program menu - Trash): a hidden folder next to the program, never shown in the tree |
+| `$fe_trash_days` | `30` | days in the trash before it is deleted for good - `0`: no trash, deleted at once |
+| `$fe_trash_max` | `500 MB` | bytes in the trash - above it the oldest are deleted for good |
 
 ### Login and safety:
 - At most 10 failed logins per address and account in 15 minutes; the slider *Are you human?* is checked on the server too.
@@ -165,10 +168,15 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   blocked ones), log out, upload, download, rename / move, copy, ZIP, unpack, new folder, synchronize, delete, basket and checked-row
   actions, users, passwords and the restrictions - with the result. Saved in `fe-audit.log.php` next to the program (a PHP file: it
   shows nothing in the browser); at 2 MB it is renamed to `fe-audit.log.old.php` and a new one is started. It needs `p2h_audit.inc.php`.
+- **Trash:** what is deleted goes to the trash (program menu - Trash, or the link in the message): restore it to its folder (a name
+  taken there: name (2)), delete it for good, or empty the trash. Everybody sees what was deleted in the folders they may write in,
+  administrators all of it. Deleted for good after 30 days - and the oldest first above 500 MB.
 
 ### Keyboard, touch, theme:
 - Tab to a file name and Enter, or the menu key / Shift+F10 on a row: the file / folder menu; outside a row: the program menu.
   Arrow up / down in the menu, Esc or Tab closes it.
+- In the table: **Ctrl+A** checks all rows, **Ctrl+Shift+A** none - **Delete** deletes the checked rows (none checked: the row you
+  are on) - **F2** renames the row you are on (or the one checked row).
 - Touch screens: tap a file name, or press long on a row (or the table) - the same menus.
 - The light / dark theme of the view bar applies to all parts of the program.
 
