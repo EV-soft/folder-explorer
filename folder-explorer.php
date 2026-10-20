@@ -2715,7 +2715,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         htm_nl(1);
     }
 
-    htm_Card_(capt:'Folder-Details',icon:'fas fa-info',hint: '',form:'xxx',acti:'',clas:'cardWmax',
+    htm_Card_(capt:'@Folder content',icon:'fas fa-folder-open',hint: '',form:'xxx',acti:'',clas:'cardWmax',
                 wdth:'800px',styl:'background-color: white;',attr:'', show:true, head: 'background-color: white;');
     echo '<small>';
     
