@@ -2776,7 +2776,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     if (isset($_GET['trans']) && fe_is_admin()) {       // The translations - the texts of this program and its library are searched for the missing ones
         htm_TransEditor(capt:'@Translations', icon:'fas fa-language', hint:'@The texts of the program in other languages - the missing first. Saved in _trans.sys.json',
                         scan:[__FILE__, __DIR__.'/php2html.lib.php', __DIR__.'/p2h_audit.inc.php', __DIR__.'/p2h_trans.inc.php'],
-                        acti:basename(__FILE__).'?show='.urlencode($currPath).'&trans=1');
+                        acti:basename(__FILE__).'?show='.urlencode($currPath).'&trans=1', prog:'Folder-explorer, a web file manager (folders, upload, download, basket, trash)');
         htm_nl(1);
     }
     if (isset($_GET['log']) && fe_is_admin()) {         // The activity log
