@@ -3379,14 +3379,22 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             implode('', array_map(fn($r) => '<tr><td>'.implode(' / ', array_map(fn($k) => '<kbd>'.p2h_enc(preg_match('/^(Space|Menu key|Arrow|Alt\+Arrow|Arrows)/', trim($k)) ? lang('@'.trim($k)) : trim($k)).'</kbd>', explode(' | ', $r[0]))).'</td><td>'.$cell($r[1]).'</td><td>'.$cell($r[2]).'</td></tr>', $keys)).'</table>'.
             '<small>'.p2h_enc(lang('@Not while you type in a field - and not while a dialog is open.')).'</small></div></div>';
     htm_Tabs_(head:'<h3 class="feManHead"><i class="fas fa-book" aria-hidden="true"></i> '.p2h_enc(lang('@Manual')).'</h3>', styl:'display: block;', rtrn:false);
-    htm_Tab(labl:'@Nice to know:',body:$body1, name:'nice',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightyellow;', bclr:'lightyellow;', dflt:true);
-    htm_Tab(labl:'@File-viewers:',body:$body2, name:'view',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',bclr:'lightgray;');
-    htm_Tab(labl:'@Your account:',body:$body4, name:'acc',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eefaf0;',bclr:'#eefaf0;');
-    htm_Tab(labl:'@Limits:',body:$body5, name:'lim',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #fbf3ea;',bclr:'#fbf3ea;');
-    htm_Tab(labl:'@Step by step:',body:$body6, name:'steps',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #f1eefb;',bclr:'#f1eefb;');
-    htm_Tab(labl:'@Questions:',body:$body7, name:'faq',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eef8f8;',bclr:'#eef8f8;');
-    htm_Tab(labl:'@About:',body:$body8, name:'about',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #f3f3f3;',bclr:'#f3f3f3;');
-    htm_Tab(labl:'@Mouse and keys:',body:$body3, name:'keys',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eef4fb;',bclr:'#eef4fb;');
+    // The tabs of the manual - in the order people need them: [label, body, name, colour, colour in the dark theme] - one lightness, eight hues
+    $manTabs= [
+        ['@Nice to know:',   $body1, 'nice',  '#fdf6d8', '#38331f'],
+        ['@Step by step:',   $body6, 'steps', '#e6f1fc', '#1f3140'],
+        ['@Questions:',      $body7, 'faq',   '#e5f5ec', '#1f3629'],
+        ['@Mouse and keys:', $body3, 'keys',  '#efeafb', '#2d2940'],
+        ['@Your account:',   $body4, 'acc',   '#e2f3f3', '#1c3536'],
+        ['@Limits:',         $body5, 'lim',   '#fbeee2', '#3b2d21'],
+        ['@File-viewers:',   $body2, 'view',  '#f7e9f0', '#392a32'],
+        ['@About:',          $body8, 'about', '#eceff2', '#2a2f36'],
+    ];
+    foreach ($manTabs as [$lb, $bd, $nm, $c])
+        htm_Tab(labl:$lb, body:$bd, name:$nm, styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: '.$c.';', bclr:$c.';', dflt:$nm === 'nice');
+    echo '<style>'.implode('', array_map(fn($t) => '[data-theme="dark"] #tab_'.$t[2].', [data-theme="dark"] #'.$t[2].' { background-color: '.$t[4].' !important; border-bottom-color: '.$t[4].' !important; }', $manTabs)).
+         '[data-theme="dark"] .p2hTabs .tabcontent { box-shadow: 3px 3px 6px 0px #000 !important; }'.
+         '[data-theme="dark"] .p2hTabs .tab { background-color: #1b1f24; }</style>';
     htm_Tabs_end(foot:'', styl:'', rtrn:false);
     /* 
     htm_TextDiv(lang('@Nice to know:').'<br>
