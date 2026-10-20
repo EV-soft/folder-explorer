@@ -174,7 +174,7 @@ function fe_resolve_dest($raw) { // A destination folder: "root/sub" (as shown),
     if (preg_match('#^(/|[a-z]:/)#i', $raw)) $tries[]= $raw;                                                 // A whole path
     foreach ($tries as $t) {
         $d= realpath($t);
-        if ($d !== false && is_dir($d) && fe_in_dir(p2h_norm_path($d), $root_path)) return p2h_norm_path($d);
+        if ($d !== false && is_dir($d) && fe_in_dir(p2h_norm_path($d), $root_path) && !fe_is_trash($d)) return p2h_norm_path($d);
     }
     return false;
 }
@@ -357,7 +357,8 @@ function fe_trash_list() { // The trash, the newest first: id => [n name, f from
     foreach (glob($t.'/*.json') ?: [] as $j) {
         $id= basename($j, '.json');
         $m=  json_decode((string)@file_get_contents($j), true);
-        if (preg_match('/^\d{8}-\d{6}-[0-9a-f]{8}$/', $id) && is_array($m) && isset($m['n'], $m['f'], $m['t']) && fe_clean_name((string)$m['n']) === $m['n']
+        if (preg_match('/^\d{8}-\d{6}-[0-9a-f]{8}$/', $id) && is_array($m) && isset($m['n'], $m['f'], $m['t']) && is_string($m['n'])
+            && !in_array($m['n'], ['', '.', '..'], true) && strpbrk($m['n'], "/\\\0") === false     // One name - any name a file may have (not fe_clean_name(): a:b.txt was lost)
             && file_exists($t.'/'.$id.'/'.$m['n'])) $list[$id]= $m;
     }
     uasort($list, fn($a, $b) => $b['t'] <=> $a['t']);
@@ -1520,7 +1521,8 @@ function p2h_get_directoryInfo($directory) {    // Get directory total size
       $size = 0;  $fileCount= 0;  $dirCount= 0;     $arrNames= [];
       try {
         $iter= new RecursiveIteratorIterator(
-                 new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+                 new RecursiveCallbackFilterIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+                     fn($f) => !($f->isDir() && fe_is_trash($f->getPathname()))),     // Never the trash (the names of deleted files)
                  RecursiveIteratorIterator::SELF_FIRST,
                  RecursiveIteratorIterator::CATCH_GET_CHILD);   // Skip unreadable subfolders instead of failing
         foreach ($iter as $fileinfo) {
@@ -2056,6 +2058,7 @@ if (fe_is_trash($currPath)) $currPath= $root_path;                             /
 
 ##### RIGHTS: write in the account's write folders - read (download, content) there and in the shared folder ($fe_exchange_path)
 $exch_path=      $is_logged ? fe_exchange_init($fe_exchange_path) : false;
+if ($is_logged && mt_rand(1, 50) === 1) fe_trash_trim();       // Now and then: away with what is older than $fe_trash_days
 $can_write_here= $is_logged && fe_can_write($currPath);
 $quota_here=     $exch_path !== false && fe_in_dir($currPath, $exch_path) && !$fe_unlocked;     // Only the shared folder has a quota
 
@@ -2205,6 +2208,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
     $name= fe_given_name($_POST['fe_name'] ?? '');
     $to=   trim(str_replace('\\', '/', (string)($_POST['fe_to'] ?? '')), '/ ');
     $file= $name === '' ? false : realpath($currPath.'/'.$name);
+    if ($file !== false && fe_is_trash($file)) $file= false;      // Never the trash itself
     $isDir= $file !== false && is_dir($file);
     $err=  '';  $target= '';  $n= 0;  $skip= 0;
     $room= $quota_here ? $fe_exchange_quota - fe_dir_size($exch_path) : PHP_INT_MAX;
@@ -2367,7 +2371,7 @@ if ($is_logged && isset($_POST['fe_bk'])) {
     elseif ($op === 'add') {
         foreach ($paths as $pth) {
             $r= realpath($pth);  $r= $r === false ? '' : p2h_norm_path($r);
-            if ($r !== '' && $r !== $root_path && fe_in_dir($r, $root_path) && !in_array($r, $basket, true)) { $basket[]= $r;  $n++; }
+            if ($r !== '' && $r !== $root_path && fe_in_dir($r, $root_path) && !fe_is_trash($r) && !in_array($r, $basket, true)) { $basket[]= $r;  $n++; }
         }
         fe_msg(p2h_enc(lang('@Put in the basket')).': <b>'.$n.'</b> - '.p2h_enc(lang('@go to the destination folder and copy or move them there')));
     }
@@ -2415,7 +2419,7 @@ if ($is_logged && isset($_POST['fe_sel'])) {
     $items= [];
     foreach (array_filter((array)($_POST['fe_bp'] ?? []), 'is_string') as $pth) {
         $r= realpath($pth);  $r= $r === false ? '' : p2h_norm_path($r);
-        if ($r !== '' && p2h_norm_path(dirname($r)) === $currPath && !in_array($r, $items, true)) $items[]= $r;      // Only rows of this folder
+        if ($r !== '' && p2h_norm_path(dirname($r)) === $currPath && !fe_is_trash($r) && !in_array($r, $items, true)) $items[]= $r;      // Only rows of this folder - never the trash
     }
     $dRaw= trim((string)($_POST['fe_dest'] ?? ''));      // The destination: a folder below the root - empty: this folder
     $dest= in_array((string)($_POST['fe_sel'] ?? ''), ['copy', 'move', 'zip'], true) && csrf_verify() ? fe_resolve_dest_new($dRaw) : fe_resolve_dest($dRaw);

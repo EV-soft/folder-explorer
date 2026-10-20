@@ -358,7 +358,7 @@
     }
     var lpTimer = null, lpFired = false, lpXY = null;     // Long press (touch screens - iOS has no right-click): the same menus
     document.addEventListener('touchstart', function (e) {
-        if (e.touches.length !== 1 || !e.target.closest || !e.target.closest('[id^=tblSpan]') || e.target.closest('input, textarea, select')) return;
+        if (e.touches.length !== 1 || !e.target.closest || !e.target.closest('[id^=tblSpan]') || e.target.closest('input:not([type=checkbox]), textarea, select')) return;
         var t = e.touches[0], tr = e.target.closest('tr'), nm = tr && (tr.querySelector('.feFileName') || tr.querySelector('.feBp[data-fm]'));
         lpFired = false;  lpXY = {x: t.clientX, y: t.clientY};
         clearTimeout(lpTimer);
@@ -376,7 +376,7 @@
     });
     document.addEventListener('touchcancel', function () { clearTimeout(lpTimer); });
     document.addEventListener('contextmenu', function (e) {     // Right-click a row of the table: the same menu - elsewhere in the table: the program menu
-        if (!e.target.closest || e.target.closest('a[href]:not(.txtbutt), input, textarea, select')) return;
+        if (!e.target.closest || e.target.closest('a[href]:not(.txtbutt), input:not([type=checkbox]), textarea, select')) return;
         var tr = e.target.closest('tr');
         var nm = tr && (tr.querySelector('.feFileName') || tr.querySelector('.feBp[data-fm]'));
         if (!nm && !e.target.closest('[id^=tblSpan]')) return;
