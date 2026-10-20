@@ -157,6 +157,7 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 | `$gbl_SessionKeep` | `true` | an open page keeps the login alive |
 | `$gbl_AuditFile` | `fe-audit.log.php` | the activity log (program menu - Activity log) |
 | `$gbl_TransFile` | `_trans.sys.json` | the translations (program menu - Translations) |
+| `$gbl_Flags` | `[]` | own flags for the language selector: `['el' => ['0 0 3 2', '<rect .../>']]` - a new language: program menu - Translations |
 | `$fe_trash_path` | `.fe-trash` | the trash (program menu - Trash): a hidden folder next to the program, never shown in the tree |
 | `$fe_trash_days` | `30` | days in the trash before it is deleted for good - `0`: no trash, deleted at once |
 | `$fe_trash_max` | `500 MB` | bytes in the trash - above it the oldest are deleted for good |
