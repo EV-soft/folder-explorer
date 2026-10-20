@@ -3373,6 +3373,11 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             'Program menu (right-click the table outside a row): <b>Trash</b>.',
             '<b>Restore</b> - it goes back to its folder.',
         ]],
+        ['Add a new language (administrators)', [
+            'Program menu: <b>Translations</b> - choose the language (those without translations are at the bottom).',
+            '<b>Copy for AI</b> - paste it in an AI chat (ChatGPT, Claude ...) - <b>Paste the answer</b> - <b>Save the changes</b>.',
+            'Reload the page: the language is in the language selector of the view bar - with its flag, or its code.',
+        ]],
         ['Find a file in the sub folders', [
             'Choose <b>Analyse</b> - the switch in the header of the card Folder content.',
             'Type in the search field next to it: the files of all sub folders are listed.',
