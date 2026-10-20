@@ -1655,7 +1655,7 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['perms']= $perms;
         $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
         $rec['access']= '-';
-        $rec['space']= '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
+        $rec['space']= !$calc_folder ? '' : '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
                         <small style="/* width: 40px; */ display: inline-block; text-align: right; left: 40%; top: -16px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
         $foldRecords[]= $rec;
         
@@ -1735,7 +1735,7 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['perms']= $perms;
         $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
         $rec['access']= $accetime.$acces;
-        $rec['space']= '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
+        $rec['space']= !$calc_folder ? '' : '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
                         <small style="text-align: right; display: inline-block; left: 40%; top: -16px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
         $fileRecords[]= $rec;
 
