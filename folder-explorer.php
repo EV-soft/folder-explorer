@@ -256,6 +256,7 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
             if ($size > $room) { $skip++;  continue; }
             $room-= $size;
         }
+        if ($op === 'move' && fe_holds_program($src)) { $skip++;  continue; }     // The program itself: never moved
         if ($op === 'move') {
             if (fe_can_write(p2h_norm_path(dirname($src))) && (!empty($fe_unlocked) || (basename($src)[0] !== '.' && (is_dir($src) || fe_name_allowed(basename($src)))))
                 && @rename($src, $dst)) { $n++;  $done[]= $src; }
@@ -267,6 +268,8 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
             $room-= $size;
         }
     }
+    fe_size_forget($dest);                                          // The tree counts them again
+    foreach ($done as $d) fe_size_forget(dirname($d));
     return $done;
 }
 
@@ -312,6 +315,12 @@ function fe_delete_tree($path, &$n, &$skip) { // Delete a file, or a folder with
     }
     if ((!empty($GLOBALS['fe_unlocked']) || fe_name_allowed(basename($path))) && @unlink($path)) $n++;
     else $skip++;
+}
+
+function fe_holds_program($path) { // The folder of the program - or a folder above it, or the trash: never deleted or moved (the program would be gone)
+    $p= p2h_norm_path((string)$path);
+    $t= fe_trash_dir();
+    return fe_in_dir(p2h_norm_path(__DIR__), $p) || ($t !== false && fe_in_dir($t, $p));
 }
 
 function fe_trash_dir() { // The trash folder - created and closed for direct web access - false: no trash
@@ -413,6 +422,7 @@ function fe_trash_restore($id, $m) { // Back to its folder (made again, if it is
     $dst= fe_unique($m['f'].'/'.$m['n']);
     if (!@rename($src, $dst))                                            return [false, lang('@It could not be done')];
     fe_trash_drop($id);
+    fe_size_forget($m['f']);
     return [true, $dst];
 }
 
@@ -2236,6 +2246,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
     $to=   trim(str_replace('\\', '/', (string)($_POST['fe_to'] ?? '')), '/ ');
     $file= $name === '' ? false : realpath($currPath.'/'.$name);
     if ($file !== false && fe_is_trash($file)) $file= false;      // Never the trash itself
+    if ($file !== false && $act === 'move' && is_dir($file) && fe_holds_program($file)) $file= false;    // Nor the folder of the program (renamed: the program is gone)
     $isDir= $file !== false && is_dir($file);
     $err=  '';  $target= '';  $n= 0;  $skip= 0;
     $room= $quota_here ? $fe_exchange_quota - fe_dir_size($exch_path) : PHP_INT_MAX;
@@ -2478,7 +2489,9 @@ if ($is_logged && isset($_POST['fe_sel'])) {
         if (!fe_can('w') || !$can_write_here) fe_msg(p2h_enc(lang('@You may not write in this folder')), 'error');
         else {
             $inTrash= false;
-            foreach ($items as $it) if (fe_trash_put($it, $n, $skip)) $inTrash= true;  else fe_delete_tree($it, $n, $skip);
+            foreach ($items as $it)
+                if (fe_holds_program($it)) $skip++;                                    // The folder of the program: never deleted
+                elseif (fe_trash_put($it, $n, $skip)) $inTrash= true;  else fe_delete_tree($it, $n, $skip);
             fe_msg(p2h_enc(lang(!$inTrash ? '@Deleted' : (empty($fe_trash_big) ? '@Moved to the trash' : '@Deleted - too big for the trash'))).': '.$n.' '.p2h_enc(lang('@files / folders')).
                    ($inTrash ? fe_trash_link() : '').
                    ($skip ? ' - '.$skip.' '.p2h_enc(lang('@not deleted (protected files are kept, and the folders they are in)')) : ''), $skip ? 'error' : 'ok');
@@ -2731,8 +2744,10 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                     echo '<tr><td><i class="far fa-'.(empty($m['d']) ? 'file' : 'folder').'"></i> '.p2h_enc($m['n']).'</td><td>'.p2h_enc(fe_show_path($m['f'])).'</td>'.
                          '<td style="white-space:nowrap;">'.p2h_nice_filesize((int)($m['s'] ?? 0)).'</td><td style="white-space:nowrap;">'.date('Y-m-d H:i', (int)$m['t']).'</td>'.
                          '<td>'.p2h_enc((string)($m['u'] ?? '')).'</td><td style="white-space:nowrap;">'.
-                         fe_hint('<button type="submit" form="feTrashForm" name="fe_trash" value="restore:'.p2h_enc($id).'" class="txtbutt feXfBtn" aria-label="'.p2h_enc(lang('@Restore')).'">'.
-                                 '<i class="fas fa-undo"></i></button>', p2h_enc(lang('@Restore - back to its folder (a name taken there: name (2))'))).' '.
+                         [$mayRe= fe_can_write((string)$m['f']),
+                          fe_hint('<button type="submit" form="feTrashForm" name="fe_trash" value="restore:'.p2h_enc($id).'" class="txtbutt feXfBtn"'.($mayRe ? '' : ' disabled').' aria-label="'.p2h_enc(lang('@Restore')).'">'.
+                                  '<i class="fas fa-undo"></i></button>', p2h_enc(lang($mayRe ? '@Restore - back to its folder (a name taken there: name (2))'
+                                                                                         : '@You may not write in its folder - an administrator can remove the restrictions first')))][1].' '.
                          fe_hint('<button type="submit" form="feTrashForm" name="fe_trash" value="drop:'.p2h_enc($id).'" class="txtbutt feXfBtn feUsrDel" aria-label="'.p2h_enc(lang('@Delete for good')).'" '.
                                  'onclick="return feConfirmSubmit(this, '.p2h_enc(p2h_js(lang('@Delete for good').': '.$m['n'].' ?')).')"><i class="fas fa-times"></i></button>', p2h_enc(lang('@Delete for good'))).
                          '</td></tr>';
@@ -3065,7 +3080,12 @@ run_Script('
             var tr= c.closest("tr");  return tr && tr.querySelector(".feBp");
         });
     }
-    function feSel(how) { feRows().forEach(function(c) { c.checked= how === "all" ? true : (how === "none" ? false : !c.checked); }); }
+    function feSel(how) {      /* All / Inverse: only the rows the filter shows (a hidden row was checked too - and DELETE took it) */
+        feRows().forEach(function(c) {
+            var tr= c.closest("tr"), shown= tr.offsetParent !== null && !tr.classList.contains("filtered");
+            if (how === "none") c.checked= false;  else if (shown) c.checked= how === "all" ? true : !c.checked;
+        });
+    }
     function feDo(op) {     /* File features below the table */
         var T= '.p2h_js(json_encode(['check'=>lang('@Check one or more rows in the table first'), 'noUp'=>lang('@You may not upload to this folder'),
                                      'delQ'=>lang(fe_trash_dir() !== false ? '@Move the checked files and folders to the trash?' : '@Delete the checked files and folders (folders with all their content)?'), 'title'=>lang('@The checked rows'),
