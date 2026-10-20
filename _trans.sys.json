@@ -564,6 +564,8 @@
       "You may write in":"Du må skrive i",
       "nothing - your account can only read":"intet - din konto kan kun læse",
       "also here":"også her",
+      "In <b>Analyse</b> mode the used space is always shown - and all folders are counted at once.":"I <b>Analyse</b>-tilstand vises den brugte plads altid - og alle mapper tælles med det samme.",
+      "Analyse mode: the used space of every folder is shown - click to go back to Quick":"Analyse-tilstand: hver mappes forbrugte plads vises - klik for at gå tilbage til Hurtig",
       "Step by step:":"Trin for trin:",
       "Questions:":"Spørgsmål:",
       "About:":"Om:",

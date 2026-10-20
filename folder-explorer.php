@@ -1697,7 +1697,7 @@ function listFolders($dir,$currentDir='',$depth=0) {    // Echoes the tree below
             $inCur= fe_in_dir($full, $GLOBALS['currPath']);                  // The current folder or below it: counted at once
             $known= ($open && ($inCur || $onPath)) ? null : fe_size_cache($full);
             $attr=  ($open && ($inCur || $onPath)) ? 'data-own="'.$mine.'"'
-                  : ($known !== null && $known >= 0 ? 'data-size="'.$known.'"' : 'data-lazy="'.p2h_enc($full).'"'.($inCur ? '' : ' data-manual="1"'));
+                  : ($known !== null && $known >= 0 ? 'data-size="'.$known.'"' : 'data-lazy="'.p2h_enc($full).'"'.($inCur || !empty($GLOBALS['calc_folder']) ? '' : ' data-manual="1"'));   // Analyse: all counted at once
             echo '<span class="feSizeCol" '.$attr.
                      ' style="left: calc(var(--feSizeX, 400px) - '.(30 + $liX).'px);">'.
                  fe_hint('<span class="feTreeSize"><span class="feTreeBar"><span></span></span><span class="feTreeNum">&hellip;</span></span>',
@@ -2595,11 +2595,12 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                 wdth:'800px',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
         // Card tool: show the used space of every folder in the tree (on/off for this session)
         if (isset($_GET['treesize'])) $_SESSION[p2h_SESSION_ID]['treesize']= ($_GET['treesize'] === '1');
-        $fe_treesize= !empty($_SESSION[p2h_SESSION_ID]['treesize']);
-        $tsHint= $fe_treesize ? lang('@ANALYSE: Click to hide the used space of the folders')
-                              : lang('@ANALYSE: Click to show the used space of every folder (can take time in big folders)');
+        $fe_treesize= $calc_folder || !empty($_SESSION[p2h_SESSION_ID]['treesize']);     // Analyse mode: always - Quick: when it is switched on here
+        $tsHint= $calc_folder ? lang('@Analyse mode: the used space of every folder is shown - click to go back to Quick')
+               : ($fe_treesize ? lang('@ANALYSE: Click to hide the used space of the folders')
+                               : lang('@ANALYSE: Click to show the used space of every folder (can take time in big folders)'));
         echo '<abbr class="hint p2hCtrlHint" id="feSizeTool">'.
-                '<a href="'.basename(__FILE__).'?show='.urlencode($currPath).'&amp;treesize='.($fe_treesize ? '0' : '1').'" '.
+                '<a href="'.basename(__FILE__).'?show='.urlencode($currPath).'&amp;treesize='.($fe_treesize && !$calc_folder ? '0' : ($calc_folder ? (empty($_SESSION[p2h_SESSION_ID]['treesize']) ? '0' : '1') : '1')).'" '.
                     'aria-label="'.p2h_enc(strip_tags($tsHint)).'" aria-pressed="'.($fe_treesize ? 'true' : 'false').'" '.
                     'style="text-decoration: none; margin: 5px 8px 0 0; font-size: 13px; display: inline-block; color: '.($fe_treesize ? '#1a7f37' : '#555').';">'.
                     '<ic class="fas fa-hdd"></ic></a>'.
@@ -3193,6 +3194,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Folder tree', [
             'The current folder is bold, with an open folder. The number at the left is the level.',
             'The card tool <b>hdd</b> shows the used space: the current folder is counted at once - other folders with their calculator, or <b>Count all</b>. The bars show the share of the parent folder or of BASE.',
+            'In <b>Analyse</b> mode the used space is always shown - and all folders are counted at once.',
         ]],
         ['Quick and Analyse', [
             '<b>Quick</b> lists the folder at once. <b>Analyse</b> also counts the files and sizes in all sub folders, and lets you search for a file name in them. Quick is used again when you change folder.',
