@@ -1130,6 +1130,8 @@ $p2h_Style = '
     .feNiceSec h4 { margin: 2px 0 2px; font-size: 13px; color: #1a5276; }
     .feNiceSec ul { margin: 0; padding-left: 16px; }
     .feNiceSec li { margin: 1px 0; }
+    .feNiceSec ol { margin: 0; padding-left: 20px; }
+    .feFaqA { margin: 0 0 2px; }
     .feKeysWrap { display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: 12.5px; line-height: 1.4; }
     .feKeysWrap > div { flex: 1 1 380px; min-width: 0; }
     .feKeysWrap h4 { margin: 2px 0 4px; font-size: 13px; color: #1a5276; }
@@ -3271,6 +3273,77 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     ];
     $body5= '<div class="feKeysWrap"><div>'.$tbl2($lim).'<small>'.$tt('Set in folder-explorer.php (see README) and in the PHP settings of the web hotel.').'</small></div></div>';
 
+    // Step by step (tab): what people want to do - [heading, [steps]]
+    $steps= [
+        ['Copy or move files to another folder', [
+            'Check the rows in the table (or Ctrl+A).',
+            'In the card Transfer: choose the <b>Destination</b> - a folder you may write in.',
+            'Below the table: <b>COPY</b> or <b>MOVE</b>.',
+        ]],
+        ['Collect files from several folders', [
+            'Rest the mouse on a file name: <b>Put in the basket</b> - or check rows and click <b>Put the checked rows in the basket</b>.',
+            'Go to the next folder and do the same - the basket keeps them.',
+            'Choose the Destination, then <b>Copy to the destination</b> or <b>Move to the destination</b> - or <b>Download as ZIP</b>.',
+        ]],
+        ['Download a whole folder', [
+            'Right-click the row of the folder: <b>Download as ZIP</b>.',
+            'Several files and folders: check them, then <b>DOWNLOAD</b> below the table - more than one file comes as one ZIP.',
+        ]],
+        ['Upload files or a whole folder from your PC', [
+            'Choose the Destination in the card Transfer.',
+            'Drag files or folders onto the drop zone - or <b>Choose files</b> / <b>Choose a folder</b>.',
+            'Click <b>Upload</b>. The sub folders are made as they were on your PC.',
+        ]],
+        ['Unpack a ZIP file', [
+            'Rest the mouse on the name of the ZIP file: <b>Unpack here</b> - it is unpacked in the folder you are in.',
+        ]],
+        ['Rename a file or a folder', [
+            'Click the row and press <b>F2</b> - or the file menu: <b>Rename / move</b>.',
+            'A path moves it too: <code>sub/new name.txt</code>.',
+        ]],
+        ['Get a deleted file back', [
+            'Program menu (right-click the table outside a row): <b>Trash</b>.',
+            '<b>Restore</b> - it goes back to its folder.',
+        ]],
+        ['Find a file in the sub folders', [
+            'Choose <b>Analyse</b> - the switch in the header of the card Folder content.',
+            'Type in the search field next to it: the files of all sub folders are listed.',
+        ]],
+    ];
+    $body6= '<div class="feNice">'.implode('', array_map(fn($s) => '<div class="feNiceSec"><h4>'.p2h_enc(lang('@'.$s[0])).'</h4><ol>'.
+            implode('', array_map(fn($l) => '<li>'.lang('@'.$l).'</li>', $s[1])).'</ol></div>', $steps)).'</div>';
+
+    // Questions and answers (tab): [question, answer]
+    $faq= [
+        ['Why are Rename and Delete grey?', 'You may only change files in your write folders. See the tab Your account - This folder.'],
+        ['Where did my deleted file go?', 'Into the trash: program menu - Trash. There you can restore it.'],
+        ['Why is my file called name (2)?', 'Nothing is ever overwritten: a file with the same name was already there.'],
+        ['Why can I not upload a .php file?', 'Server scripts and hidden files are never uploaded or written - see the tab Limits.'],
+        ['The upload of a big file fails', 'A file may be at most the size in the tab Limits - and the shared folder has a quota.'],
+        ['Why are the folder sizes missing or slow?', 'Quick lists the folder at once. Analyse - or the calculator in the tree - counts the sizes, and big folders take time.'],
+        ['I can not log in', 'After 10 failed logins from your address the account is blocked for 15 minutes. Wait - or ask an administrator.'],
+        ['Can others see my files?', 'Everybody who is logged in sees the names of the folders and files. Download and preview only where the account may - see the tab Your account.'],
+        ['The preview shows no content', 'The content is only shown where you may download the file - and some file types have no preview: see the tab File-viewers.'],
+        ['Who sees what I do?', 'Administrators see an activity log: who did what, when and from where.'],
+    ];
+    $body7= '<div class="feNice">'.implode('', array_map(fn($q) => '<div class="feNiceSec"><h4>'.p2h_enc(lang('@'.$q[0])).'</h4><p class="feFaqA">'.p2h_enc(lang('@'.$q[1])).'</p></div>', $faq)).'</div>';
+
+    // About (tab): the versions - and for administrators the server
+    $about= [
+        ['Folder-explorer', p2h_enc(FE_VERSION.' ('.FE_DATE.')')],
+        ['php2html', p2h_enc(P2H_VERSION).' - Clever-Html-Engine'],
+        ['Source code', '<a href="https://github.com/EV-soft/folder-explorer" target="_blank" rel="noopener">github.com/EV-soft/folder-explorer</a>'],
+        ['Report a problem', '<a href="https://github.com/EV-soft/folder-explorer/issues" target="_blank" rel="noopener">'.$tt('GitHub - Issues').'</a>'],
+        ['Made by', 'EV-soft - © 2019-2026'],
+    ];
+    if (fe_is_admin()) $about= array_merge($about, [
+        ['PHP', p2h_enc(PHP_VERSION.' ('.PHP_SAPI.')')],
+        ['Web server', p2h_enc((string)($_SERVER['SERVER_SOFTWARE'] ?? '-'))],
+        ['PHP extensions', implode(' &nbsp; ', array_map(fn($x) => $yes(extension_loaded($x)).p2h_enc($x), ['zip', 'mbstring', 'fileinfo', 'json', 'openssl']))],
+        ['Time limit of PHP', p2h_enc((string)ini_get('max_execution_time')).' s - '.$tt('extended up to').' '.(int)$fe_max_time.' s'],
+    ]);
+    $body8= '<div class="feKeysWrap"><div>'.$tbl2($about).(fe_is_admin() ? '<small>'.$tt('The server facts are only shown to administrators.').'</small>' : '').'</div></div>';
+
     $mouse= [   // Mouse and keys: [where, click, right-click / long press] - translated (_trans.sys.json)
         ['File name', 'File menu - resting the mouse on it opens it too', 'File menu'],
         ['File icon', 'Rest the mouse on it: preview of the file', 'File menu'],
@@ -3310,6 +3383,9 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     htm_Tab(labl:'@File-viewers:',body:$body2, name:'view',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',bclr:'lightgray;');
     htm_Tab(labl:'@Your account:',body:$body4, name:'acc',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eefaf0;',bclr:'#eefaf0;');
     htm_Tab(labl:'@Limits:',body:$body5, name:'lim',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #fbf3ea;',bclr:'#fbf3ea;');
+    htm_Tab(labl:'@Step by step:',body:$body6, name:'steps',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #f1eefb;',bclr:'#f1eefb;');
+    htm_Tab(labl:'@Questions:',body:$body7, name:'faq',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eef8f8;',bclr:'#eef8f8;');
+    htm_Tab(labl:'@About:',body:$body8, name:'about',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #f3f3f3;',bclr:'#f3f3f3;');
     htm_Tab(labl:'@Mouse and keys:',body:$body3, name:'keys',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eef4fb;',bclr:'#eef4fb;');
     htm_Tabs_end(foot:'', styl:'', rtrn:false);
     /* 
