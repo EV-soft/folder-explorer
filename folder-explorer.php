@@ -1103,7 +1103,7 @@ $p2h_Style = '
     [data-theme="dark"] .fe-drop { background: #1d2731; border-color: #4b6a85; color: #d6dde4; }
     [data-theme="dark"] .fe-drop.fe-over { background: #1f3a26; }
     [data-theme="dark"] .feFileName.feOn { background: #2d4a6b; color: #fff; }
-    [data-theme="dark"] .feNiceSec h4, [data-theme="dark"] .feKeysWrap h4 { color: #8cc4f0; }
+    [data-theme="dark"] .feNiceSec h4, [data-theme="dark"] .feKeysWrap h4, [data-theme="dark"] .feManHead { color: #8cc4f0; }
     [data-theme="dark"] .feKeys th { color: #aeb8c2; border-color: #5a6672; }
     [data-theme="dark"] .feKeys td, [data-theme="dark"] .feFacts th { border-color: #3f4852; }
     [data-theme="dark"] .feFacts th { color: #cfd6dd; }
@@ -1139,6 +1139,8 @@ $p2h_Style = '
     .feKeys kbd { display: inline-block; padding: 0 5px; font: 11.5px/1.5 monospace; white-space: nowrap; background: #fff;
                   border: 1px solid #a9b4bf; border-bottom-width: 2px; border-radius: 4px; }
     .feKeysNo { color: #999; }
+    .feManHead { margin: 6px 0 6px 2px; font-size: 16px; font-weight: 600; color: #1a5276; text-align: left; }
+    .feManHead i { margin-right: 4px; }
     .feFacts th { width: 190px; text-align: left; vertical-align: top; color: #333; font-size: 12.5px; border-bottom: 1px solid #d5dde5; padding: 3px 6px; }
     .feFacts code { font-size: 11.5px; white-space: normal; }
     .feAccYes { color: #1b7a32; }  .feAccNo { color: #b00020; }
@@ -3303,7 +3305,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             '<div><h4>'.p2h_enc(lang('@Shortcut keys')).'</h4><table class="feKeys"><tr><th>'.p2h_enc(lang('@Keys')).'</th><th>'.p2h_enc(lang('@Where')).'</th><th>'.p2h_enc(lang('@What')).'</th></tr>'.
             implode('', array_map(fn($r) => '<tr><td>'.implode(' / ', array_map(fn($k) => '<kbd>'.p2h_enc(preg_match('/^(Space|Menu key|Arrow|Alt\+Arrow|Arrows)/', trim($k)) ? lang('@'.trim($k)) : trim($k)).'</kbd>', explode(' | ', $r[0]))).'</td><td>'.$cell($r[1]).'</td><td>'.$cell($r[2]).'</td></tr>', $keys)).'</table>'.
             '<small>'.p2h_enc(lang('@Not while you type in a field - and not while a dialog is open.')).'</small></div></div>';
-    htm_Tabs_(head:'', styl:'', rtrn:false);
+    htm_Tabs_(head:'<h3 class="feManHead"><i class="fas fa-book" aria-hidden="true"></i> '.p2h_enc(lang('@Manual')).'</h3>', styl:'display: block;', rtrn:false);
     htm_Tab(labl:'@Nice to know:',body:$body1, name:'nice',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightyellow;', bclr:'lightyellow;', dflt:true);
     htm_Tab(labl:'@File-viewers:',body:$body2, name:'view',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',bclr:'lightgray;');
     htm_Tab(labl:'@Your account:',body:$body4, name:'acc',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eefaf0;',bclr:'#eefaf0;');
