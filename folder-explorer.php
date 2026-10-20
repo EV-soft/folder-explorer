@@ -1105,7 +1105,9 @@ $p2h_Style = '
     [data-theme="dark"] .feFileName.feOn { background: #2d4a6b; color: #fff; }
     [data-theme="dark"] .feNiceSec h4, [data-theme="dark"] .feKeysWrap h4 { color: #8cc4f0; }
     [data-theme="dark"] .feKeys th { color: #aeb8c2; border-color: #5a6672; }
-    [data-theme="dark"] .feKeys td { border-color: #3f4852; }
+    [data-theme="dark"] .feKeys td, [data-theme="dark"] .feFacts th { border-color: #3f4852; }
+    [data-theme="dark"] .feFacts th { color: #cfd6dd; }
+    [data-theme="dark"] .feAccYes { color: #6fd08c; }  [data-theme="dark"] .feAccNo { color: #ff7a8a; }
     [data-theme="dark"] .feKeys kbd { background: #2b3036; border-color: #5a6672; color: #e3e7eb; }
     [data-theme="dark"] .feXfSum, [data-theme="dark"] .feBkList .feBkSize, [data-theme="dark"] .feUsrTbl th,
     [data-theme="dark"] .feSelDest, [data-theme="dark"] .feXfHere { color: #aeb8c2; }
@@ -1137,6 +1139,9 @@ $p2h_Style = '
     .feKeys kbd { display: inline-block; padding: 0 5px; font: 11.5px/1.5 monospace; white-space: nowrap; background: #fff;
                   border: 1px solid #a9b4bf; border-bottom-width: 2px; border-radius: 4px; }
     .feKeysNo { color: #999; }
+    .feFacts th { width: 190px; text-align: left; vertical-align: top; color: #333; font-size: 12.5px; border-bottom: 1px solid #d5dde5; padding: 3px 6px; }
+    .feFacts code { font-size: 11.5px; white-space: normal; }
+    .feAccYes { color: #1b7a32; }  .feAccNo { color: #b00020; }
     .feUsers { text-align: left; }
     .feUsrTbl { border-collapse: collapse; margin-bottom: 6px; }
     .feUsrTbl th { text-align: left; font-size: 12px; color: #555; padding: 2px 6px; border-bottom: 1px solid #ddd; }
@@ -3206,6 +3211,64 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             '<li>'.lang('@Images, video, audio and fonts - everywhere').'</li>'.
             '<li>'.lang('@Text and code with syntax colours, PDF, tables (CSV, TSV, Excel, Calc), the text of Word, ODT, PowerPoint, Impress, RTF and e-books, the file list of ZIP and tar archives - and the first bytes (hex) of any other file - only where you may download the file').'</li>'.
             '</ul>'.lang('@Not shown: 7z and rar archives (hex only), other sheets than the first.');
+    // Your account (tab): what the logged user may do - and where. The facts of this account and this folder.
+    $me=    $_SESSION[p2h_SESSION_ID]['logged'] ?? '';
+    $yes=   fn($ok) => '<i class="fas fa-'.($ok ? 'check feAccYes' : 'times feAccNo').'" aria-hidden="true"></i> ';
+    $tt=    fn($k) => p2h_enc(lang('@'.$k));
+    $wdl=   fe_write_dirs();
+    $usedX= $exch_path !== false ? (isset($used) && is_int($used) ? $used : fe_dir_size($exch_path)) : 0;
+    $readHere= $fe_unlocked || $can_write_here || (fe_can('r') && $exch_path !== false && fe_in_dir($currPath, $exch_path) && !fe_hidden_below($currPath, $exch_path));
+    $trashN= fe_trash_dir() !== false && fe_can('w') ? count(array_filter(fe_trash_list(), 'fe_trash_may')) : 0;
+    $acc= [
+        ['Account', p2h_enc($me !== '' ? $me : lang('@(no login)')).(fe_is_admin() ? ' - <b>'.$tt('administrator').'</b>' : '')],
+        ['Read', $yes(fe_can('r')).$tt(fe_can('r') ? 'Download and preview - in your write folders and the shared folder' : 'Your account may not download or preview files')],
+        ['Write', $yes(fe_can('w')).$tt(fe_can('w') ? 'Upload, copy, move, rename, ZIP, unpack and delete - in your write folders' : 'Your account can only read')],
+        ['Write folders', $fe_unlocked ? $tt('Everything - the restrictions are removed') :
+                          ($wdl ? implode(', ', array_map(fn($d) => '<a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($d)).'"><i class="far fa-folder"></i> '.p2h_enc(fe_show_path($d)).'</a>', $wdl))
+                                : '<i>'.$tt('none').'</i>')],
+        ['Shared folder', $exch_path === false ? '-' : p2h_enc(fe_show_path($exch_path)).': '.p2h_nice_filesize($usedX).' '.$tt('of').' '.
+                          ($fe_unlocked ? $tt('no limit (restrictions removed)') : p2h_nice_filesize($fe_exchange_quota)).' - '.
+                          $tt(fe_can('w') && fe_can_write($exch_path) ? 'you may read and write in it' : (fe_can('r') ? 'you may read in it' : 'you may only see the names'))],
+        ['This folder', p2h_enc(fe_show_path($currPath)).': '.($can_write_here ? $yes(true).$tt('You may write here')
+                          : ($readHere ? $yes(true).$tt('You may download here - not write') : $yes(false).$tt('You may only see the names here')))],
+        ['Your password', $yes(fe_may_change_pw($me)).$tt(fe_may_change_pw($me) ? 'You may change it: program menu - Change my password' : 'This account may not change its password')],
+        ['Restrictions', fe_is_admin() ? ($fe_unlocked ? $tt('Removed - for you, in this session') : $tt('In force - you may remove them: the lock icon of the Transfer card'))
+                                       : $tt('In force - only administrators can remove them (for themselves)')],
+        ['Trash', fe_trash_dir() === false ? $tt('No trash - deleted at once') :
+                  (!fe_can('w') ? '-' : $tt(fe_is_admin() ? 'You see everything that was deleted' : 'You see what was deleted in your write folders').
+                                        ' - '.$trashN.' '.$tt('files / folders').' - <a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($currPath).'&trash=1').'">'.$tt('Open the trash').'</a>')],
+        ['Logged in', ($gbl_SessionKeep ?? true) ? $tt('You stay logged in while a page of the program is open')
+                  : $tt('Logged out after').' '.max(1, round((int)ini_get('session.gc_maxlifetime') / 60)).' '.$tt('minutes without activity')],
+    ];
+    $tbl2= fn($rows) => '<table class="feKeys feFacts">'.implode('', array_map(fn($r) => '<tr><th scope="row">'.p2h_enc(lang('@'.$r[0])).'</th><td>'.$r[1].'</td></tr>', $rows)).'</table>';
+    $body4= '<div class="feKeysWrap"><div>'.$tbl2($acc).'<small>'.$tt('An administrator gives the rights: program menu - Users.').'</small></div></div>';
+
+    // Limits (tab): the numbers of this installation - the settings of the program and of PHP
+    $iniUp=   fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX;
+    $iniPost= fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX;
+    $maxF=    min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, $iniUp, $iniPost);
+    $nice=    fn($b) => $b >= PHP_INT_MAX ? $tt('no limit') : p2h_nice_filesize($b);
+    preg_match('/\(([^)]*)\)/', FE_DENY_EXT, $denyM);
+    $deny=    implode(' ', array_map(fn($e) => '.'.($e === 'php\d*' ? 'php*' : $e), explode('|', $denyM[1] ?? '')));
+    $lim= [
+        ['Max size per file (upload)', '<b>'.$nice($maxF).'</b> <small>('.$tt('the program').': '.$nice($fe_unlocked ? PHP_INT_MAX : $fe_max_upload).' - PHP upload_max_filesize: '.$nice($iniUp).
+                                       ' - post_max_size: '.$nice($iniPost).')</small>'],
+        ['Files per upload', $tt('Any number - they are sent').' '.max(1, (int)ini_get('max_file_uploads') ?: 20).' '.$tt('at a time')],
+        ['Folders in an upload', $tt('At most 10 levels below the destination')],
+        ['File types not allowed', $fe_unlocked ? $tt('Hidden files (.htaccess ...) - all other types are allowed: the restrictions are removed')
+                                                : '<code>'.p2h_enc($deny).'</code> - '.$tt('and hidden files (.htaccess ...) and index.html')],
+        ['Shared folder', $exch_path === false ? '-' : '<b>'.$nice($fe_unlocked ? PHP_INT_MAX : $fe_exchange_quota).'</b> - '.$tt('used').' '.p2h_nice_filesize($usedX).' - '.$tt('the other write folders have no limit of their own')],
+        ['ZIP', $tt('At most 20000 files in a ZIP - when it is made, and when it is unpacked')],
+        ['Unpack', $tt('Only safe names, never over an existing file - in the shared folder: at most its free space')],
+        ['Names', $tt('Nothing is ever overwritten: a second copy is called name (2)')],
+        ['Long work', $tt('At most').' '.(int)$fe_max_time.' '.$tt('seconds (copy, ZIP, the sizes of big folders) - the web server may have its own limit')],
+        ['Trash', fe_trash_dir() === false ? $tt('No trash - deleted at once')
+                  : $tt('Deleted for good after').' '.(int)$fe_trash_days.' '.$tt('days').' - '.$tt('and the oldest first, when the trash holds more than').' '.p2h_nice_filesize($fe_trash_max)],
+        ['Failed logins', $tt('At most 10 per address and account in 15 minutes - then wait')],
+        ['Preview', $tt('Text: the first 40 lines - the content only where you may download the file')],
+    ];
+    $body5= '<div class="feKeysWrap"><div>'.$tbl2($lim).'<small>'.$tt('Set in folder-explorer.php (see README) and in the PHP settings of the web hotel.').'</small></div></div>';
+
     $mouse= [   // Mouse and keys: [where, click, right-click / long press] - translated (_trans.sys.json)
         ['File name', 'File menu - resting the mouse on it opens it too', 'File menu'],
         ['File icon', 'Rest the mouse on it: preview of the file', 'File menu'],
@@ -3243,6 +3306,8 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     htm_Tabs_(head:'', styl:'', rtrn:false);
     htm_Tab(labl:'@Nice to know:',body:$body1, name:'nice',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightyellow;', bclr:'lightyellow;', dflt:true);
     htm_Tab(labl:'@File-viewers:',body:$body2, name:'view',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: lightgray;',bclr:'lightgray;');
+    htm_Tab(labl:'@Your account:',body:$body4, name:'acc',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eefaf0;',bclr:'#eefaf0;');
+    htm_Tab(labl:'@Limits:',body:$body5, name:'lim',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #fbf3ea;',bclr:'#fbf3ea;');
     htm_Tab(labl:'@Mouse and keys:',body:$body3, name:'keys',styl:'text-align: left; box-shadow: 3px 3px 6px 0px #ccc; padding: 5px; background-color: #eef4fb;',bclr:'#eef4fb;');
     htm_Tabs_end(foot:'', styl:'', rtrn:false);
     /* 
