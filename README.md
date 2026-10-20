@@ -170,7 +170,7 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   actions, users, passwords and the restrictions - with the result. Saved in `fe-audit.log.php` next to the program (a PHP file: it
   shows nothing in the browser); at 2 MB it is renamed to `fe-audit.log.old.php` and a new one is started. It needs `p2h_audit.inc.php`.
 - **Translations** (administrators: program menu - Translations): the texts of the program in another language - choose the language,
-  search, the missing first; only the changed texts are saved (into `_trans.sys.json`, the old file kept as `_trans.sys.bak.json`).
+  search, the missing first, **Suggestions** for them (the translator of the browser - else MyMemory, free, no key); only the changed texts are saved (into `_trans.sys.json`, the old file kept as `_trans.sys.bak.json`).
   Simple HTML (b, i, br, code) is allowed - never a script. It needs `p2h_trans.inc.php`.
 - **Trash:** what is deleted goes to the trash (program menu - Trash, or the link in the message): restore it to its folder (a name
   taken there: name (2)), delete it for good, or empty the trash. Everybody sees what was deleted in the folders they may write in,
