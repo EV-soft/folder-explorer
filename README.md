@@ -155,11 +155,16 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 | `$fe_demo_login` | `['visitor', 'xxxxxxxx']` | the login form suggests this demo account - only while its password is still this one |
 | `$fe_max_time` | 300 s | long work (Analyse, sizes, copy, ZIP) may extend PHP's time limit up to this |
 | `$gbl_SessionKeep` | `true` | an open page keeps the login alive |
+| `$gbl_AuditFile` | `fe-audit.log.php` | the activity log (program menu - Activity log) |
 
 ### Login and safety:
 - At most 10 failed logins per address and account in 15 minutes; the slider *Are you human?* is checked on the server too.
 - A password change logs out the other sessions of the account. Log out needs the token of the session (a link on another site can not log you out).
 - Accounts and passwords: program menu (right-click the table) - Users / Change my password.
+- **Activity log** (administrators: program menu - Activity log): who did what, when and from where - logins (also failed and
+  blocked ones), log out, upload, download, rename / move, copy, ZIP, unpack, new folder, synchronize, delete, basket and checked-row
+  actions, users, passwords and the restrictions - with the result. Saved in `fe-audit.log.php` next to the program (a PHP file: it
+  shows nothing in the browser); at 2 MB it is renamed to `fe-audit.log.old.php` and a new one is started. It needs `p2h_audit.inc.php`.
 
 ### Keyboard, touch, theme:
 - Tab to a file name and Enter, or the menu key / Shift+F10 on a row: the file / folder menu; outside a row: the program menu.

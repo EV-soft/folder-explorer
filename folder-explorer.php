@@ -13,6 +13,9 @@ $needTinymce=     '0';
 
 // The bundled library (php2html 1.7.3) - the calls in this file need 1.7 (an older shared copy in ../p2h/ would fail):
 require_once (__DIR__.'/php2html.lib.php');    // Creating HTML-functions
+## The activity log (program menu: Activity log - administrators): who did what, when and from where. A PHP file: opened in the browser it shows nothing.
+$gbl_AuditFile= $gbl_AuditFile ?? __DIR__.'/fe-audit.log.php';
+require_once (__DIR__.'/p2h_audit.inc.php');
 
 ##### SPECIAL this page only:
 define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
@@ -368,6 +371,9 @@ function fe_send_file($file, $name= '') { // Send a file as a download, and stop
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();     // A long download must not lock the other pages of the user
     while (ob_get_level()) ob_end_clean();
     $name= $name ?: basename($file);
+    $tmp= p2h_norm_path(sys_get_temp_dir());
+    fe_log('@Download', p2h_norm_path(dirname($file)) === $tmp ? $name : fe_show_path(p2h_norm_path($file)),     // A ZIP made for it (a temp file): its name
+           html_entity_decode(p2h_nice_filesize(filesize($file)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="'.preg_replace('/[^\x20-\x7E]|"/', '_', $name).'"; filename*=UTF-8\'\''.rawurlencode($name));
     header('Content-Length: '.filesize($file));
@@ -762,9 +768,16 @@ function fe_ini_bytes($val) { // php.ini size ("8M") to bytes
     return (int)$num;
 }
 
-function fe_msg($html, $status= 'ok') { // Message shown on the next page (already translated and escaped)
+function fe_msg($html, $status= 'ok') { // Message shown on the next page (already translated and escaped) - and the result in the activity log ($fe_log_act)
     $_SESSION[p2h_SESSION_ID]['message']= $html;
     $_SESSION[p2h_SESSION_ID]['status']=  $status;
+    if (!empty($GLOBALS['fe_log_act']))
+        fe_log($GLOBALS['fe_log_act'], $GLOBALS['fe_log_obj'] ?? (isset($GLOBALS['currPath']) ? fe_show_path($GLOBALS['currPath']) : ''),
+               ($status === 'error' ? '✗ ' : '').html_entity_decode(strip_tags(preg_replace('#<br\s*/?>#i', ' - ', $html)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+}
+
+function fe_log($acti, $targ= '', $note= '', $user= null) { // One event in the activity log (p2h_audit.inc.php) - the logged user by default
+    if (function_exists('p2h_audit')) p2h_audit($acti, $targ, $note, $user ?? ($_SESSION[p2h_SESSION_ID]['logged'] ?? ''));
 }
 
 function fe_save_users($users, $admins) { // Write the accounts file (fe-users.php) - written to a temp file first, then renamed
@@ -1814,6 +1827,7 @@ return $result;
 if (empty($auth_users)) $use_auth = false; else $use_auth = true;
 
 if (isset($_GET['logout']) && is_string($_GET['t'] ?? null) && hash_equals((string)($_SESSION['csrf_token'] ?? ''), (string)$_GET['t'])) {
+    if (isset($_SESSION[p2h_SESSION_ID]['logged'])) fe_log('@Log out');
     unset($_SESSION[p2h_SESSION_ID]['logged'], $_SESSION[p2h_SESSION_ID]['unlocked'], $_SESSION[p2h_SESSION_ID]['basket'], $_SESSION[p2h_SESSION_ID]['fdl']);
     header('Location: '.basename(__FILE__));   // A clean address: the login form must not post ?logout again
     exit;
@@ -1825,6 +1839,7 @@ if ($use_auth) {
         // Logged:
     } elseif (isset($_POST['p2h_usr'], $_POST['p2h_pwd']) && fe_login_tries() >= 10) {
         unset($_SESSION[p2h_SESSION_ID]['logged']);     // Too many failed logins from this address - also when the password is right
+        fe_log('@Login blocked - too many failed logins', '', '', mb_substr((string)$_POST['p2h_usr'], 0, 64));
         sleep(1);
         p2h_set_msg('@Too many failed logins - wait 15 minutes and try again', 'error');
     } elseif (isset($_POST['p2h_usr'], $_POST['p2h_pwd']) && ($_POST['p2h_human'] ?? '') !== 'notbot') {
@@ -1845,9 +1860,11 @@ if ($use_auth) {
             $_SESSION[p2h_SESSION_ID]['pwfp']= substr(hash('sha256', (string)$auth_users[$usr][0]), 0, 16);     // The other sessions are logged out when it changes
             unset($_SESSION[p2h_SESSION_ID]['unlocked'], $_SESSION[p2h_SESSION_ID]['basket'], $_SESSION[p2h_SESSION_ID]['fdl']);  // A new login: restrictions on, an empty basket
             p2h_set_msg(lang('@You are logged in as: ').p2h_enc($usr));
+            fe_log('@Log in');
         } else {
             if (!isset($auth_users[$usr][0])) password_verify($pwd, '$2y$10$kDgQcpPzD8aMOLCS/fb74.P/19oWozxK99H1enPpvLdVOhR64u9Du');  // The same time
             fe_login_tries(true);
+            fe_log('@Login failed', '', isset($auth_users[$usr][0]) ? lang('@wrong password') : lang('@unknown account'), mb_substr($usr, 0, 64));
             p2h_set_msg('@Login failed: Invalid account name and/or password. ', 'error');
         }
     } else unset($_SESSION[p2h_SESSION_ID]['logged']);
@@ -1875,6 +1892,7 @@ $is_logged= isset($_SESSION[p2h_SESSION_ID]['logged']);
 
 ##### REMOVE RESTRICTIONS (admins only, this session only)
 if ($is_logged && isset($_POST['fe_unlock'])) {
+    $fe_log_act= ($_POST['fe_unlock'] ?? '') === '1' ? '@Remove restrictions' : '@Restore restrictions';  $fe_log_obj= '';
     if (!fe_is_admin())     fe_msg(p2h_enc(lang('@Only an administrator can remove the restrictions')), 'error');
     elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
     elseif ($_POST['fe_unlock'] === '1') {
@@ -2014,6 +2032,9 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
             $fail[]= [$i, $name ?: (string)$orig, $why];
         }
     }
+    fe_log('@Upload', is_string($upDest ?? null) ? fe_show_path($upDest) : '',
+           ($error > '' ? '✗ '.$error : count($done).' '.lang('@files').($done ? ': '.implode(', ', array_map(fn($d) => basename($d[1]), $done)) : '')).
+           ($fail ? ' - '.lang('@Not uploaded').': '.implode(', ', array_map(fn($f) => $f[1].' ('.$f[2].')', $fail)) : ''));
     if ($ajax) {
         while (ob_get_level()) ob_end_clean();
         header('Content-Type: application/json; charset=utf-8');
@@ -2030,6 +2051,7 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
 }
 
 if ($is_logged && isset($_POST['fe_delete'])) {      // Delete a file in the current folder
+    $fe_log_act= '@Delete file';
     $name= fe_given_name($_POST['fe_delete']);
     $file= realpath($currPath.'/'.$name);
     if (!fe_can('w') || !$can_write_here) fe_msg(p2h_enc(lang('@You may not write in this folder')), 'error');
@@ -2042,6 +2064,8 @@ if ($is_logged && isset($_POST['fe_delete'])) {      // Delete a file in the cur
 }
 if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename / move, copy, ZIP, unpack, new folder - in the current folder
     $act=  (string)$_POST['fe_act'];
+    $fe_log_act= ['move' => '@Rename / move', 'copy' => '@Copy', 'zip' => '@Create ZIP', 'unzip' => '@Unpack here', 'mkdir' => '@New folder',
+                  'sync' => '@Synchronize'][$act] ?? '@It could not be done';
     $name= fe_given_name($_POST['fe_name'] ?? '');
     $to=   trim(str_replace('\\', '/', (string)($_POST['fe_to'] ?? '')), '/ ');
     $file= $name === '' ? false : realpath($currPath.'/'.$name);
@@ -2124,6 +2148,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
 ##### ACCOUNTS: the users (admins) - and the own password (everybody but a read only account)
 if ($is_logged && (isset($_POST['fe_users']) || isset($_POST['fe_pw']))) {
     $me= $_SESSION[p2h_SESSION_ID]['logged'] ?? '';
+    $fe_log_act= isset($_POST['fe_users']) ? '@Users' : '@Change my password';  $fe_log_obj= '';
     $back= basename(__FILE__).'?show='.urlencode($currPath).(isset($_POST['fe_users']) ? '&users=1' : '&pw=1');
     $err= '';  $ok= '';
     $users= $auth_users;  $admins= $fe_admins;
@@ -2199,6 +2224,7 @@ if ($is_logged) {
 } else $basket= [];
 if ($is_logged && isset($_POST['fe_bk'])) {
     $op=    (string)$_POST['fe_bk'];
+    if ($op === 'copy' || $op === 'move') $fe_log_act= $op === 'copy' ? '@Basket: copy' : '@Basket: move';
     $paths= array_filter((array)($_POST['fe_bp'] ?? []), 'is_string');
     $n= 0;  $skip= 0;
     if (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
@@ -2248,6 +2274,8 @@ if ($is_logged && isset($_POST['fe_bk'])) {
 ##### FILE FEATURES below the table: copy, move, ZIP, delete, download - the checked rows of the current folder
 if ($is_logged && isset($_POST['fe_sel'])) {
     $op=    (string)$_POST['fe_sel'];
+    $fe_log_act= ['copy' => '@Checked rows: copy', 'move' => '@Checked rows: move', 'zip' => '@Checked rows: create ZIP',
+                  'delete' => '@Checked rows: delete', 'download' => '@Checked rows: download'][$op] ?? '';
     $items= [];
     foreach (array_filter((array)($_POST['fe_bp'] ?? []), 'is_string') as $pth) {
         $r= realpath($pth);  $r= $r === false ? '' : p2h_norm_path($r);
@@ -2502,6 +2530,10 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                  (is_file($fe_users_file) ? '' : ' - '.p2h_enc(lang('@until the first save the accounts in folder-explorer.php are used'))).'</small> &nbsp; '.
                  '<a href="'.p2h_enc($act).'" class="txtbutt feXfBtn"><i class="fas fa-times"></i> '.p2h_enc(lang('@Close')).'</a></div>';
         htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
+        htm_nl(1);
+    }
+    if (isset($_GET['log']) && fe_is_admin()) {         // The activity log
+        htm_AuditLog(capt:'@Activity log', icon:'fas fa-clipboard-list', hint:'@Who did what, when and from where - the newest first', max:1000, vhgh:'500px');
         htm_nl(1);
     }
     if (isset($_GET['pw']) && fe_may_change_pw($me)) {
@@ -2902,7 +2934,7 @@ echo '<script src="fe-preview.js?v='.@filemtime(__DIR__.'/fe-preview.js').'" def
     'bkIn'=>lang('@Put in the basket'), 'bkOut'=>lang('@Take out of the basket'), 'unzip'=>lang('@Unpack here'),
     'prog'=>['title'=>'Folder-explorer', 'admin'=>fe_is_admin() ? 1 : 0, 'pw'=>fe_may_change_pw($_SESSION[p2h_SESSION_ID]['logged'] ?? '') ? 1 : 0,
              'unl'=>$fe_unlocked ? 1 : 0, 'out'=>$use_auth ? basename(__FILE__).'?logout=1&t='.urlencode((string)($_SESSION['csrf_token'] ?? '')) : '',
-             'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
+             'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlLog'=>basename(__FILE__).'?show='.urlencode($currPath).'&log=1', 'logT'=>lang('@Activity log'), 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
              'users'=>lang('@Users ...'), 'pwT'=>lang('@Change my password'), 'lock'=>lang('@Remove restrictions'), 'unlock'=>lang('@Restore restrictions'),
              'lockQ'=>lang('@Remove the restrictions for this session?'), 'help'=>lang('@Help'), 'about'=>lang('@About Folder-explorer'), 'out_'=>lang('@Log out'),
              'aboutTxt'=>'Folder-explorer '.FE_VERSION.' ('.FE_DATE.")\n".'PHP2HTML / Clever-Html-Engine '.P2H_VERSION."\n".(fe_is_admin() ? 'PHP '.PHP_VERSION."\n" : '').
