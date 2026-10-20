@@ -1,5 +1,6 @@
 <?php   $DocFil= 'folder-explorer.php';    $DocVer='2.1.0';    $DocRev='2026-10-19';     $DocIni='evs';  $ModulNr=0; ## File informative only
-$©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-24 EV-soft *** See the file: LICENSE';
+$©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-26 EV-soft *** Built with <a href="https://github.com/EV-soft/Clever-Html-Engine" target="_blank" rel="noopener">php2html - Clever HTML Engine</a>';
+define('FE_VERSION', $DocVer);  define('FE_DATE', $DocRev);  define('FE_FOOTER', $©);     // Kept: the library overwrites $DocVer, $DocRev and $© when it is included
 
 $sys= $GLOBALS["gbl_ProgRoot"]= './';
 
@@ -2900,7 +2901,7 @@ echo '<script src="fe-preview.js?v='.@filemtime(__DIR__.'/fe-preview.js').'" def
              'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
              'users'=>lang('@Users ...'), 'pwT'=>lang('@Change my password'), 'lock'=>lang('@Remove restrictions'), 'unlock'=>lang('@Restore restrictions'),
              'lockQ'=>lang('@Remove the restrictions for this session?'), 'help'=>lang('@Help'), 'about'=>lang('@About Folder-explorer'), 'out_'=>lang('@Log out'),
-             'aboutTxt'=>'Folder-explorer '.$DocVer.' ('.$DocRev.")\n".'PHP2HTML / Clever-Html-Engine '.P2H_VERSION."\n".(fe_is_admin() ? 'PHP '.PHP_VERSION."\n" : '').
+             'aboutTxt'=>'Folder-explorer '.FE_VERSION.' ('.FE_DATE.")\n".'PHP2HTML / Clever-Html-Engine '.P2H_VERSION."\n".(fe_is_admin() ? 'PHP '.PHP_VERSION."\n" : '').
                          lang('@User').': '.($_SESSION[p2h_SESSION_ID]['logged'] ?? '')."\n\n".'© 2019-2026 EV-soft - github.com/EV-soft/folder-explorer'],
     'goto'=>lang('@Open the folder'), 'dirZip'=>lang('@Download as ZIP'), 'dirProp'=>lang('@Folder properties'), 'moveD'=>lang('@Rename / move folder'),
     'copyD'=>lang('@Copy folder'), 'delD'=>lang('@Delete folder'), 'delDQ'=>lang('@Delete the folder with all its content?'),
@@ -3004,7 +3005,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
     
     htm_nl(2);
-    htm_Page_Sect(body:$© );
+    htm_Page_Sect(body:FE_FOOTER);
     htm_nl(2);
     
     // (The program menu: right-click the table outside a row - fe-preview.js)

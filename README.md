@@ -2,9 +2,19 @@
 
 A browser that focuses on the disk space that folders takes up.
 
-Developed with the [PHP2HTML library.](https://github.com/EV-soft/ev-soft.github.io)
+**Built with [php2html – Clever HTML Engine](https://github.com/EV-soft/Clever-Html-Engine)**, a PHP library that writes the HTML
+for you: every field, table, card and menu of this program is one PHP call. Folder-explorer is a real-world example of it,
+especially of the advanced table function `htm_Table()`. A taste of the code (the login card, shortened):
 
-The Folder Explorer project is built with the PHP2HTML library and shows how html output is generated, especially with regard to the advanced function htm_table ()
+```php
+htm_Card_(capt:'@Log in', icon:'fas fa-user-check', form:'signup', clas:'cardW320');
+    htm_Input(labl:'@Your account',  vrnt:'text', name:'p2h_usr', hint:'@Type account name', attr:'required');
+    htm_Input(labl:'@Your password', vrnt:'pass', name:'p2h_pwd', hint:'@Type your password for your account', attr:'required');
+htm_Card_end();
+```
+
+Install the library for your own projects with `composer require ev-soft/clever-html-engine` or from
+[GitHub](https://github.com/EV-soft/Clever-Html-Engine).
 
 Look / try a [demo here](https://ev-soft.dk/foldexpl/folder-explorer.php) It runs on PHP 8.3
 
