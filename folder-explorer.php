@@ -1,4 +1,4 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='2.1.0';    $DocRev='2026-10-19';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='2.2.0';    $DocRev='2026-10-20';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-26 EV-soft *** Built with <a href="https://github.com/EV-soft/Clever-Html-Engine" target="_blank" rel="noopener">php2html - Clever HTML Engine</a>';
 define('FE_VERSION', $DocVer);  define('FE_DATE', $DocRev);  define('FE_FOOTER', $©);     // Kept: the library overwrites $DocVer, $DocRev and $© when it is included
 
@@ -3044,7 +3044,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                   htm_Fieldset_end(rtrn:true),
         data: $tabldata, 
         filt: $FilterOn= true,
-        sort: $SorterOn= true,        # FIXIT: Sorting fails if there are both folders and files! (js-error coursed by empty td-fields)- Folders only is OK (BAD data before the first file ?)
+        sort: $SorterOn= true,        # Folders and files sort together (tested 2026-10-20 - the old FIXIT is solved)
         crea: $CreateRec=false,
         modi: $ModifyRec=false,
         vhgh: $ViewHeight= '650px',

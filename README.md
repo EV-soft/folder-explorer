@@ -42,6 +42,28 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new in 2.2.0:
+- **Trash:** what is deleted goes to the trash (program menu - *Trash*, or the link in the message): restore it to its folder, delete it
+  for good, or empty the trash. Everybody sees what was deleted in the folders they may write in, administrators all of it. Deleted for
+  good after 30 days - and the oldest first above 500 MB (`$fe_trash_days`, `$fe_trash_max`). A hidden folder, never shown or browsed.
+- **Activity log** (administrators: program menu - *Activity log*): who did what, when and from where - logins (also failed and blocked),
+  uploads, downloads, copy, move, ZIP, delete, trash, users, passwords, translations - with the result.
+- **Translations in the program** (administrators: program menu - *Translations*): choose a language (a list with flags), search, the
+  missing texts first; **Suggestions** without a key (the translator of the browser, else MyMemory) or **Copy for AI** - the whole table
+  for ChatGPT / Claude, and its answer pasted back. Only the changed texts are saved. A new language is in the language selector as soon
+  as it has a translation; 51 languages have a flag (all of Europe), `$gbl_Flags` adds more.
+- **Manual** below the table - eight tabs: *Nice to know*, *Step by step*, *Questions*, *Mouse and keys*, *Your account* (your rights,
+  here), *Limits* (the numbers of this installation), *File viewers*, *About*.
+- **Keyboard in the table:** Ctrl+A checks all rows, Ctrl+Shift+A none, Delete deletes (into the trash), F2 renames.
+- **Analyse mode** shows the used space of every folder in the tree - each folder counted once.
+- **Danish everywhere:** about 75 texts that were still English (the buttons below the table, messages, column headings).
+- **Safer:** the folder of the program (and the trash) is never deleted or moved - also with the restrictions removed; *All* / *Inverse*
+  only check the rows the filter shows; the public developer tool `translate.page.php` is removed (with `translate.inc.php` and
+  `filedata.inc.php`); hints stand at their own button; the buttons keep their colours in the dark and custom themes.
+- **Fixes:** trash names with `: ? *` were lost, synchronize found the destination as shown and counts the quota by what it copies,
+  the max file size leaves room for the rest of the upload, the tree forgets old sizes after a change - and more (see the commits).
+- Built with php2html **1.8.0** (bundled, with `p2h_audit.inc.php` and `p2h_trans.inc.php`).
+
 ### What is new in 2.1.0:
 - **Transfer with a basket (source -> destination)** replaces the exchange area card: collect files and folders from any folder in
   the basket, go to the destination folder, and *Copy here* / *Move here* - or *Download as ZIP* to your PC. Upload from your PC goes to
