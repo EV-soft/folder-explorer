@@ -2398,7 +2398,7 @@ if (!isset($_SESSION[p2h_SESSION_ID]['logged'])) {
     if (($_SESSION[p2h_SESSION_ID]['last_user'] ?? '') !== '') {            // A failed login: the name that was typed - not the demo account
         $fe_demo_user= (string)$_SESSION[p2h_SESSION_ID]['last_user'];  $fe_demo_pwd= '';
     }
-htm_Page_(titl:'Login to Folder-explorer', hint:lang(''), info:lang(''), inis:$p2h_Style, 
+htm_Page_(titl:'@Log in to Folder-explorer', hint:lang(''), info:lang(''), inis:$p2h_Style, 
           algn:'center', imag:'./_accessories/_background.png', attr:'', pbrd:true );
     htm_Caption('@Connect to Folder-explorer', algn:'center; font-size: 18px');
     htm_nl(1); 
@@ -2413,7 +2413,7 @@ htm_Page_(titl:'Login to Folder-explorer', hint:lang(''), info:lang(''), inis:$p
                   attr:'color: green;',rtrn:false,unit:'',disa:false,rows:'2',step:'',list:[],llgn:'R',bord:'1px solid var(--grayColor);',ftop:'');
         htm_nl(1); 
         htm_MiniNote('<span class="colrorange">'.lang('@Orange ').'</span>'.lang('@frames are required fields.'));
-    htm_Card_end(labl:'Login', icon:'', hint:'@Login with the given data', name:'butt', form:'signup', subm:true, attr:'', akey:'', kind:'navi', simu:false);
+    htm_Card_end(labl:'@Log in', icon:'', hint:'@Login with the given data', name:'butt', form:'signup', subm:true, attr:'', akey:'', kind:'navi', simu:false);
     p2h_show_message();
     htm_Page_end();
 }
@@ -2424,14 +2424,14 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     $gbl_PageHelp= false;  $gbl_NotePad= false;     // Not in this view bar: help for this page and My notes
     htm_ViewBar(user: $_SESSION[p2h_SESSION_ID]['logged'] ?? '', lout: $use_auth ? basename(__FILE__).'?logout=1&t='.urlencode((string)($_SESSION['csrf_token'] ?? '')) : '');     // Zoom, full screen, column view, language, notes, help, theme, user (top right, movable)
     // print_r($tabldata);
-    htm_Caption(labl:'Folder-explorer',icon:'',hint:'The advanced file-explorer with focus on folders and space taken up of files.',
+    htm_Caption(labl:'Folder-explorer',icon:'',hint:'@The advanced file explorer with focus on folders and the space the files take up.',
                 algn:'center',styl:'color:'.$gbl_TitleColr.'; font-weight:600; font-size: 18px; padding: 4px;' );
     htm_nl(1);
-    htm_Caption(labl:'Build with PHP2HTML v'.P2H_VERSION,icon:'',hint:'The shortcut to structured and compact code<br>Created by EV-soft.',
+    htm_Caption(labl:lang('@Built with php2html').' v'.P2H_VERSION,icon:'',hint:'@The shortcut to structured and compact code<br>Created by EV-soft.',
                 algn:'center',styl:'color: gray;; font-weight:400; font-size: 12px;');
     p2h_show_message();
     htm_nl(1);
-    htm_Card_(capt:'Folder-Tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',vhgh:'360px',    // The card body scrolls: the size grip can show the whole tree
+    htm_Card_(capt:'@Folder tree',icon:'fas fa-sitemap',hint: '',form:'',acti:'',clas:'cardW800',vhgh:'360px',    // The card body scrolls: the size grip can show the whole tree
                 wdth:'800px',styl:'background-color: white; ',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
         // Card tool: show the used space of every folder in the tree (on/off for this session)
         if (isset($_GET['treesize'])) $_SESSION[p2h_SESSION_ID]['treesize']= ($_GET['treesize'] === '1');
