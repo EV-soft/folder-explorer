@@ -16,6 +16,9 @@ require_once (__DIR__.'/php2html.lib.php');    // Creating HTML-functions
 ## The activity log (program menu: Activity log - administrators): who did what, when and from where. A PHP file: opened in the browser it shows nothing.
 $gbl_AuditFile= $gbl_AuditFile ?? __DIR__.'/fe-audit.log.php';
 require_once (__DIR__.'/p2h_audit.inc.php');
+## The translations (program menu: Translations - administrators): the texts of the program in other languages (_trans.sys.json)
+$gbl_TransFile= $gbl_TransFile ?? __DIR__.'/_trans.sys.json';
+require_once (__DIR__.'/p2h_trans.inc.php');
 
 ##### SPECIAL this page only:
 define ('p2h_IS_WIN', DIRECTORY_SEPARATOR == '\\');
@@ -2319,6 +2322,15 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
     fe_redirect($currPath);
 }
 
+##### TRANSLATIONS (program menu): the changed texts of one language - administrators only
+if ($is_logged && isset($_POST['p2h_trans_lang'])) {
+    $fe_log_act= '@Translations';  $fe_log_obj= (string)$_POST['p2h_trans_lang'];
+    if (!fe_is_admin()) fe_msg(p2h_enc(lang('@Only an administrator can change the translations')), 'error');
+    else { [$ok, $m]= p2h_trans_handle();  fe_msg(p2h_enc($m), $ok ? 'ok' : 'error'); }
+    header('Location: '.basename(__FILE__).'?show='.urlencode($currPath).'&trans=1&tl='.urlencode(preg_replace('/[^A-Za-z-]/', '', $fe_log_obj)), true, 303);
+    exit;
+}
+
 ##### ACCOUNTS: the users (admins) - and the own password (everybody but a read only account)
 if ($is_logged && (isset($_POST['fe_users']) || isset($_POST['fe_pw']))) {
     $me= $_SESSION[p2h_SESSION_ID]['logged'] ?? '';
@@ -2761,6 +2773,12 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
         htm_nl(1);
     }
+    if (isset($_GET['trans']) && fe_is_admin()) {       // The translations - the texts of this program and its library are searched for the missing ones
+        htm_TransEditor(capt:'@Translations', icon:'fas fa-language', hint:'@The texts of the program in other languages - the missing first. Saved in _trans.sys.json',
+                        scan:[__FILE__, __DIR__.'/php2html.lib.php', __DIR__.'/p2h_audit.inc.php', __DIR__.'/p2h_trans.inc.php'],
+                        acti:basename(__FILE__).'?show='.urlencode($currPath).'&trans=1');
+        htm_nl(1);
+    }
     if (isset($_GET['log']) && fe_is_admin()) {         // The activity log
         htm_AuditLog(capt:'@Activity log', icon:'fas fa-clipboard-list', hint:'@Who did what, when and from where - the newest first', max:1000, vhgh:'500px');
         htm_nl(1);
@@ -3169,7 +3187,7 @@ echo '<script src="fe-preview.js?v='.@filemtime(__DIR__.'/fe-preview.js').'" def
     'bkIn'=>lang('@Put in the basket'), 'bkOut'=>lang('@Take out of the basket'), 'unzip'=>lang('@Unpack here'),
     'prog'=>['title'=>'Folder-explorer', 'admin'=>fe_is_admin() ? 1 : 0, 'pw'=>fe_may_change_pw($_SESSION[p2h_SESSION_ID]['logged'] ?? '') ? 1 : 0,
              'unl'=>$fe_unlocked ? 1 : 0, 'out'=>$use_auth ? basename(__FILE__).'?logout=1&t='.urlencode((string)($_SESSION['csrf_token'] ?? '')) : '',
-             'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlLog'=>basename(__FILE__).'?show='.urlencode($currPath).'&log=1', 'logT'=>lang('@Activity log'),
+             'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlLog'=>basename(__FILE__).'?show='.urlencode($currPath).'&log=1', 'logT'=>lang('@Activity log'), 'urlTrans'=>basename(__FILE__).'?show='.urlencode($currPath).'&trans=1', 'transT'=>lang('@Translations'),
              'trash'=>fe_can('w') && fe_trash_dir() !== false ? 1 : 0, 'urlTrash'=>basename(__FILE__).'?show='.urlencode($currPath).'&trash=1', 'trashT'=>lang('@Trash'), 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
              'users'=>lang('@Users ...'), 'pwT'=>lang('@Change my password'), 'lock'=>lang('@Remove restrictions'), 'unlock'=>lang('@Restore restrictions'),
              'lockQ'=>lang('@Remove the restrictions for this session?'), 'help'=>lang('@Help'), 'about'=>lang('@About Folder-explorer'), 'out_'=>lang('@Log out'),

@@ -156,6 +156,7 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 | `$fe_max_time` | 300 s | long work (Analyse, sizes, copy, ZIP) may extend PHP's time limit up to this |
 | `$gbl_SessionKeep` | `true` | an open page keeps the login alive |
 | `$gbl_AuditFile` | `fe-audit.log.php` | the activity log (program menu - Activity log) |
+| `$gbl_TransFile` | `_trans.sys.json` | the translations (program menu - Translations) |
 | `$fe_trash_path` | `.fe-trash` | the trash (program menu - Trash): a hidden folder next to the program, never shown in the tree |
 | `$fe_trash_days` | `30` | days in the trash before it is deleted for good - `0`: no trash, deleted at once |
 | `$fe_trash_max` | `500 MB` | bytes in the trash - above it the oldest are deleted for good |
@@ -168,6 +169,9 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   blocked ones), log out, upload, download, rename / move, copy, ZIP, unpack, new folder, synchronize, delete, basket and checked-row
   actions, users, passwords and the restrictions - with the result. Saved in `fe-audit.log.php` next to the program (a PHP file: it
   shows nothing in the browser); at 2 MB it is renamed to `fe-audit.log.old.php` and a new one is started. It needs `p2h_audit.inc.php`.
+- **Translations** (administrators: program menu - Translations): the texts of the program in another language - choose the language,
+  search, the missing first; only the changed texts are saved (into `_trans.sys.json`, the old file kept as `_trans.sys.bak.json`).
+  Simple HTML (b, i, br, code) is allowed - never a script. It needs `p2h_trans.inc.php`.
 - **Trash:** what is deleted goes to the trash (program menu - Trash, or the link in the message): restore it to its folder (a name
   taken there: name (2)), delete it for good, or empty the trash. Everybody sees what was deleted in the folders they may write in,
   administrators all of it. Deleted for good after 30 days - and the oldest first above 500 MB.

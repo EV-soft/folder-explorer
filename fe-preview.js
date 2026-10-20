@@ -333,6 +333,7 @@
         if (P.trash) item('fas fa-trash-restore', P.trashT, function () { location.href = P.urlTrash; });
         if (P.admin) item('fas fa-users', P.users, function () { location.href = P.urlUsers; });
         if (P.admin && P.urlLog) item('fas fa-clipboard-list', P.logT, function () { location.href = P.urlLog; });
+        if (P.admin && P.urlTrans) item('fas fa-language', P.transT, function () { location.href = P.urlTrans; });
         item('fas fa-key', P.pwT, function () { location.href = P.urlPw; }, !P.pw);
         if (P.admin) item(P.unl ? 'fas fa-lock' : 'fas fa-unlock', P.unl ? P.unlock : P.lock, function () {
             var f = document.getElementById('feUnlockForm');
