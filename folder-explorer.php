@@ -2,8 +2,6 @@
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-26 EV-soft *** Built with <a href="https://github.com/EV-soft/Clever-Html-Engine" target="_blank" rel="noopener">php2html - Clever HTML Engine</a>';
 define('FE_VERSION', $DocVer);  define('FE_DATE', $DocRev);  define('FE_FOOTER', $©);     // Kept: the library overwrites $DocVer, $DocRev and $© when it is included
 
-$sys= $GLOBALS["gbl_ProgRoot"]= './';
-
 ## Libraries (jQuery, Tablesorter, Font Awesome ...): automatic - php2html loads what a page uses (the login page: no table, no jQuery).
 ## To force one: $needJquery= '2';  ('0' off, '1' local, '2' CDN) - or $gbl_AutoLibs= false; for the old way (only what is set).
 
