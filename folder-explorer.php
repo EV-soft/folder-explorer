@@ -4,12 +4,8 @@ define('FE_VERSION', $DocVer);  define('FE_DATE', $DocRev);  define('FE_FOOTER',
 
 $sys= $GLOBALS["gbl_ProgRoot"]= './';
 
-## Activate needed libraries: Set 0:deactive  1:Local-source  2:WEB-source-CDN
-$needJquery=      '2';
-$needTablesorter= '2';
-$needPolyfill=    '0';
-$needFontawesome= '2';
-$needTinymce=     '0';
+## Libraries (jQuery, Tablesorter, Font Awesome ...): automatic - php2html loads what a page uses (the login page: no table, no jQuery).
+## To force one: $needJquery= '2';  ('0' off, '1' local, '2' CDN) - or $gbl_AutoLibs= false; for the old way (only what is set).
 
 // The bundled library (php2html 1.8.0 - with p2h_audit.inc.php and p2h_trans.inc.php) - the calls in this file need 1.8 (an older shared copy in ../p2h/ would fail):
 require_once (__DIR__.'/php2html.lib.php');    // Creating HTML-functions
