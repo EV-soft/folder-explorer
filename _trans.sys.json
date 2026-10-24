@@ -352,6 +352,12 @@
     "DateTime":"2022-06-17",
     "AppName":"PHP to HTML",
     "translation":{
+      "Caps Lock is on":"Caps Lock er slået til",
+      "Accounts":"Regnskaber",
+      "User name":"Brugernavn",
+      "Password":"Adgangskode",
+      "Wrong user name or password":"Forkert brugernavn eller adgangskode",
+      "Locked after wrong passwords - try again at %s":"Spærret efter forkerte adgangskoder - prøv igen kl. %s",
       "Mode":"Tilstand",
       "Quick":"Hurtig",
       "Analyse":"Analyse",
