@@ -55,6 +55,7 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 - **Manual** below the table - eight tabs: *Nice to know*, *Step by step*, *Questions*, *Mouse and keys*, *Your account* (your rights,
   here), *Limits* (the numbers of this installation), *File viewers*, *About*.
 - **Keyboard in the table:** Ctrl+A checks all rows, Ctrl+Shift+A none, Delete deletes (into the trash), F2 renames.
+- **A taken name is told:** when a copy, move or unpack had to save a file as `name (2)`, the message lists it (`report.pdf → report (2).pdf`).
 - **Analyse mode** shows the used space of every folder in the tree - each folder counted once.
 - **Danish everywhere:** about 75 texts that were still English (the buttons below the table, messages, column headings).
 - **Safer:** the folder of the program (and the trash) is never deleted or moved - also with the restrictions removed; *All* / *Inverse*
@@ -150,7 +151,8 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   - *Copy here* - everything you may read is copied (folders with their content); the basket is kept.
   - *Move here* - from folders you may write in; moved items leave the basket.
   - *Download as ZIP* - one ZIP file with everything in the basket you may read.
-  - Nothing is ever overwritten: `name (2).ext`, `folder (2)`.
+  - Nothing is ever overwritten: `name (2).ext`, `folder (2)` - the message after the copy or move lists the names that were changed
+    (`report.pdf → report (2).pdf`, at most 5, then `(+3)`). The same for *Unpack here* and the checked rows.
 - **Destination:** one field in the Transfer card for upload and the basket - the folder you are in when you may write there,
   else your first write folder. Choose one of your write folders, or type a folder below it (`folder-explorer/_exchange/photos`).
 - **Upload:** to the destination, **drag files or whole folders** from your PC onto the drop zone, or use *Choose files* /

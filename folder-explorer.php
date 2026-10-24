@@ -1,4 +1,4 @@
-<?php   $DocFil= 'folder-explorer.php';    $DocVer='2.2.0';    $DocRev='2026-10-20';     $DocIni='evs';  $ModulNr=0; ## File informative only
+<?php   $DocFil= 'folder-explorer.php';    $DocVer='2.2.0';    $DocRev='2026-10-24';     $DocIni='evs';  $ModulNr=0; ## File informative only
 $©= '𝘓𝘐𝘊𝘌𝘕𝘚𝘌 & 𝘊𝘰𝘱𝘺𝘳𝘪𝘨𝘩𝘵 © 2019-26 EV-soft *** Built with <a href="https://github.com/EV-soft/Clever-Html-Engine" target="_blank" rel="noopener">php2html - Clever HTML Engine</a>';
 define('FE_VERSION', $DocVer);  define('FE_DATE', $DocRev);  define('FE_FOOTER', $©);     // Kept: the library overwrites $DocVer, $DocRev and $© when it is included
 
@@ -226,6 +226,17 @@ function fe_unique($target) { // Never overwrite: "name (2).ext" - "folder (2)" 
     for ($n= 2; ; $n++) { $t= $dir.'/'.$b.' ('.$n.')'.($e > '' ? '.'.$e : '');  if (!file_exists($t) && !is_link($t)) return $t; }
 }
 
+function fe_renamed($old, $new) { // Remember that a name was taken: "a.pdf" was saved as "a (2).pdf" - shown by fe_renamed_note()
+    if (basename($old) !== basename($new)) $GLOBALS['fe_renamed'][]= [basename($old), basename($new)];
+}
+
+function fe_renamed_note() { // "<br>The name was taken - saved as: a.pdf &rarr; a (2).pdf, ..." - at most 5 - empty: none
+    $r= $GLOBALS['fe_renamed'] ?? [];
+    if (!$r) return '';
+    $l= array_map(fn($p) => '<b>'.p2h_enc($p[0]).'</b> &rarr; <b>'.p2h_enc($p[1]).'</b>', array_slice($r, 0, 5));
+    return '<br>'.p2h_enc(lang('@The name was taken - saved as')).': '.implode(', ', $l).(count($r) > 5 ? ' (+'.(count($r) - 5).')' : '');
+}
+
 function fe_copy_tree($src, $dst, &$n, &$skip) { // Copy a file or a folder - only files the user may read, never over an existing file
     fe_more_time();
     if (is_link($src)) { $skip++;  return; }            // Never a link: a loop - or files outside the root
@@ -256,12 +267,13 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
         if ($op === 'move' && fe_holds_program($src)) { $skip++;  continue; }     // The program itself: never moved
         if ($op === 'move') {
             if (fe_can_write(p2h_norm_path(dirname($src))) && (!empty($fe_unlocked) || (basename($src)[0] !== '.' && (is_dir($src) || fe_name_allowed(basename($src)))))
-                && @rename($src, $dst)) { $n++;  $done[]= $src; }
+                && @rename($src, $dst)) { $n++;  $done[]= $src;  fe_renamed($src, $dst); }
             else $skip++;
         } else {
             $size= is_dir($src) ? fe_dir_size($src) : filesize($src);
             if ($size > $room) { $skip++;  continue; }
             fe_copy_tree($src, $dst, $n, $skip);
+            if (file_exists($dst)) fe_renamed($src, $dst);
             $room-= $size;
         }
     }
@@ -462,6 +474,7 @@ function fe_unzip($zip, $dest, $room, &$n, &$skip) { // Unpack a ZIP in $dest: s
         fclose($in);  fclose($out);
         @touch($target, $st['mtime']);
         $n++;
+        fe_renamed(fe_clean_name(end($parts)), $target);
     }
     $z->close();
     return true;
@@ -2309,7 +2322,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
         elseif ($act === 'sync')  fe_msg(p2h_enc(lang('@Synchronized')).' <b>'.p2h_enc($name).'</b> &rarr; <b>'.p2h_enc(ltrim(substr($target, strlen($root_path)), '/') ?: '/').'</b>: '.
                                          $n.' '.p2h_enc(lang('@files copied or updated')).$skipTxt, $skip ? 'error' : 'ok');
         elseif ($act === 'unzip') fe_msg(p2h_enc(lang('@Unpacked')).': <b>'.$n.'</b> '.p2h_enc(lang('@files')).
-                                         ($skip ? ' - '.$skip.' '.p2h_enc(lang('@skipped (not allowed names, too large, or more than 20000)')) : ''), $skip ? 'error' : 'ok');
+                                         ($skip ? ' - '.$skip.' '.p2h_enc(lang('@skipped (not allowed names, too large, or more than 20000)')) : '').fe_renamed_note(), $skip ? 'error' : 'ok');
         else                      fe_msg(p2h_enc(lang(['mkdir'=>'@Folder created', 'move'=>'@Renamed / moved to', 'copy'=>'@Copied to', 'zip'=>'@ZIP file created'][$act])).
                                          ': <b>'.p2h_enc($rel).'</b>'.$skipTxt, $skip ? 'error' : 'ok');
     } else fe_msg(p2h_enc($err), 'error');
@@ -2444,7 +2457,7 @@ if ($is_logged && isset($_POST['fe_bk'])) {
             $done= fe_transfer($basket, $bkDest, $op, $n, $skip);
             if ($op === 'move') $basket= array_values(array_diff($basket, $done));
             fe_msg(p2h_enc(lang($op === 'move' ? '@Moved to' : '@Copied to')).' <b>'.p2h_enc(fe_show_path($bkDest)).'</b>: '.$n.' '.p2h_enc(lang($op === 'move' ? '@files / folders' : '@files')).
-                   ($skip ? ' - '.$skip.' '.p2h_enc(lang('@skipped (not allowed, no right to move, too large, or already here)')) : ''), $skip ? 'error' : 'ok');
+                   ($skip ? ' - '.$skip.' '.p2h_enc(lang('@skipped (not allowed, no right to move, too large, or already here)')) : '').fe_renamed_note(), $skip ? 'error' : 'ok');
         }
     }
     $_SESSION[p2h_SESSION_ID]['basket']= $basket;
@@ -2474,7 +2487,7 @@ if ($is_logged && isset($_POST['fe_sel'])) {
         if (!fe_can('w') || !fe_can_write($dest)) fe_msg(p2h_enc(lang('@You may not write in the destination folder')).': '.p2h_enc($destRel), 'error');
         elseif ($op !== 'zip') {
             fe_transfer($items, $dest, $op, $n, $skip);
-            fe_msg(p2h_enc(lang($op === 'move' ? '@Moved to' : '@Copied to')).' <b>'.p2h_enc($destRel).'</b>: '.$n.' '.p2h_enc(lang($op === 'move' ? '@files / folders' : '@files')).$skipTxt(), $skip ? 'error' : 'ok');
+            fe_msg(p2h_enc(lang($op === 'move' ? '@Moved to' : '@Copied to')).' <b>'.p2h_enc($destRel).'</b>: '.$n.' '.p2h_enc(lang($op === 'move' ? '@files / folders' : '@files')).$skipTxt().fe_renamed_note(), $skip ? 'error' : 'ok');
         } elseif (!class_exists('ZipArchive')) fe_msg(p2h_enc(lang('@It could not be done')), 'error');
         else {
             $one= count($items) === 1 ? (is_dir($items[0]) ? basename($items[0]) : pathinfo($items[0], PATHINFO_FILENAME)) : '';    // A folder "my.photos": not "my"
@@ -3245,7 +3258,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Transfer', [
             '<b>Basket:</b> collect files and folders from any folder, choose the <b>destination</b>, then copy or move them there - or download them as one ZIP.',
             '<b>Upload:</b> drag files or whole folders from your PC onto the drop zone - they go to the destination. A ZIP file is unpacked with the file menu: Unpack here.',
-            'Nothing is ever overwritten: a second copy is called name (2).',
+            'Nothing is ever overwritten: a second copy is called name (2) - the message after the copy, move or unpack tells which names were changed.',
         ]],
         ['Folder tree', [
             'The current folder is bold, with an open folder. The number at the left is the level.',
@@ -3384,7 +3397,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
     $faq= [
         ['Why are Rename and Delete grey?', 'You may only change files in your write folders. See the tab Your account - This folder.'],
         ['Where did my deleted file go?', 'Into the trash: program menu - Trash. There you can restore it.'],
-        ['Why is my file called name (2)?', 'Nothing is ever overwritten: a file with the same name was already there.'],
+        ['Why is my file called name (2)?', 'Nothing is ever overwritten: a file with the same name was already there. The message after the copy, move or unpack lists the files that got a new name.'],
         ['Why can I not upload a .php file?', 'Server scripts and hidden files are never uploaded or written - see the tab Limits.'],
         ['The upload of a big file fails', 'A file may be at most the size in the tab Limits - and the shared folder has a quota.'],
         ['Why are the folder sizes missing or slow?', 'Quick lists the folder at once. Analyse - or the calculator in the tree - counts the sizes, and big folders take time.'],
