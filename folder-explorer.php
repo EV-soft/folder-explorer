@@ -4508,6 +4508,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
                           $tt(fe_can('w') && fe_can_write($exch_path) ? 'you may read and write in it' : (fe_can('r') ? 'you may read in it' : 'you may only see the names'))],
         ['This folder', p2h_enc(fe_show_path($currPath)).': '.($can_write_here ? $yes(true).$tt('You may write here')
                           : ($readHere ? $yes(true).$tt('You may download here - not write') : $yes(false).$tt('You may only see the names here')))],
+        ['Share links', $yes(fe_can('w') && (int)$fe_share_days > 0).$tt(fe_can('w') && (int)$fe_share_days > 0 ? 'You may make them - for files you may download: the file menu' : 'Your account may not make share links')],
         ['Your password', $yes(fe_may_change_pw($me)).$tt(fe_may_change_pw($me) ? 'You may change it: program menu - Change my password' : 'This account may not change its password')],
         ['Restrictions', fe_is_admin() ? ($fe_unlocked ? $tt('Removed - for you, in this session') : $tt('In force - you may remove them: the lock icon of the Transfer card'))
                                        : $tt('In force - only administrators can remove them (for themselves)')],
@@ -4543,6 +4544,9 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
                   : $tt('Deleted for good after').' '.(int)$fe_trash_days.' '.$tt('days').' - '.$tt('and the oldest first, when the trash holds more than').' '.p2h_nice_filesize($fe_trash_max)],
         ['Failed logins', $tt('At most 10 per address and account in 15 minutes - then wait')],
         ['Preview', $tt('Text: the first 40 lines - the content only where you may download the file')],
+        ['Share links', (int)$fe_share_days > 0 ? $tt('At most').' '.(int)$fe_share_days.' '.$tt('days').' - '.$tt('10 wrong passwords: the link waits 15 minutes - a folder: one ZIP, made again after 10 minutes') : $tt('Off')],
+        ['Edit', $tt('Text files up to 2 MB - one old version per 15 minutes goes into the trash')],
+        ['Search', $tt('At most 500 hits, 100000 names or 20 seconds - the text: only text files you may download, up to 2 MB')],
     ];
     $body5= '<div class="feKeysWrap"><div>'.$tbl2($lim).'<small>'.$tt('Set in folder-explorer.php (see README) and in the PHP settings of the web hotel.').'</small></div></div>';
 
@@ -4584,8 +4588,36 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             'Reload the page: the language is in the language selector of the view bar - with its flag, or its code.',
         ]],
         ['Find a file in the sub folders', [
-            'Choose <b>Analyse</b> - the switch in the header of the card Folder content.',
-            'Type in the search field next to it: the files of all sub folders are listed.',
+            'Click <b>Search in subfolders</b> in the heading of the card Folder content.',
+            'Type the name or a part of it - <code>*</code> and <code>?</code> for the whole name, e.g. <code>*.pdf</code>. Check <b>also in the text of text files</b> to search in the content too.',
+            'Click <b>Search</b>: the card Search result lists the files of this folder and all folders below it - click a name to open its folder.',
+        ]],
+        ['Share a file with someone without an account', [
+            'Rest the mouse on the file name (or right-click the row of a folder): <b>Share link ...</b>',
+            'Choose how long the link works - and a password, if you like. Click <b>Make the link</b>.',
+            '<b>Copy</b> the link and send it (and the password another way). A folder is downloaded as one ZIP file.',
+            'Program menu - <b>Shared links</b>: see how often it was downloaded - or delete the link, so it stops working.',
+        ]],
+        ['Edit a text file', [
+            'Rest the mouse on the file name: <b>Edit</b> - an HTML file also: <b>Edit with TinyMCE</b>.',
+            'Change the text - <b>Ctrl+S</b> or <b>Save</b>. The old version goes into the trash.',
+            '<b>Close</b> - you are asked if something is not saved.',
+        ]],
+        ['Find files that are there twice', [
+            'Choose <b>Analyse</b>, then <b>Duplicates</b> in the heading of Folder content.',
+            'The card Duplicates lists the files with the same content in this folder and below it - the most space first.',
+            'Move the copies you do not need to the trash - keep one of each.',
+        ]],
+        ['Make a new user (administrators)', [
+            'Program menu (right-click the table outside a row): <b>Users ...</b>',
+            'The empty line at the bottom: the name (2-32 letters, digits . _ -), the right <b>read</b> or <b>read + write</b>, and a password of at least 8 characters.',
+            '<b>Write folders</b>: folders below the root, a comma between - <code>/</code> = the whole root - empty = the shared folder. A folder that is not there is made (closed for direct web access).',
+            '<b>Admin</b>: may manage the users, see the activity log, translate and remove the restrictions. Click the person icon to create the user.',
+        ]],
+        ['Change or delete a user (administrators)', [
+            'Program menu: <b>Users ...</b> - change the right, the write folders or Admin on the line of the user - a new password, or leave it empty - and click the save icon.',
+            'Delete: the red icon of the line. The share links of the user are deleted too. You can not delete yourself - and there is always one administrator.',
+            'The accounts are saved in <code>fe-users.php</code> next to the program (password hashes only).',
         ]],
     ];
     $body6= '<div class="feNice">'.implode('', array_map(fn($s) => '<div class="feNiceSec"><h4>'.p2h_enc(lang('@'.$s[0])).'</h4><ol>'.
@@ -4604,6 +4636,10 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Can others see my files?', 'Everybody who is logged in sees the names of the folders and files. Download and preview only where the account may - see the tab Your account.'],
         ['The preview shows no content', 'The content is only shown where you may download the file - and some file types have no preview: see the tab File-viewers.'],
         ['Who sees what I do?', 'Administrators see an activity log: who did what, when and from where.'],
+        ['How do I make a new user?', 'Only an administrator can: program menu (right-click the table outside a row) - Users. See the tab Step by step.'],
+        ['I forgot my password', 'Ask an administrator: program menu - Users - a new password on your line. Your own password you change in the program menu: Change my password.'],
+        ['How do I share a file with someone without an account?', 'The file menu: Share link - see the tab Step by step. The link works until its end date - or until you delete it in the program menu: Shared links.'],
+        ['Why is Edit not in the file menu?', 'Only text files up to 2 MB in a folder you may write in can be edited - not the files of the program.'],
     ];
     $body7= '<div class="feNice">'.implode('', array_map(fn($q) => '<div class="feNiceSec"><h4>'.p2h_enc(lang('@'.$q[0])).'</h4><p class="feFaqA">'.p2h_enc(lang('@'.$q[1])).'</p></div>', $faq)).'</div>';
 
@@ -4629,7 +4665,8 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Folder name', 'Opens the folder', 'Folder menu'],
         ['Check box (Select)', 'Checks / unchecks the row', 'Menu of the row'],
         ['Size', 'Rest the mouse on it: the size in bytes', 'Menu of the row'],
-        ['The table outside the rows', '', 'Program menu: trash, password, help, about, log out - administrators also: users, activity log, translations, restrictions'],
+        ['The table outside the rows', '', 'Program menu: trash, shared links, password, help, about, log out - administrators also: users, activity log, translations, restrictions'],
+        ['Tile in the gallery', 'File menu - a folder opens - double-click: view the file', ''],
         ['Column heading', 'Sorts by the column', ''],
         ['Folder in the tree', 'Opens the folder - the calculator counts its size', ''],
         ['Card header', 'Folds / opens the card', 'Card menu: applies to all cards'],
@@ -4648,6 +4685,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Alt+Arrow up / down', 'In a card', 'Moves the card up / down'],
         ['Arrows (Shift: 50 px), Home', 'Corner of the card', 'Changes the size - Home: the original size'],
         ['F11', 'Everywhere', 'Full screen on / off'],
+        ['Ctrl+S', 'Editor', 'Saves the file'],
     ];
     $cell= fn($t) => $t === '' ? '<span class="feKeysNo">-</span>' : p2h_enc(lang('@'.$t));
     $body3= '<div class="feKeysWrap"><div><h4>'.p2h_enc(lang('@Mouse')).'</h4><table class="feKeys"><tr><th>'.p2h_enc(lang('@Where')).'</th><th>'.p2h_enc(lang('@Click')).'</th>'.
