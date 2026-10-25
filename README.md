@@ -42,7 +42,7 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
-### What is new (dev-2.2, not released yet):
+### What is new in 2.4.0:
 - **Share link** (file and folder menu): a link for people without an account - it works for 1, 7, 30 or `$fe_share_days` days
   (administrators: also without an end) and may have a password. A folder is fetched as one ZIP file. The link works only while
   its maker may still download the file - program menu **Shared links**: copy, see the downloads, delete. Stored in `fe-shares.php`.
@@ -62,6 +62,9 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 - The download icon before the file name is gone - *Download* is in the file menu (rest the mouse on the name, or right-click the row).
 - The checked rows: the status text below *All / None / Inverse / Basket*; the file features are locked to the bottom of the
   scrolling file window; the file window is higher; the line below the card headings; the % text on the bar of *Used space*.
+- Fixed: `?dl[]=x` (and `fsz`, `pv`, `fdl`) gave a PHP warning.
+
+Updating from 2.3.x: replace `folder-explorer.php`, `fe-preview.js` and `_trans.sys.json`. New files made by the program: `fe-shares.php` (the share links).
 
 ### What is new in 2.3.3:
 - **The checked rows below the table:** how many - and the total size of the checked files, beside *All / None / Inverse*
