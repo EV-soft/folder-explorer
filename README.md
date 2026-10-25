@@ -33,7 +33,7 @@ File/Folder space is also displayed graphically.
 **Quick** mode: it speeds up and works like a typical file-browser without analyzing subfolder content.
 One button in the header of the *Folder-Details* card switches between the two modes (the search field is beside it).
 
-Context menus can be activated by right-clicking on a file or folder row in the table (still demo).
+Context menus can be activated by right-clicking on a file or folder row in the table - or by resting the mouse on a file name.
 
 ### Folder tree:
 - Drawn connector lines and folder icons; the level number of each folder at the far left and a level axis below the tree.
@@ -41,6 +41,18 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 - The card tool *hdd* icon shows the used space of every folder as a column: size, a share bar and the total above the tree.
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
+
+### What is new (dev-2.2, not released yet):
+- **Share link** (file and folder menu): a link for people without an account - it works for 1, 7, 30 or `$fe_share_days` days
+  (administrators: also without an end) and may have a password. A folder is fetched as one ZIP file. The link works only while
+  its maker may still download the file - program menu **Shared links**: copy, see the downloads, delete. Stored in `fe-shares.php`.
+  The page of the link speaks the language of the browser, when there is a translation.
+- **Edit** (file menu): text files up to 2 MB in a folder you may write in - Ctrl+S saves, the old version goes to the trash, the line
+  ends and a byte order mark are kept. Changed by someone else meanwhile: you are asked before your version replaces it.
+- **Search in all subfolders** - also in Quick mode: the search field in the heading of *Folder content* searches this folder and all
+  below it, by name (`*` and `?` for the whole name) and if you like in the text of text files you may download (up to 2 MB per file).
+- The checked rows: the status text below *All / None / Inverse / Basket*; the file features are locked to the bottom of the
+  scrolling file window; the file window is higher; the line below the card headings; the % text on the bar of *Used space*.
 
 ### What is new in 2.3.3:
 - **The checked rows below the table:** how many - and the total size of the checked files, beside *All / None / Inverse*
@@ -236,6 +248,8 @@ Updating from 2.2.0: replace the program files (`folder-explorer.php`, `php2html
 | `$fe_trash_path` | `.fe-trash` | the trash (program menu - Trash): a hidden folder next to the program, never shown in the tree |
 | `$fe_trash_days` | `30` | days in the trash before it is deleted for good - `0`: no trash, deleted at once |
 | `$fe_trash_max` | `500 MB` | bytes in the trash - above it the oldest are deleted for good |
+| `$fe_shares_file` | `fe-shares.php` | the share links (file menu - Share link, program menu - Shared links) |
+| `$fe_share_days` | `90` | the longest time a share link may work - `0`: no share links |
 
 ### Login and safety:
 - At most 10 failed logins per address and account in 15 minutes; the slider *Are you human?* is checked on the server too.
@@ -311,8 +325,8 @@ the icon, README - recommended) or **Maximal** (and the local libraries `_assets
 
 **Made by the program** (the folder must be writable by the web server):
 `_exchange/` (the shared folder, closed with `.htaccess`), `.fe-trash/` (the trash), `_cache/` (CSS / JS cache - only faster,
-the page works without it), `fe-audit.log.php` (the activity log) and `fe-users.php` (the accounts - when they are saved in the
-program). The log and the accounts are PHP files and the folders are closed: opened in the browser they show nothing
+the page works without it), `fe-audit.log.php` (the activity log), `fe-users.php` (the accounts - when they are saved in the
+program) and `fe-shares.php` (the share links). The log and the accounts are PHP files and the folders are closed: opened in the browser they show nothing
 (`_cache/` holds only the CSS / JS of the library).
 
 **The first log-in:** the accounts in `folder-explorer.php` are examples - their passwords are not published. Make your own

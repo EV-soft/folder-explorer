@@ -1,4 +1,4 @@
-/* fe-preview.js v:1.0.0 d:2026-10-19 i:evs  -  Folder-explorer: preview of a file when the mouse rests on its icon in Folder-Details
+/* fe-preview.js v:1.1.0 d:2026-10-25 i:evs  -  Folder-explorer: preview of a file when the mouse rests on its icon in Folder-Details
  * The icon (i.feFileIc) carries: data-pk = kind, data-pv = preview address (?pv=...), data-pn = name, data-ps = size, data-pm = modified
  * Kinds: img, video, audio, font (shown everywhere) - txt, pdf, zip, doc (only where the file may be downloaded) - lock (text without that right)
  * Code is shown with syntax colours and line numbers (a small built-in highlighter - no external library).
@@ -227,7 +227,7 @@
     // ---------- Menu on the file name: actions on the file (span.feFileName data-fm = the file facts and what the user may do) ----------
     // n name, r path, t type, s bytes, m modified, a accessed, p permissions, u owner, o view address, d download address,
     // e: change the file (rename / copy / ZIP / unpack / delete) 1 = yes, 2 = the account may not, 3 = a protected file, 0 = not a write folder
-    // b: the path (basket), k: 1 = in the basket
+    // b: the path (basket), k: 1 = in the basket - x: 1 = may be edited (a text file) - l: 1 = a share link may be made
     var menu = null, mName = null, mShow = null, mHide = null;
 
     function properties(f) {
@@ -288,14 +288,17 @@
             item('fas fa-folder-open', T.goto, function () { location.href = f.g; });
             item('fas fa-download', T.dirZip, function () { post([['fe_sel', 'download'], ['fe_bp[]', f.b]], true); }, '', typeof window.fePost !== 'function');
             item('fa-solid fa-binoculars', T.dirProp, function () { properties(f); });
+            if (f.l) item('fas fa-link', T.share, function () { window.feShare(f); }, '', typeof window.feShare !== 'function');
         } else {
             item('far fa-eye', T.open, function () { window.open(f.o, '_blank', 'noopener'); }, '', !f.o);
             item('fas fa-download', T.down, function () { location.href = f.d; }, '', !f.d);
             item('fa-solid fa-binoculars', T.prop, function () { properties(f); });
+            if (f.l) item('fas fa-link', T.share, function () { window.feShare(f); }, '', typeof window.feShare !== 'function');
         }
         if (typeof window.feBasket === 'function')
             item('fas fa-shopping-basket', f.k ? T.bkOut : T.bkIn, function () { window.feBasket(f.k ? 'remove' : 'add', [f.b]); });
         menu.appendChild(el('div', 'fePmSep'));
+        if (!f.dir && f.x) item('fas fa-edit', T.edit, function () { window.feEdit(f); }, '', typeof window.feEdit !== 'function' || !window.fetch);
         item('fas fa-pen-square', f.dir ? T.moveD : T.move, function () { ask(T.moveQ, f.n, function (to) { if (to !== f.n) window.feAct('move', f.n, to); }); }, '', off);
         item('fas fa-copy', f.dir ? T.copyD : T.copy, function () { ask(T.copyQ, f.dir ? f.n + ' - ' + T.copyN : copyName(f.n), function (to) { window.feAct('copy', f.n, to); }); }, '', off);
         item('far fa-file-archive', T.zip, function () { window.feAct('zip', f.n); }, '', off || (!f.dir && /\.zip$/i.test(f.n)));
@@ -331,6 +334,7 @@
             menu.appendChild(b);
         }
         if (P.trash) item('fas fa-trash-restore', P.trashT, function () { location.href = P.urlTrash; });
+        if (P.shares) item('fas fa-link', P.sharesT, function () { location.href = P.urlShares; });
         if (P.admin) item('fas fa-users', P.users, function () { location.href = P.urlUsers; });
         if (P.admin && P.urlLog) item('fas fa-clipboard-list', P.logT, function () { location.href = P.urlLog; });
         if (P.admin && P.urlTrans) item('fas fa-language', P.transT, function () { location.href = P.urlTrans; });

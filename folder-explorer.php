@@ -71,6 +71,12 @@ $fe_exchange_quota= $fe_exchange_quota ?? 200 * 1024 * 1024;    // Max total siz
 $fe_trash_path= $fe_trash_path ?? __DIR__.'/.fe-trash';
 $fe_trash_days= $fe_trash_days ?? 30;
 $fe_trash_max=  $fe_trash_max  ?? 500 * 1024 * 1024;
+## Share links (file menu: Share link): a link to a file - or a folder, fetched as a ZIP - for people without an account, with an end date and maybe a password.
+## Accounts with the right w make them for what they may download - and a link only works while its maker may still download it.
+## Program menu - Shared links: see, copy and delete them. $fe_share_days= 0: no share links.
+$fe_shares_file= $fe_shares_file ?? __DIR__.'/fe-shares.php';
+$fe_share_days=  $fe_share_days  ?? 90;         // The longest time a link may work (days) - administrators may also make a link without an end
+
 
 ## "Remove restrictions" (admins only, per session): browse, download and write everywhere below $fe_unlocked_root,
 ## any file type (never hidden files like .htaccess) and no quota / size limit of its own.
@@ -460,7 +466,7 @@ function fe_program_file($path) { // A file of the program (its PHP files, scrip
     $low= fn($p) => strtolower(p2h_norm_path($p));
     if ($list === null) {
         $list= [];
-        foreach (array_merge(get_included_files(), glob(__DIR__.'/fe-*.js') ?: [], glob(__DIR__.'/_trans*.json') ?: [], [__DIR__.'/favicon.svg', (string)($GLOBALS['fe_users_file'] ?? '')]) as $f)
+        foreach (array_merge(get_included_files(), glob(__DIR__.'/fe-*.js') ?: [], glob(__DIR__.'/_trans*.json') ?: [], [__DIR__.'/favicon.svg', (string)($GLOBALS['fe_users_file'] ?? ''), (string)($GLOBALS['fe_shares_file'] ?? '')]) as $f)
             if ($f !== '' && ($x= realpath($f)) !== false) $list[$low($x)]= 1;
     }
     return isset($list[$low($r)]) || strpos($low($r).'/', $low(__DIR__.'/_assets').'/') === 0;
@@ -1108,6 +1114,198 @@ function fe_trash_link() { // " - Open the trash" after a message of a delete
     return fe_trash_dir() === false ? '' : ' - <a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode((string)($GLOBALS['currPath'] ?? '')).'&trash=1').'">'.p2h_enc(lang('@Open the trash')).'</a>';
 }
 
+function fe_shares_load() { // The share links: token => [p path, d 1 = a folder, u maker, c made, x end (0: none), h password hash ('': none), n downloads]
+    $f= (string)($GLOBALS['fe_shares_file'] ?? '');
+    if ($f === '' || !is_file($f)) return [];
+    try { $l= @include $f; } catch (Throwable $e) { $l= null; }
+    return is_array($l) ? $l : [];
+}
+
+function fe_shares_save($list) { // Write the share links (fe-shares.php) - the ended ones away - written to a temp file first, then renamed
+    $f= $GLOBALS['fe_shares_file'];
+    $list= array_filter($list, fn($s) => is_array($s) && (empty($s['x']) || $s['x'] > time()));
+    $tmp= $f.'.'.bin2hex(random_bytes(4)).'.tmp';
+    $code= "<?php // Folder-explorer share links - written by the program (file menu: Share link - program menu: Shared links).\n".
+           'return '.var_export($list, true).";\n";
+    if (@file_put_contents($tmp, $code, LOCK_EX) === false) return false;
+    @chmod($tmp, 0640);
+    if (!@rename($tmp, $f)) { @unlink($tmp);  return false; }
+    if (function_exists('opcache_invalidate')) @opcache_invalidate($f, true);
+    return true;
+}
+
+function fe_share_url($tok) { // The address of a share link
+    return p2h_SELF_URL.'?share='.$tok;
+}
+
+function fe_share_may($s) { // May the logged user see / delete this share link: administrators all - others their own
+    return fe_is_admin() || ($s['u'] ?? '') === ($_SESSION[p2h_SESSION_ID]['logged'] ?? '');
+}
+
+function fe_can_read_dir($dir) { // May the logged user download the folder $dir (as a ZIP): in a write folder or the shared folder - not hidden, not the trash
+    global $fe_unlocked, $root_path, $exch_path;
+    $dir=  p2h_norm_path((string)$dir);
+    $real= realpath($dir);
+    if ($real === false || !is_dir($real) || !fe_in_dir(p2h_norm_path($real), $root_path) || fe_is_trash($dir)) return false;
+    if (!empty($fe_unlocked)) return true;
+    $dirs= fe_write_dirs();
+    if (fe_can('r') && $exch_path) $dirs[]= $exch_path;
+    foreach ($dirs as $d) if (fe_in_dir($dir, $d) && !fe_hidden_below($dir, $d)) return true;
+    return false;
+}
+
+function fe_share_may_make($path) { // May the logged user make a share link to $path (a normalized real path): an account with w, that may download it - with the restrictions on
+    if (!fe_can('w') || (int)($GLOBALS['fe_share_days'] ?? 0) <= 0 || !empty($GLOBALS['fe_unlocked'])) return false;
+    return is_dir($path) ? (!is_link($path) && !fe_holds_program($path) && fe_can_read_dir($path))
+                         : (is_file($path) && !is_link($path) && fe_can_read($path) && !fe_program_file($path));
+}
+
+function fe_share_tries($fail= null) { // Wrong passwords of a share link from this address in the last 15 minutes - $fail true: one more
+    $f= sys_get_temp_dir().'/fe-login-s'.md5(__FILE__.'|'.($_SERVER['REMOTE_ADDR'] ?? '').'|'.(string)($_GET['share'] ?? '')).'.txt';
+    $n= (is_file($f) && @filemtime($f) > time() - 900) ? (int)@file_get_contents($f) : 0;
+    if ($fail === true) @file_put_contents($f, (string)++$n, LOCK_EX);
+    return $n;
+}
+
+function fe_share_page($tok) { // ?share=<token>: the page of a share link - for everyone, no login - it works only while its maker may still download the file
+    global $auth_users, $fe_root_path, $fe_exchange_path, $root_path, $exch_path, $fe_unlocked, $fe_share_days;
+    $list= fe_shares_load();
+    $s=    preg_match('/^[0-9a-f]{24}$/', $tok) ? ($list[$tok] ?? null) : null;
+    $csrf= (string)($_SESSION['csrf_token'] ?? '');
+    if (!isset($_SESSION['p2h_lang']) && !empty($GLOBALS['allLang']) &&                 // No language chosen: the first of the browser that has a translation
+        preg_match_all('/(?:^|,)\s*([a-z]{2})\b/', strtolower((string)($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '')), $m))
+        foreach ($m[1] as $c) {
+            if ($c === 'en') break;
+            $i= array_search($c, array_column($GLOBALS['allLang'], 'code'), true);
+            if ($i !== false && !empty($GLOBALS['allLang'][$i]['translation'])) { $GLOBALS['lang']= $c;  $GLOBALS['natindx']= $i;  break; }
+        }
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();     // The session of the visitor is never changed here - below: the maker, in this request only
+    $fe_unlocked= false;
+    $root_path=   p2h_norm_path(realpath($fe_root_path) ?: $fe_root_path);
+    $path= is_array($s) ? realpath((string)($s['p'] ?? '')) : false;
+    $ok=   $path !== false && (int)$fe_share_days > 0 && (empty($s['x']) || $s['x'] > time()) && (empty($auth_users) || isset($auth_users[$s['u'] ?? ''][2]));     // (no accounts: no login)
+    if ($ok) {
+        $_SESSION[p2h_SESSION_ID]['logged']= $s['u'];   // The rights of the maker - as they are now
+        $exch_path= fe_exchange_init($fe_exchange_path);
+        $path= p2h_norm_path($path);
+        $ok=   fe_share_may_make($path) && !empty($s['d']) === is_dir($path);
+    }
+    $err= '';
+    if ($ok && (isset($_GET['get']) || isset($_POST['fe_spw'])) && (($s['h'] ?? '') === '' || isset($_POST['fe_spw']))) {     // With a password: only the form posts it
+        if (($s['h'] ?? '') !== '') {
+            if (fe_share_tries() >= 10) $err= lang('@Too many wrong passwords - wait 15 minutes and try again');
+            elseif (!password_verify((string)($_POST['fe_spw'] ?? ''), (string)$s['h'])) { sleep(1);  fe_share_tries(true);  $err= lang('@Wrong password'); }
+        }
+        if ($err === '') {
+            $now= fe_shares_load();                     // Counted in the file as it is now
+            if (isset($now[$tok])) { $now[$tok]['n']= (int)($now[$tok]['n'] ?? 0) + 1;  fe_shares_save($now); }
+            if (!is_dir($path)) {
+                $_SESSION[p2h_SESSION_ID]['logged']= lang('@share link').' ('.$s['u'].')';     // The activity log: fetched by the link
+                fe_send_file($path);
+            }
+            $err= lang('@It could not be done');
+            if (class_exists('ZipArchive')) {
+                fe_temp_cleanup();
+                $tmp= (string)tempnam(sys_get_temp_dir(), 'fez');  $n= 0;  $skip= 0;
+                $z= new ZipArchive();
+                if ($tmp !== '' && $z->open($tmp, ZipArchive::OVERWRITE) === true) { fe_zip_add($z, $path, basename($path), $n, $skip);  $z->close(); }
+                if ($n > 0 && is_file($tmp) && filesize($tmp) > 0) {
+                    register_shutdown_function(function() use ($tmp) { @unlink($tmp); });
+                    $_SESSION[p2h_SESSION_ID]['logged']= lang('@share link').' ('.$s['u'].')';
+                    fe_send_file($tmp, basename($path).'.zip');
+                }
+                @unlink($tmp);
+                if ($n === 0) $err= lang('@The folder is empty');
+            }
+        }
+    }
+    if (!$ok) http_response_code(404);
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Referrer-Policy: no-referrer');
+    header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+    $e= fn($t) => p2h_enc(lang($t));
+    echo '<!doctype html><html lang="'.p2h_enc((string)($GLOBALS['lang'] ?? 'en')).'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'.
+         '<meta name="robots" content="noindex, nofollow"><title>'.$e($ok ? '@Shared file' : '@The link does not work').'</title><style>'.
+         ':root { color-scheme: light dark; --bg: #e6e8ea; --card: #fff; --text: #222; --muted: #666; --acc: #1a5e8a; --err: #b00020; }'.
+         '@media (prefers-color-scheme: dark) { :root { --bg: #15181c; --card: #1f2328; --text: #e3e3e3; --muted: #aeb8c2; --acc: #8ec5ea; --err: #ff7a8a; } }'.
+         'body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }'.
+         'main { box-sizing: border-box; width: min(520px, calc(100vw - 32px)); margin: 16px; padding: 24px 28px; background: var(--card); border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.18); }'.
+         'h1 { margin: 0 0 6px; font-size: 1.25rem; word-break: break-word; } .meta { margin: 0 0 18px; color: var(--muted); font-size: .9rem; }'.
+         '.err { color: var(--err); font-weight: 600; } label { display: block; margin-bottom: 10px; } input[type=password] { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; margin-top: 4px; }'.
+         '.btn, button { display: inline-block; padding: 9px 22px; border: 0; border-radius: 6px; background: var(--acc); color: #fff; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }'.
+         '@media (prefers-color-scheme: dark) { .btn, button { color: #10202c; } } footer { margin-top: 22px; font-size: .75rem; color: var(--muted); }'.
+         '</style></head><body><main>';
+    if (!$ok) echo '<h1>'.$e('@The link does not work').'</h1><p>'.$e('@It has ended or been deleted - or the file is not there any more. Ask the one who sent it for a new link.').'</p>';
+    else {
+        $isDir= is_dir($path);
+        echo '<h1>'.($isDir ? '&#128193;' : '&#128196;').' '.p2h_enc(basename($path)).'</h1>'.
+             '<p class="meta">'.($isDir ? $e('@A folder - downloaded as a ZIP file') : p2h_nice_filesize((int)filesize($path))).' &middot; '.$e('@Shared by').' '.p2h_enc((string)$s['u']).' &middot; '.
+             (empty($s['x']) ? $e('@No end date') : $e('@Works until').' '.date('Y-m-d H:i', (int)$s['x'])).'</p>';
+        if ($err !== '') echo '<p class="err" role="alert">'.p2h_enc($err).'</p>';
+        if (($s['h'] ?? '') !== '')
+            echo '<form method="post" action="?share='.$tok.'"><input type="hidden" name="csrf_token" value="'.p2h_enc($csrf).'">'.
+                 '<label>'.$e('@Password').'<input type="password" name="fe_spw" required autofocus autocomplete="off"></label>'.
+                 '<button type="submit">'.$e('@Download').'</button></form>';
+        else echo '<p><a class="btn" href="?share='.$tok.'&amp;get=1">'.$e('@Download').'</a></p>';
+    }
+    echo '<footer>Folder-explorer</footer></main></body></html>';
+    exit;
+}
+
+const FE_EDIT_MAX= 2 * 1024 * 1024;     // The biggest text file the editor opens (bytes)
+
+function fe_edit_refused($file) { // Why the logged user may not edit the file $file (a normalized real path) in the editor - '' = it may
+    if (!is_file($file) || is_link($file)) return lang('@File not found');
+    if (!fe_can('w') || !fe_can_write(p2h_norm_path(dirname($file))) || !fe_can_read($file) || !fe_name_allowed(basename($file)) || fe_program_file($file) || fe_is_trash($file))
+        return lang('@This file can not be changed here');
+    if (fe_preview_kind(basename($file), true) !== 'txt') return lang('@Only text files can be edited');
+    if (filesize($file) > FE_EDIT_MAX) return lang('@The file is too big to be edited here (max. 2 MB)');
+    return '';
+}
+
+function fe_find_hit($txt, $term) { // The first place of $term in the text $txt (upper / lower case alike): [line number, the line around it] - null: not found
+    $utf= mb_check_encoding($txt, 'UTF-8');
+    $pos= ($utf && preg_match('/[^\x00-\x7F]/', $term)) ? strpos(mb_strtolower($txt, 'UTF-8'), mb_strtolower($term, 'UTF-8')) : stripos($txt, $term);
+    if ($pos === false) return null;
+    $ls= strrpos(substr($txt, 0, $pos), "\n");  $ls= $ls === false ? 0 : $ls + 1;
+    $le= strpos($txt, "\n", $pos);  $line= rtrim(substr($txt, $ls, ($le === false ? strlen($txt) : $le) - $ls), "\r");
+    $at= $pos - $ls;
+    if (strlen($line) > 140) { $from= max(0, $at - 50);  $line= ($from ? '…' : '').mb_strcut($line, $from, 140, 'UTF-8').'…'; }
+    return [substr_count($txt, "\n", 0, $pos) + 1, trim(mb_scrub($line, 'UTF-8'))];
+}
+
+function fe_find($dir, $term, $content) { // Search the names below $dir - and the text of text files the user may download ($content) - [hits [path, folder, line, text], searched, stopped]
+    $hits= [];  $seen= 0;  $cut= false;  $t0= microtime(true);
+    $re=   strpbrk($term, '*?') === false ? null : '/^'.str_replace(['\*', '\?'], ['.*', '.'], preg_quote($term, '/')).'$/iu';     // * and ?: the whole name
+    $stack= [$dir];
+    while ($stack && !$cut) {
+        $d= array_pop($stack);
+        $list= @scandir($d);
+        if ($list === false) continue;
+        foreach ($list as $f) {
+            if ($f === '.' || $f === '..' || (empty($GLOBALS['fe_unlocked']) && $f[0] === '.')) continue;     // Hidden files and folders: never
+            $p= $d.'/'.$f;
+            if (fe_is_trash($p)) continue;
+            $isDir= is_dir($p);
+            if ($isDir && !is_link($p)) $stack[]= $p;
+            $seen++;
+            $hit= $re ? preg_match($re, $f) === 1 : mb_stripos($f, $term, 0, 'UTF-8') !== false;
+            $in=  null;
+            if (!$hit && $content && !$isDir && @filesize($p) <= FE_EDIT_MAX && fe_preview_kind($f, true) === 'txt' && fe_can_read($p)) {
+                $txt= @file_get_contents($p);
+                if (is_string($txt) && $txt !== '') $in= fe_find_hit($txt, $term);
+            }
+            if ($hit || $in) $hits[]= [$p, $isDir, $in[0] ?? 0, $in[1] ?? ''];
+            if (count($hits) >= 500 || $seen >= 100000 || microtime(true) - $t0 > 20) { $cut= true;  break; }
+        }
+        fe_more_time();
+    }
+    usort($hits, fn($a, $b) => strnatcasecmp($a[0], $b[0]));
+    return [$hits, $seen, $cut];
+}
+
 function fe_redirect($dir) { // Post/Redirect/Get - back to the folder
     header('Location: '.basename(__FILE__).'?show='.urlencode($dir), true, 303);
     exit;
@@ -1316,6 +1514,29 @@ $p2h_Style = '
     [data-theme="dark"] .fe-drop .fe-pick { color: #8cc4f0; background: #24323f; border-color: #4b6a85; }
     [data-theme="dark"] .fePmItem.fePmDel, [data-theme="dark"] .fePmItem.fePmDel i { color: #ff7a8a; }
     /* Nice to know: sections in columns */
+    /* Search (card header), Search result, Shared links, the editor */
+    .feFindBox { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid #d5dbe1; font-size: 12px; }
+    .feFindBox input[type=search] { flex: 1 1 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid #888; border-radius: 4px; font: inherit; font-size: 13px; }
+    .feFindForm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .feFindForm input[type=search] { flex: 1 1 220px; max-width: 420px; padding: 4px 7px; border: 1px solid #8a96a3 !important; border-radius: 4px; background: #fff !important; color: #222 !important; font: inherit; }
+    [data-theme="dark"] .feFindForm input[type=search] { background: #1d2126 !important; color: #e3e7eb !important; border-color: #5a6672 !important; }
+    .feFindSum { margin: 4px 0 8px; }  .feFindCut { color: #b05000; }
+    .feFindWrap { max-height: 60vh; overflow: auto; }
+    .feFindTbl { width: 100%; }  .feFindTbl td { vertical-align: top; }
+    .feFindLine code { white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+    .feShareGone td { opacity: .55; }
+    .feDlgInp { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 5px 7px; border: 1px solid #8a96a3 !important; border-radius: 4px;
+                background: #fff !important; color: #222 !important; font: inherit; font-weight: normal; }
+    [data-theme="dark"] .feDlgInp { background: #1d2126 !important; color: #e3e7eb !important; border-color: #5a6672 !important; }
+    .feEdTa { display: block; width: 100%; height: 68vh; box-sizing: border-box; resize: vertical; padding: 8px; tab-size: 4;
+              font: 13px/1.45 Consolas, "DejaVu Sans Mono", monospace; border: 1px solid #aab4be; border-radius: 4px; background: #fff; color: #222; }
+    .p2hDlgFoot .feEdSt { flex: 1; margin-right: auto; font-size: 12px; color: #555; text-align: left; align-self: center; }
+    .p2hDlgFoot .feEdSt.feEdDirty { color: #b05000; font-weight: 600; }
+    .p2hDlgFoot .feEdWrap { font-size: 12px; align-self: center; margin-right: 8px; white-space: nowrap; }
+    [data-theme="dark"] .feEdTa { background: #1d2126; color: #e3e7eb; border-color: #4a5560; }
+    [data-theme="dark"] .feFindBox { border-bottom-color: #3f4852; }
+    [data-theme="dark"] .p2hDlgFoot .feEdSt { color: #aeb8c2; }
+    [data-theme="dark"] .feFindCut, [data-theme="dark"] .p2hDlgFoot .feEdSt.feEdDirty { color: #ffb066; }
     /* Used space (Analyse): the % text on the middle of the bar */
     .feMeter { position: relative; width: 95%; }
     .feMeter meter { width: 100%; display: block; }
@@ -2013,7 +2234,7 @@ function p2h_fileExplore($path,$parentDir) {
                  'dir'=>1, 'n'=>$fld, 'r'=>ltrim(substr(p2h_norm_path($file_path), strlen($root_path)), '/'), 't'=>lang('@Folder'),
                  's'=>$calc_folder ? number_format((float)$foldsize, 0, ',', ' ') : '', 'm'=>$modif, 'a'=>'', 'p'=>$perms, 'u'=>(string)$owner['name'],
                  'e'=>($can_write_here && $fld[0] !== '.') ? 1 : (!fe_can('w') ? 2 : ($can_write_here ? 3 : 0)), 'w'=>$can_write_here && fe_can('w') ? 1 : 0,
-                 'g'=>basename(__FILE__).'?show='.urlencode($file_path), 'b'=>p2h_norm_path($file_path),
+                 'g'=>basename(__FILE__).'?show='.urlencode($file_path), 'b'=>p2h_norm_path($file_path), 'l'=>fe_share_may_make(p2h_norm_path($file_path)) ? 1 : 0,
                  'k'=>in_array(p2h_norm_path($file_path), $basket ?? [], true) ? 1 : 0], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)).'" hidden></span></div>';
         $rec['ext']= $ext;
         $rec['size']= $sortsize.'<div style="font-family:monospace; color:green;">'.fe_hint($showsize, number_format((float)$foldsize, 0,',',' ').' Bytes').'</div>';
@@ -2083,7 +2304,9 @@ function p2h_fileExplore($path,$parentDir) {
               'b'=>p2h_norm_path($file_path), 'k'=>in_array(p2h_norm_path($file_path), $basket ?? [], true) ? 1 : 0,     // Basket: path, in it
               'w'=>$can_write_here && fe_can('w') ? 1 : 0,                                                              // New folder here
               'o'=>($pvKind > '' && $pvKind !== 'lock') ? basename(__FILE__).'?pv='.rawurlencode(p2h_norm_path($file_path)).'&v='.$ftime.($pvKind === 'table' ? '&raw=1' : '') : '',
-              'd'=>$can_dl ? $dlUrl : ''];
+              'd'=>$can_dl ? $dlUrl : '',
+              'x'=>$wr_file && $filesize_raw <= FE_EDIT_MAX && fe_preview_kind($fld, true) === 'txt' && !fe_program_file($file_path) ? 1 : 0,   // Edit (a text file)
+              'l'=>!$is_link && fe_share_may_make(p2h_norm_path($file_path)) ? 1 : 0];                                                 // Share link
         $nm= '<span class="feBp" data-bp="'.p2h_enc(p2h_norm_path($file_path)).'" hidden></span><span class="feFileName" tabindex="0" role="button" aria-haspopup="menu" data-fm="'.p2h_enc(json_encode($fm, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)).'">'.p2h_enc($fld).'</span>';
         if ($calc_folder)
             $nameFld= '<div class="file-name-div">'.$ic.'&nbsp;'. $nm. ($ix < 1200 ? '<div class="live-preview-img">'.$fileInfo.'</div>' : ''). '</div>';  // Max 200 on one page ($ix starts at 1000)
@@ -2141,19 +2364,25 @@ function p2h_getFileList($dir, $recurse=false, $depth=false)    // Create list o
 function SearchSub(&$arrNames) { global $calc_folder;
 $result= '
 <span>'.     // (htm_Input below has the hint)
-    htm_Input($labl= 'Search', plho: '@Enter...', icon: '', hint: '@Search for a file in sub-folders, and open that folder',
+    htm_Input($labl= 'Search', plho: '@Enter...', icon: '', hint: '@Search for files and folders in this folder and all folders below it - by name, or in the text of text files',
               vrnt: $type= 'html', name: 'fsearch',
-              valu: '<div><i class="fa fa-search"></i> '.($calc_folder== true ? ($GLOBALS['totFiles'] ?? count($arrNames)).' '.lang('@Files in subfolders') : lang('@Only in Analyse mode')).'</div>',
+              valu: '<div><i class="fa fa-search"></i> '.($calc_folder== true ? ($GLOBALS['totFiles'] ?? count($arrNames)).' '.lang('@Files in subfolders') : lang('@Search in subfolders')).'</div>',
               form: '', wdth: '200px', algn: 'left',attr: 'onclick="ToggShow()" class="dropbtn" ',rtrn: true,
-              unit: '', disa: !$calc_folder, rows: '0', step: '', list: [], llgn: 'R', bord: '', ftop: '')
+              unit: '', disa: false, rows: '0', step: '', list: [], llgn: 'R', bord: '', ftop: '')
               . '
     <div id="FileSearch" class="dropdown-content" 
         >
+        <div class="feFindBox" role="search">'.      // The server searches this folder and all below it (feFindGo) - a field, not a form: this is inside the form of the card
+            '<input type="search" id="feFind" maxlength="100" placeholder="'.p2h_enc(lang('@Name or part of it - * and ? allowed')).'" aria-label="'.p2h_enc(lang('@Search for')).'" '.
+                'onkeydown="if (event.key === &quot;Enter&quot;) { event.preventDefault();  feFindGo(); }">'.
+            '<label><input type="checkbox" id="feFindC"> '.p2h_enc(lang('@also in the text of text files')).'</label>'.
+            '<button type="button" class="txtbutt feXfBtn" onclick="feFindGo()"><i class="fas fa-search"></i> '.p2h_enc(lang('@Search')).'</button>'.
+        '</div>'.($calc_folder ? '
         <input type="text" placeholder="'.p2h_enc(lang('@Part of a file or folder name...')).'" id="searchInput" onkeyup="filterFunction()" z-index:202;
             aria-label="'. p2h_enc(lang('@Type a search string: Part of the file- / folder-name')).'"
             style="width:200px; text-align:left; font-family:arial; border: 1px solid black;">
         <div style="font-size: 11px; color: gray; text-align: left; padding: 2px 6px;">'. lang('@Click to open folder containing this file ') .
-            (($GLOBALS['totFiles'] ?? 0) > count($arrNames) ? '<br>'.p2h_enc(lang('@The search list has the first')).' '.count($arrNames).' - '.p2h_enc(lang('@go to a sub folder to search the rest')) : '').'</div>';
+            (($GLOBALS['totFiles'] ?? 0) > count($arrNames) ? '<br>'.p2h_enc(lang('@The search list has the first')).' '.count($arrNames).' - '.p2h_enc(lang('@go to a sub folder to search the rest')) : '').'</div>' : '');
         $name_list= ''; // List to search for file names in sub-folders 
         foreach($arrNames as $file) {
             $pos= strrpos($file,'/')+1;
@@ -2163,7 +2392,7 @@ $result= '
             $name_list .= '<a href="'. basename(__FILE__). '?show='.urlencode(rtrim($dir,'/')).'" >'.
                         '<span class="colrgray">'.p2h_enc(mb_strlen($shown) > 32 ? '...'.mb_substr($shown,-32) : $shown).':</span> '. p2h_enc($fil).'</a>';
             }
-            $result.= '<div style= "text-align:left;">'.$name_list.'</div>';
+            if ($calc_folder) $result.= '<div style= "text-align:left;">'.$name_list.'</div>';      // Analyse mode: the names counted - filtered while you type
     $result.= '
     </div>
 </span>';
@@ -2183,6 +2412,8 @@ if (isset($_GET['logout']) && is_string($_GET['t'] ?? null) && hash_equals((stri
     header('Location: '.basename(__FILE__));   // A clean address: the login form must not post ?logout again
     exit;
 }
+
+if (is_string($_GET['share'] ?? null)) fe_share_page($_GET['share']);     // A share link: for everyone - no login (it exits)
 
 if ($use_auth) {
     $logged= $_SESSION[p2h_SESSION_ID]['logged'] ?? null;
@@ -2346,6 +2577,19 @@ if ($is_logged && isset($_GET['pv'])) {                // Hover preview of a fil
     exit;
 }
 
+if ($is_logged && isset($_GET['edt'])) {               // The text of a file for the editor (file menu: Edit)
+    $file= realpath((string)$_GET['edt']);
+    while (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    $why= $file === false ? lang('@File not found') : fe_edit_refused(p2h_norm_path($file));
+    if ($why !== '') exit(json_encode(['err' => $why], JSON_UNESCAPED_UNICODE));
+    $raw= (string)file_get_contents($file);
+    if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) $raw= substr($raw, 3);        // The byte order mark: kept when it is saved
+    if (!mb_check_encoding($raw, 'UTF-8')) exit(json_encode(['err' => lang('@The file is not UTF-8 text - it can not be edited here')], JSON_UNESCAPED_UNICODE));
+    exit(json_encode(['t' => $raw, 'm' => sha1_file($file), 'n' => basename($file)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+}
+
 if ($is_logged && fe_can('w')) fe_conf_init();          // A taken name: as chosen (copy, move, unpack, upload)
 $fe_check= ($_POST['fe_check'] ?? '') === '1';           // "Stop and ask": first only the taken names (fe_check_answer) - then the real request with the answers
 
@@ -2448,6 +2692,48 @@ if ($is_logged && isset($_POST['fe_delete'])) {      // Delete a file in the cur
     else                    fe_msg(p2h_enc(lang('@Could not delete')).': '.p2h_enc($name), 'error');
     fe_redirect($currPath);
 }
+if ($is_logged && isset($_POST['fe_edit'])) {      // Save the text of the editor (file menu: Edit) - the old version into the trash - a JSON answer
+    $name= fe_given_name($_POST['fe_edit']);
+    $file= $name === '' ? false : realpath($currPath.'/'.$name);
+    $text= str_replace(["\r\n", "\r"], "\n", is_string($_POST['fe_text'] ?? null) ? $_POST['fe_text'] : '');
+    $res=  [];
+    clearstatcache();
+    if (!csrf_verify()) $res['err']= lang('@The form has expired - reload the page and try again');
+    elseif ($file === false || p2h_norm_path(dirname(p2h_norm_path($file))) !== $currPath) $res['err']= lang('@File not found').': '.$name;
+    elseif (($why= fe_edit_refused(p2h_norm_path($file))) !== '') $res['err']= $why;
+    elseif (!mb_check_encoding($text, 'UTF-8') || strlen($text) > FE_EDIT_MAX) $res['err']= lang('@The file is too big to be edited here (max. 2 MB)');
+    elseif (($_POST['fe_force'] ?? '') !== '1' && !hash_equals((string)sha1_file($file), (string)($_POST['fe_ver'] ?? '')))     // The text as it was opened (a checksum: also within the same second)
+        $res= ['err' => lang('@The file was changed by someone else after you opened it'), 'conflict' => 1];
+    else {
+        $old= (string)file_get_contents($file);
+        if (strpos($old, "\r\n") !== false) $text= str_replace("\n", "\r\n", $text);     // The line ends of the file are kept - and its byte order mark
+        $new= (strncmp($old, "\xEF\xBB\xBF", 3) === 0 ? "\xEF\xBB\xBF" : '').$text;
+        if ($new === $old) $res= ['ok' => 1, 'm' => sha1($old), 'same' => 1];
+        elseif ($quota_here && strlen($new) - strlen($old) > $fe_exchange_quota - fe_dir_size($exch_path)) $res['err']= lang('@the shared folder is full');
+        else {
+            $tmp=  $currPath.'/.fe-edit-'.bin2hex(random_bytes(4)).'.tmp';     // Hidden until it is renamed
+            $perm= fileperms($file) & 0777;
+            if (@file_put_contents($tmp, $new, LOCK_EX) !== strlen($new)) { @unlink($tmp);  $res['err']= lang('@It could not be saved'); }
+            else {
+                @chmod($tmp, $perm);
+                if (!fe_old_away($file))           { @unlink($tmp);  $res['err']= lang('@It could not be saved'); }
+                elseif (!@rename($tmp, $file))     { @unlink($tmp);  $res['err']= lang('@It could not be saved').' - '.lang('@the old version is in the trash'); }
+                else {
+                    clearstatcache();
+                    $res= ['ok' => 1, 'm' => sha1_file($file)];
+                    fe_size_forget($currPath);
+                    fe_log('@Edit file', fe_show_path(p2h_norm_path($file)), html_entity_decode(p2h_nice_filesize(strlen($old)).' → '.p2h_nice_filesize(strlen($new)), ENT_QUOTES | ENT_HTML5, 'UTF-8').
+                           (fe_trash_dir() !== false ? ' - '.lang('@the old version is in the trash') : ''));
+                }
+            }
+        }
+    }
+    if (isset($res['err'])) fe_log('@Edit file', $file ? fe_show_path(p2h_norm_path($file)) : $name, '✗ '.$res['err']);
+    while (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    exit(json_encode($res, JSON_UNESCAPED_UNICODE));
+}
 if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename / move, copy, ZIP, unpack, new folder - in the current folder
     $act=  (string)$_POST['fe_act'];
     if ($fe_check) {                                  // "Stop and ask": only Unpack here asks - the rest has a name of its own
@@ -2532,6 +2818,55 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
                                          ': <b>'.p2h_enc($rel).'</b>'.$skipTxt, $skip ? 'error' : 'ok');
     } else fe_msg(p2h_enc($err), 'error');
     fe_redirect($currPath);
+}
+
+##### SHARE LINKS (file menu: Share link - program menu: Shared links): make one (a JSON answer) - delete one
+if ($is_logged && isset($_POST['fe_share'])) {
+    $op=   (string)$_POST['fe_share'];
+    $ajax= ($_POST['fe_ajax'] ?? '') === '1';
+    $err=  '';  $res= [];
+    if (!fe_can('w') || (int)$fe_share_days <= 0) $err= lang('@Your account may not make share links');
+    elseif (!csrf_verify())                       $err= lang('@The form has expired - reload the page and try again');
+    elseif ($op === 'create') {
+        $p=    realpath(is_string($_POST['fe_path'] ?? null) ? $_POST['fe_path'] : '');
+        $days= (int)($_POST['fe_days'] ?? 7);
+        $pw=   is_string($_POST['fe_spw'] ?? null) ? $_POST['fe_spw'] : '';
+        if ($fe_unlocked) $err= lang('@Restore the restrictions first - a share link follows them');
+        elseif ($p === false || !fe_share_may_make($p= p2h_norm_path($p))) $err= lang('@You may not share this');
+        elseif ($days < 0 || $days > (int)$fe_share_days || ($days === 0 && !fe_is_admin())) $err= lang('@Not an allowed end date');
+        else {
+            $tok=  bin2hex(random_bytes(12));
+            $list= fe_shares_load();
+            $list[$tok]= ['p' => $p, 'd' => is_dir($p) ? 1 : 0, 'u' => $_SESSION[p2h_SESSION_ID]['logged'], 'c' => time(), 'x' => $days ? time() + $days * 86400 : 0,
+                          'h' => $pw === '' ? '' : password_hash($pw, PASSWORD_DEFAULT), 'n' => 0];
+            if (!fe_shares_save($list)) $err= lang('@It could not be saved').': '.basename($fe_shares_file);
+            else {
+                $res= ['url' => fe_share_url($tok), 'x' => $days ? date('Y-m-d H:i', $list[$tok]['x']) : ''];
+                fe_log('@Share link', fe_show_path($p), ($days ? lang('@Works until').' '.date('Y-m-d H:i', $list[$tok]['x']) : lang('@No end date')).($pw !== '' ? ' - '.lang('@with password') : ''));
+            }
+        }
+    } elseif (strpos($op, 'delete:') === 0) {
+        $tok=  substr($op, 7);
+        $list= fe_shares_load();
+        if (!isset($list[$tok]) || !fe_share_may($list[$tok])) $err= lang('@The link is not found');
+        else {
+            $was= fe_show_path((string)$list[$tok]['p']);
+            unset($list[$tok]);
+            if (!fe_shares_save($list)) $err= lang('@It could not be saved').': '.basename($fe_shares_file);
+            else fe_log('@Delete share link', $was);
+        }
+    } else $err= lang('@It could not be done');
+    if ($err !== '') fe_log($op === 'create' ? '@Share link' : '@Delete share link', '', '✗ '.$err);
+    if ($ajax) {
+        while (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        exit(json_encode($err !== '' ? ['err' => $err] : $res + ['ok' => 1], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+    $_SESSION[p2h_SESSION_ID]['message']= p2h_enc($err !== '' ? $err : lang('@The share link is deleted'));
+    $_SESSION[p2h_SESSION_ID]['status']=  $err !== '' ? 'error' : 'ok';
+    header('Location: '.basename(__FILE__).'?show='.urlencode($currPath).'&shares=1', true, 303);
+    exit;
 }
 
 ##### TRANSLATIONS (program menu): the changed texts of one language - administrators only
@@ -3016,6 +3351,75 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         htm_nl(1);
     }
 
+    if (isset($_GET['shares']) && fe_can('w') && (int)$fe_share_days > 0) {     // The share links: the own - administrators all
+        $act=  basename(__FILE__).'?show='.urlencode($currPath);
+        $list= array_filter(fe_shares_load(), fn($s) => is_array($s) && fe_share_may($s) && (empty($s['x']) || $s['x'] > time()));
+        uasort($list, fn($a, $b) => (int)$b['c'] <=> (int)$a['c']);
+        htm_Card_(capt:'@Shared links',icon:'fas fa-link',hint:'@Links to files and folders for people without an account - everyone with the link can download, until its end date',
+                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'background-color: white;');
+            echo '<div class="feUsers"><form id="feShareForm" method="post" action="'.p2h_enc($act).'">'.csrf_field(true).'</form>';
+            if (!$list) echo '<p><i>'.p2h_enc(lang('@No share links - make one in the file menu: Share link')).'</i></p>';
+            else {
+                echo '<table class="feUsrTbl feShareTbl"><tr><th>'.p2h_enc(lang('@Name')).'</th><th>'.p2h_enc(lang('@Folder')).'</th>'.(fe_is_admin() ? '<th>'.p2h_enc(lang('@By')).'</th>' : '').
+                     '<th>'.p2h_enc(lang('@Made')).'</th><th>'.p2h_enc(lang('@Works until')).'</th><th>'.p2h_enc(lang('@Downloads')).'</th><th></th></tr>';
+                foreach ($list as $tok => $s) {
+                    $gone= !file_exists((string)$s['p']);
+                    echo '<tr'.($gone ? ' class="feShareGone"' : '').'><td><i class="far fa-'.(empty($s['d']) ? 'file' : 'folder').'"></i> '.p2h_enc(basename((string)$s['p'])).
+                         ($s['h'] !== '' ? ' '.fe_hint('<i class="fas fa-key" aria-label="'.p2h_enc(lang('@with password')).'"></i>', p2h_enc(lang('@with password'))) : '').
+                         ($gone ? ' <small>('.p2h_enc(lang('@not there any more')).')</small>' : '').'</td>'.
+                         '<td>'.p2h_enc(fe_show_path(p2h_norm_path(dirname((string)$s['p'])))).'</td>'.(fe_is_admin() ? '<td>'.p2h_enc((string)$s['u']).'</td>' : '').
+                         '<td style="white-space:nowrap;">'.date('Y-m-d H:i', (int)$s['c']).'</td>'.
+                         '<td style="white-space:nowrap;">'.(empty($s['x']) ? p2h_enc(lang('@No end date')) : date('Y-m-d H:i', (int)$s['x'])).'</td>'.
+                         '<td style="text-align:center;">'.(int)($s['n'] ?? 0).'</td><td style="white-space:nowrap;">'.
+                         fe_hint('<button type="button" class="txtbutt feXfBtn" data-url="'.p2h_enc(fe_share_url($tok)).'" onclick="feCopyLink(this)" aria-label="'.p2h_enc(lang('@Copy the link')).'">'.
+                                 '<i class="fas fa-copy"></i></button>', p2h_enc(lang('@Copy the link'))).' '.
+                         fe_hint('<button type="submit" form="feShareForm" name="fe_share" value="delete:'.p2h_enc($tok).'" class="txtbutt feXfBtn feUsrDel" aria-label="'.p2h_enc(lang('@Delete the link')).'" '.
+                                 'onclick="return feConfirmSubmit(this, '.p2h_enc(p2h_js(lang('@Delete the link - it stops working').': '.basename((string)$s['p']).' ?')).')"><i class="fas fa-times"></i></button>', p2h_enc(lang('@Delete the link'))).
+                         '</td></tr>';
+                }
+                echo '</table>';
+            }
+            echo '<small>'.p2h_enc(lang('@A link stops working at its end date, when it is deleted - and when its maker may not download the file any more')).'</small> &nbsp; '.
+                 '<a href="'.p2h_enc($act).'" class="txtbutt feXfBtn"><i class="fas fa-times"></i> '.p2h_enc(lang('@Close')).'</a></div>';
+        htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
+        htm_nl(1);
+    }
+    if (is_string($_GET['find'] ?? null) && trim($_GET['find']) !== '') {     // Search in this folder and all below it: names - and the text of text files you may download
+        $q=   mb_substr(trim($_GET['find']), 0, 100);
+        $qc=  !empty($_GET['fc']);
+        [$hits, $seen, $cut]= fe_find($currPath, $q, $qc);
+        $act= basename(__FILE__).'?show='.urlencode($currPath);
+        htm_Card_(capt:'@Search result',icon:'fas fa-search',hint:'@Files and folders in this folder and all folders below it - the name, and maybe the text of text files you may download',
+                  form:'',acti:'',clas:'cardWmax',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'background-color: white;');
+            echo '<div class="feUsers"><form class="feFindForm" method="get" action="'.p2h_enc(basename(__FILE__)).'" role="search">'.
+                 '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
+                 '<input type="search" name="find" value="'.p2h_enc($q).'" maxlength="100" required aria-label="'.p2h_enc(lang('@Search for')).'"> '.
+                 '<label><input type="checkbox" name="fc" value="1"'.($qc ? ' checked' : '').'> '.p2h_enc(lang('@also in the text of text files')).'</label> '.
+                 '<button type="submit" class="txtbutt feXfBtn"><i class="fas fa-search"></i> '.p2h_enc(lang('@Search')).'</button> '.
+                 '<a href="'.p2h_enc($act).'" class="txtbutt feXfBtn"><i class="fas fa-times"></i> '.p2h_enc(lang('@Close')).'</a></form>';
+            echo '<p class="feFindSum" role="status"><b>'.count($hits).'</b> '.p2h_enc(lang(count($hits) === 1 ? '@hit for' : '@hits for')).' <b>'.p2h_enc($q).'</b> '.
+                 p2h_enc(lang('@in')).' <b>'.p2h_enc(fe_show_path($currPath)).'</b> '.p2h_enc(lang('@and below')).' - '.$seen.' '.p2h_enc(lang('@files and folders searched')).
+                 ($cut ? ' - <span class="feFindCut">'.p2h_enc(lang('@stopped early (500 hits, 100000 names or 20 seconds) - search in a folder further down')).'</span>' : '').'</p>';
+            if ($hits) {
+                echo '<div class="feFindWrap"><table class="feUsrTbl feFindTbl"><tr><th>'.p2h_enc(lang('@Name')).'</th><th>'.p2h_enc(lang('@Folder')).'</th><th>'.p2h_enc(lang('@Size')).'</th>'.
+                     '<th>'.p2h_enc(lang('@Modified')).'</th>'.($qc ? '<th>'.p2h_enc(lang('@Found in the text')).'</th>' : '').'</tr>';
+                foreach ($hits as [$p, $isDir, $ln, $snip]) {
+                    $dir= p2h_norm_path(dirname($p));
+                    $go=  basename(__FILE__).'?show='.urlencode($isDir ? $p : $dir);
+                    echo '<tr><td><a href="'.p2h_enc($go).'"><i class="far fa-'.($isDir ? 'folder' : 'file').'"></i> '.p2h_enc(basename($p)).'</a>'.
+                         (!$isDir && fe_can_read($p) ? ' '.fe_hint('<a href="'.p2h_enc(basename(__FILE__).'?dl='.rawurlencode($p)).'" aria-label="'.p2h_enc(lang('@Download')).'"><i class="fas fa-download"></i></a>', p2h_enc(lang('@Download'))) : '').'</td>'.
+                         '<td><a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($dir)).'">'.p2h_enc(ltrim(substr($dir, strlen($currPath)), '/') ?: '.').'</a></td>'.
+                         '<td style="white-space:nowrap; text-align:right;">'.($isDir ? '' : p2h_nice_filesize((int)@filesize($p))).'</td>'.
+                         '<td style="white-space:nowrap;">'.date('Y-m-d H:i', (int)@filemtime($p)).'</td>'.
+                         ($qc ? '<td class="feFindLine">'.($ln ? '<small>'.p2h_enc(lang('@line')).' '.$ln.':</small> <code>'.p2h_enc($snip).'</code>' : '').'</td>' : '').'</tr>';
+                }
+                echo '</table></div>';
+            }
+            echo '<small>'.p2h_enc(lang('@Tip: * and ? search the whole name (*.pdf, report-202?.txt) - else a part of the name. The text: only text files you may download, up to 2 MB.')).'</small></div>';
+        htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
+        htm_nl(1);
+    }
+
     htm_Card_(capt:'@Folder content',icon:'fas fa-folder-open',hint: '',form:'xxx',acti:'',clas:'cardWmax',vhgh:'780px',   // The file window: 600px was low with the file features locked to its bottom
                 wdth:'800px',styl:'background-color: white;',attr:'', show:true, head: 'background-color: white;');
     echo '<small>';
@@ -3142,6 +3546,18 @@ run_Script('
             return;
         }
         document.body.appendChild(f);  f.submit();
+    }
+    function feCopyText(txt, btn, done) {     /* Copy a text to the clipboard - the button says so for a moment */
+        var ok= function() { if (!btn) return;  var o= btn.innerHTML;  btn.textContent= done || "✓";  setTimeout(function() { btn.innerHTML= o; }, 1500); };
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(ok, function() { sysPrompt("", function() {}, txt); });
+        else { var t= document.createElement("textarea");  t.value= txt;  t.style.cssText= "position: fixed; opacity: 0;";  document.body.appendChild(t);  t.select();
+               var r= false;  try { r= document.execCommand("copy"); } catch (e) {}  t.remove();  if (r) ok();  else sysPrompt("", function() {}, txt); }
+    }
+    function feCopyLink(btn) { feCopyText(btn.getAttribute("data-url"), btn, "✓"); }     /* Shared links: copy a link */
+    function feFindGo() {      /* Search in this folder and below it (the search field of the card header) */
+        var q= document.getElementById("feFind"), c= document.getElementById("feFindC");
+        if (!q || !q.value.trim()) { if (q) q.focus();  return; }
+        location.href= '.p2h_js(basename(__FILE__).'?show='.urlencode($currPath).'&find=').' + encodeURIComponent(q.value.trim()) + (c && c.checked ? "&fc=1" : "");
     }
     var feT= JSON.parse('.p2h_js(json_encode(['title'=>lang('@The name is taken'), 'q'=>lang('@These names are taken in the destination - what shall be done?'),
                  'name'=>lang('@Name'), 'new'=>lang('@New'), 'there'=>lang('@There now'), 'do'=>lang('@Do'), 'all'=>lang('@All'), 'folder'=>lang('@folder'),
@@ -3318,6 +3734,105 @@ run_Script('
 ');
 if ($is_logged && fe_can('w'))
 run_Script('
+    var feDT= JSON.parse('.p2h_js(json_encode(['cancel'=>lang('@Cancel'), 'close'=>lang('@Close'), 'fail'=>lang('@It could not be done'),
+                 'sTitle'=>lang('@Share link'), 'sDays'=>lang('@The link works for'), 'sNever'=>lang('@No end date'), 'sDay'=>lang('@day'), 'sDayN'=>lang('@days'),
+                 'sPw'=>lang('@Password (optional)'), 'sPwH'=>lang('@The one who gets the link must type it'), 'sMake'=>lang('@Make the link'),
+                 'sNote'=>lang('@Everyone with the link can download it - without an account. Program menu - Shared links: see and delete your links.'),
+                 'sNoteD'=>lang('@A folder is downloaded as one ZIP file with what is in it now.'),
+                 'sMade'=>lang('@The link is made - copy it and send it:'), 'sUntil'=>lang('@Works until'), 'sCopy'=>lang('@Copy'), 'sCopied'=>lang('@Copied'),
+                 'eTitle'=>lang('@Edit'), 'eSave'=>lang('@Save'), 'eSaved'=>lang('@Saved'), 'eChanged'=>lang('@Changed - not saved'), 'eLines'=>lang('@lines'),
+                 'eWrap'=>lang('@Wrap long lines'), 'eLose'=>lang('@Close without saving the changes?'),
+                 'eForce'=>lang('@The file was changed by someone else after you opened it. Save your version anyway? (The other version goes into the trash.)'),
+                 'eTrash'=>fe_trash_dir() !== false ? lang('@Each save puts the old version into the trash') : '', 'eKeys'=>lang('@Ctrl+S saves')])).');
+    var feDays= '.json_encode(array_values(array_merge(array_filter(array_unique([1, 7, 30, (int)$fe_share_days]), fn($d) => $d > 0 && $d <= (int)$fe_share_days), fe_is_admin() ? [0] : []))).';
+    function feDlg(title, wide) {   /* An empty dialog of the program: [dialog, body, foot] */
+        var mk= function(tag, cls) { var e= document.createElement(tag);  if (cls) e.className= cls;  return e; };
+        var d= mk("dialog", "p2hDlg"), h= mk("div", "p2hDlgHead"), b= mk("div", "p2hDlgBody"), f= mk("div", "p2hDlgFoot");
+        d.style.maxWidth= wide ? "min(1100px, 96vw)" : "min(560px, 96vw)";  if (wide) d.style.width= "96vw";
+        h.textContent= title;  b.style.whiteSpace= "normal";  b.style.textAlign= "left";
+        d.appendChild(h);  d.appendChild(b);  d.appendChild(f);  document.body.appendChild(d);
+        return [d, b, f];
+    }
+    function feBtn(foot, txt, ok) { var b= document.createElement("button");  b.type= "button";  b.textContent= txt;  if (ok) b.className= "p2hDlgOk";  foot.appendChild(b);  return b; }
+    function feJson(fields) {       /* POST to this folder with the CSRF token - the answer as JSON */
+        var fd= new URLSearchParams();
+        fields.concat([["fe_ajax", "1"], ["csrf_token", '.p2h_js($_SESSION['csrf_token'] ?? '').']]).forEach(function(v) { fd.append(v[0], v[1]); });
+        return fetch('.p2h_js(basename(__FILE__).'?show='.urlencode($currPath)).', {method: "POST", body: fd, credentials: "same-origin"}).then(function(r) { return r.json(); });
+    }
+    function feShare(f) {           /* File menu: Share link - how long it works, maybe a password - then the link to copy */
+        var x= feDlg(feDT.sTitle + ": " + f.n), d= x[0], b= x[1], ft= x[2];
+        var lab= function(txt, input, hint) { var l= document.createElement("label");  l.style.cssText= "display: block; margin: 0 0 10px; font-weight: 600;";
+            l.appendChild(document.createTextNode(txt));  input.classList.add("feDlgInp");  l.appendChild(input);
+            if (hint) { var s= document.createElement("small");  s.style.fontWeight= "normal";  s.textContent= hint;  l.appendChild(s); }
+            b.appendChild(l); };
+        var sel= document.createElement("select");
+        feDays.forEach(function(n) { var o= document.createElement("option");  o.value= n;  o.textContent= n ? n + " " + (n === 1 ? feDT.sDay : feDT.sDayN) : feDT.sNever;  sel.appendChild(o); });
+        sel.value= feDays.indexOf(7) >= 0 ? "7" : String(feDays[0]);
+        var pw= document.createElement("input");  pw.type= "text";  pw.autocomplete= "off";  pw.maxLength= 200;  pw.spellcheck= false;
+        lab(feDT.sDays, sel);  lab(feDT.sPw, pw, feDT.sPwH);
+        var p= document.createElement("p");  p.style.cssText= "margin: 4px 0 0; font-size: 12.5px;";  p.textContent= feDT.sNote + (f.dir ? " " + feDT.sNoteD : "");  b.appendChild(p);
+        var bc= feBtn(ft, feDT.cancel), bo= feBtn(ft, feDT.sMake, true);
+        var done= function() { d.close();  d.remove(); };
+        bc.onclick= done;  d.addEventListener("cancel", function(e) { e.preventDefault();  done(); });
+        bo.onclick= function() {
+            bo.disabled= true;
+            feJson([["fe_share", "create"], ["fe_path", f.b], ["fe_days", sel.value], ["fe_spw", pw.value]]).then(function(j) {
+                if (j.err) { bo.disabled= false;  sysAlert(j.err);  return; }
+                b.innerHTML= "";  ft.innerHTML= "";
+                var t= document.createElement("p");  t.style.margin= "0 0 6px";  t.textContent= feDT.sMade;  b.appendChild(t);
+                var row= document.createElement("div");  row.style.cssText= "display: flex; gap: 6px;";
+                var u= document.createElement("input");  u.type= "text";  u.readOnly= true;  u.value= j.url;  u.className= "feDlgInp";  u.style.cssText= "flex: 1; min-width: 0; margin: 0; font-family: monospace;";
+                u.onfocus= function() { u.select(); };  u.setAttribute("aria-label", feDT.sTitle);
+                var cp= feBtn(row, feDT.sCopy, true);  row.insertBefore(u, cp);  b.appendChild(row);
+                cp.onclick= function() { feCopyText(j.url, cp, feDT.sCopied); };
+                var w= document.createElement("p");  w.style.cssText= "margin: 8px 0 0; font-size: 12.5px;";
+                w.textContent= (j.x ? feDT.sUntil + " " + j.x : feDT.sNever) + (pw.value ? " - " + feDT.sPw.replace(/\s*\(.*\)/, "") + ": " + pw.value : "");  b.appendChild(w);
+                feBtn(ft, feDT.close).onclick= done;
+                u.focus();
+            }).catch(function() { bo.disabled= false;  sysAlert(feDT.fail); });
+        };
+        d.showModal();  sel.focus();
+    }
+    function feEdit(f) {            /* File menu: Edit a text file - the text is fetched, saved with the time it had (someone else changed it: asked) */
+        document.body.style.cursor= "progress";
+        fetch('.p2h_js(basename(__FILE__).'?edt=').' + encodeURIComponent(f.b), {credentials: "same-origin"}).then(function(r) { return r.json(); }).then(function(j) {
+            document.body.style.cursor= "";
+            if (j.err) { sysAlert(j.err);  return; }
+            var x= feDlg(feDT.eTitle + ": " + j.n, true), d= x[0], b= x[1], ft= x[2], mt= j.m, any= false;
+            var ta= document.createElement("textarea");  ta.className= "feEdTa";  ta.spellcheck= false;  ta.value= j.t;  ta.setAttribute("aria-label", feDT.eTitle + ": " + j.n);
+            ta.wrap= "off";  b.appendChild(ta);
+            var saved= ta.value;
+            var st= document.createElement("span");  st.className= "feEdSt";  st.setAttribute("aria-live", "polite");
+            var wl= document.createElement("label");  wl.className= "feEdWrap";  var wc= document.createElement("input");  wc.type= "checkbox";
+            wl.appendChild(wc);  wl.appendChild(document.createTextNode(" " + feDT.eWrap));
+            wc.onchange= function() { ta.wrap= wc.checked ? "soft" : "off"; };
+            ft.appendChild(st);  ft.appendChild(wl);
+            var bc= feBtn(ft, feDT.close), bs= feBtn(ft, feDT.eSave, true), at= "";
+            var show= function() {
+                var dirty= ta.value !== saved;
+                st.textContent= ta.value.split("\n").length + " " + feDT.eLines + "  ·  " + (dirty ? feDT.eChanged : (at ? feDT.eSaved + " " + at : feDT.eKeys)) +
+                                (feDT.eTrash && !dirty && !at ? "  ·  " + feDT.eTrash : "");
+                st.classList.toggle("feEdDirty", dirty);  bs.disabled= !dirty;
+            };
+            var save= function(force) {
+                bs.disabled= true;
+                var txt= ta.value;
+                feJson([["fe_edit", f.n], ["fe_text", txt], ["fe_ver", String(mt)], ["fe_force", force ? "1" : ""]]).then(function(r) {
+                    if (r.conflict) { show();  sysConfirm(feDT.eForce, function() { save(true); });  return; }
+                    if (r.err) { show();  sysAlert(r.err);  return; }
+                    mt= r.m;  saved= txt;  any= any || !r.same;
+                    at= new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});  show();
+                }).catch(function() { show();  sysAlert(feDT.fail); });
+            };
+            var close= function() { d.close();  d.remove();  if (any) location.reload(); };
+            var ask= function() { if (ta.value !== saved) sysConfirm(feDT.eLose, close);  else close(); };
+            ta.addEventListener("input", show);
+            d.addEventListener("keydown", function(e) { if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault();  if (ta.value !== saved) save(false); } });
+            d.addEventListener("cancel", function(e) { e.preventDefault();  ask(); });
+            bc.onclick= ask;  bs.onclick= function() { save(false); };
+            show();  d.showModal();  ta.focus();  ta.setSelectionRange(0, 0);  ta.scrollTop= 0;
+        }).catch(function() { document.body.style.cursor= "";  sysAlert(feDT.fail); });
+    }
     function feAct(act, name, to) {     // File menu: move / copy / zip / unzip in the current folder
         var fields= [["fe_act", act], ["fe_name", name], ["fe_to", to || ""]];
         if (act === "unzip") feAsk(fields, function(x) { fePost(fields.concat(x)); });     // A taken name: as chosen on the Transfer card
@@ -3337,11 +3852,13 @@ echo '<script src="fe-preview.js?v='.@filemtime(__DIR__.'/fe-preview.js').'" def
     'copy'=>lang('@Copy file'), 'zip'=>lang('@Create ZIP'), 'del'=>lang('@Delete file'),
     'moveQ'=>lang('@New name - or a path below this folder (sub/name.ext):'), 'copyQ'=>lang('@Name of the copy - or a path below this folder:'),
     'copyN'=>lang('@copy'), 'onlyEx'=>lang('@Rename, copy, ZIP and delete: only in folders you may write in'),
+    'share'=>lang('@Share link ...'), 'edit'=>lang('@Edit'),
     'bkIn'=>lang('@Put in the basket'), 'bkOut'=>lang('@Take out of the basket'), 'unzip'=>lang('@Unpack here'),
     'prog'=>['title'=>'Folder-explorer', 'admin'=>fe_is_admin() ? 1 : 0, 'pw'=>fe_may_change_pw($_SESSION[p2h_SESSION_ID]['logged'] ?? '') ? 1 : 0,
              'unl'=>$fe_unlocked ? 1 : 0, 'out'=>$use_auth ? basename(__FILE__).'?logout=1&t='.urlencode((string)($_SESSION['csrf_token'] ?? '')) : '',
              'urlUsers'=>basename(__FILE__).'?show='.urlencode($currPath).'&users=1', 'urlLog'=>basename(__FILE__).'?show='.urlencode($currPath).'&log=1', 'logT'=>lang('@Activity log'), 'urlTrans'=>basename(__FILE__).'?show='.urlencode($currPath).'&trans=1', 'transT'=>lang('@Translations'),
-             'trash'=>fe_can('w') && fe_trash_dir() !== false ? 1 : 0, 'urlTrash'=>basename(__FILE__).'?show='.urlencode($currPath).'&trash=1', 'trashT'=>lang('@Trash'), 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
+             'trash'=>fe_can('w') && fe_trash_dir() !== false ? 1 : 0, 'urlTrash'=>basename(__FILE__).'?show='.urlencode($currPath).'&trash=1', 'trashT'=>lang('@Trash'),
+             'shares'=>fe_can('w') && (int)$fe_share_days > 0 ? 1 : 0, 'urlShares'=>basename(__FILE__).'?show='.urlencode($currPath).'&shares=1', 'sharesT'=>lang('@Shared links'), 'urlPw'=>basename(__FILE__).'?show='.urlencode($currPath).'&pw=1',
              'users'=>lang('@Users ...'), 'pwT'=>lang('@Change my password'), 'lock'=>lang('@Remove restrictions'), 'unlock'=>lang('@Restore restrictions'),
              'lockQ'=>lang('@Remove the restrictions for this session?'), 'help'=>lang('@Help'), 'about'=>lang('@About Folder-explorer'), 'out_'=>lang('@Log out'),
              'aboutTxt'=>'Folder-explorer '.FE_VERSION.' ('.FE_DATE.")\n".'PHP2HTML / Clever-Html-Engine '.P2H_VERSION."\n".(fe_is_admin() ? 'PHP '.PHP_VERSION."\n" : '').
@@ -3575,7 +4092,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         ['Menus - how to open them', [
             '<b>File menu:</b> rest the mouse on a file name - or click it (also on a touch screen) - or right-click the row.',
             '<b>Folder menu:</b> right-click the row of a folder. A click on the folder name opens the folder.',
-            '<b>Program menu:</b> right-click the table outside a row: trash, your password, help, about, log out - administrators also: users, activity log, translations, restrictions.',
+            '<b>Program menu:</b> right-click the table outside a row: trash, shared links, your password, help, about, log out - administrators also: users, activity log, translations, restrictions.',
             '<b>Keyboard:</b> Tab to a file name and press Enter - the menu key or Shift+F10 opens the menu of the row (or the program menu) - arrow up / down in the menu - Esc closes it.',
             'Greyed actions may not be done here - the reason is shown at the bottom of the menu.',
         ]],
@@ -3594,13 +4111,19 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             '<b>Upload:</b> drag files or whole folders from your PC onto the drop zone - they go to the destination. A ZIP file is unpacked with the file menu: Unpack here.',
             '<b>A taken name:</b> choose in the field A taken name - Stop and ask (you see the names and choose for each), a new name (name (2)), overwrite (the old file goes to the trash) or skip. Two folders are merged. The message tells what was done.',
         ]],
+        ['Share, edit and search', [
+            '<b>Share link:</b> in the file or folder menu - a link for people without an account, with an end date and maybe a password. A folder is fetched as one ZIP file. Program menu - <b>Shared links</b>: copy or delete your links.',
+            'A link works only while you may still download the file - and stops at its end date or when you delete it.',
+            '<b>Edit:</b> in the file menu of a text file (up to 2 MB) in a folder you may write in. Ctrl+S saves - the old version goes to the trash. If someone else changed the file meanwhile, you are asked.',
+            '<b>Search:</b> the search field in the heading of Folder content searches this folder and all folders below it - by name (* and ? for the whole name), and if you like in the text of text files.',
+        ]],
         ['Folder tree', [
             'The current folder is bold, with an open folder. The number at the left is the level.',
             'The card tool <b>hdd</b> shows the used space: the current folder is counted at once - other folders with their calculator, or <b>Count all</b>. The bars show the share of the parent folder or of BASE.',
             'In <b>Analyse</b> mode the used space is always shown - and all folders are counted at once.',
         ]],
         ['Quick and Analyse', [
-            '<b>Quick</b> lists the folder at once. <b>Analyse</b> also counts the files and sizes in all sub folders, and lets you search for a file name in them. Quick is used again when you change folder.',
+            '<b>Quick</b> lists the folder at once. <b>Analyse</b> also counts the files and sizes in all sub folders, and lists their names to filter while you type. Quick is used again when you change folder.',
         ]],
         ['Table', [
             'Click a column heading to sort - type in the row below the headings to filter - drag a column border to change its width.',
