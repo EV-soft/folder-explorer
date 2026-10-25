@@ -42,6 +42,20 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new in 2.3.0:
+- **A taken name - you choose:** the field *A taken name* on the Transfer card decides what copy, move, unpack and upload do when the
+  name is there already - remembered in your browser:
+  - **Stop and ask** (the default): nothing is done before you answer. A dialog shows each taken name with the size and date of the new
+    one and of the one there (the newer date in bold) - choose for each, or one choice for *All*. *Cancel* does nothing.
+    Upload asks before the files are sent.
+  - **New name** - `name (2)`, as before.
+  - **Overwrite** - the old file goes to the trash (it can be restored there).
+  - **Skip** - the one there is kept.
+  
+  Two folders of the same name are merged: the files inside follow the choice. A file against a folder of the same name only gets a
+  new name - and a protected file is never replaced. The message lists what was renamed, overwritten and skipped.
+- Without JavaScript nothing is overwritten: `name (2)`, as before.
+
 ### What is new in 2.2.1:
 - **A taken name is told:** when a copy, move or unpack had to save a file as `name (2)`, the message lists it (`report.pdf → report (2).pdf`).
 - **Faster pages:** php2html loads only the libraries a page uses - the login page loads no jQuery and no Tablesorter.

@@ -1,7 +1,8 @@
-/* fe-upload.js v:1.0.0 d:2026-10-18 i:evs  -  Folder-explorer: upload to the current folder (a folder the user may write in)
+/* fe-upload.js v:1.1.0 d:2026-10-25 i:evs  -  Folder-explorer: upload to the current folder (a folder the user may write in)
  * - a list of the chosen files with check boxes; files that the server would refuse are marked and not sent
  * - drag and drop of files and folders, and "Choose a folder" (the folder structure is kept)
  * - sends the files in batches that fit PHP's max_file_uploads and post_max_size, with a progress bar
+ * - a taken name as chosen on the Transfer card - "Stop and ask": the server names them first, then a dialog (window.feAsk)
  * Without JavaScript the form is a plain file field + submit, handled by folder-explorer.php as well.
  */
 (function () {
@@ -158,7 +159,7 @@
         var i = items.indexOf(it), td = document.getElementById('feSt' + i);
         if (td) { td.textContent = text;  td.className = bad ? 'fe-bad' : (it.sent ? 'fe-good' : ''); }
     }
-    function sendBatch(batch, doneBytes, totalBytes) {
+    function sendBatch(batch, doneBytes, totalBytes, extra) {
         return new Promise(function (resolve) {
             var fd = new FormData();
             fd.append('csrf_token', form.querySelector('input[name="csrf_token"]').value);
@@ -167,6 +168,7 @@
             fd.append('fe_dest', de ? de.value.trim() : ((form.querySelector('input[name="fe_dest"]') || {}).value || ''));
             emptyDirs.forEach(function (d) { fd.append('fe_mkdir[]', d); });     // (with the first batch)
             emptyDirs = [];
+            (extra || []).forEach(function (x) { fd.append(x[0], x[1]); });     // The choice for a taken name
             batch.forEach(function (it) {
                 fd.append('fe_upload[]', it.file, it.file.name);
                 fd.append('fe_relpath[]', it.rel);
@@ -184,7 +186,8 @@
                     batch.forEach(function (it) { setStatus(it, (r && r.error) || (txt.server + ' (' + xhr.status + ')'), true); });
                 } else {
                     if (r.show) showUrl = r.show;     // The destination - for "Show the folder"
-                    (r.done || []).forEach(function (d) { var it = batch[d[0]]; if (it) { it.sent = true; it.chk = false; cfg.quotaLeft -= it.file.size; setStatus(it, txt.saved + ' ' + d[1]); } });
+                    (r.done || []).forEach(function (d) { var it = batch[d[0]]; if (it) { it.sent = true; it.chk = false; cfg.quotaLeft -= it.file.size; setStatus(it, txt.saved + ' ' + d[1] + (d[2] ? ' - ' + (r.trash ? txt.overT : txt.over) : '')); } });
+                    (r.kept || []).forEach(function (k) { var it = batch[k[0]]; if (it) { it.sent = true; it.chk = false; it.kept = true;  setStatus(it, txt.kept); } });     // Skipped: the name was taken
                     (r.fail || []).forEach(function (f) { var it = batch[f[0]]; if (it) setStatus(it, f[2], true); });
                 }
                 resolve();
@@ -199,22 +202,32 @@
         e.preventDefault();
         var sel = chosen();
         if (busy || !sel.length) return;
+        if (typeof window.feAsk !== 'function') { start(sel, []); return; }
+        var de = document.getElementById('feDest'), f = [['fe_upcheck', '1'], ['fe_dest', de ? de.value.trim() : '']];     // "Stop and ask": the names first - no file is sent
+        sel.forEach(function (it) {
+            f.push(['fe_name[]', it.file.name]);  f.push(['fe_relpath[]', it.rel]);
+            f.push(['fe_size[]', String(it.file.size)]);  f.push(['fe_time[]', String(Math.round((it.file.lastModified || 0) / 1000))]);
+        });
+        busy = true;  send.disabled = true;
+        window.feAsk(f, function (extra) { start(sel, extra); }, form.action, function () { busy = false;  summary(); });     // Cancel: nothing is sent
+    });
+    function start(sel, extra) {
         busy = true;  send.disabled = true;  prog.hidden = false;  prog.value = 0;
         var list2 = batches(sel), total = 0, done = 0;
         sel.forEach(function (it) { total += it.file.size; });
         total = total || 1;
         var chain = Promise.resolve();
         list2.forEach(function (b) {
-            chain = chain.then(function () { return sendBatch(b, done, total); }).then(function () { done += batchBytes(b); });
+            chain = chain.then(function () { return sendBatch(b, done, total, extra); }).then(function () { done += batchBytes(b); });
         });
         chain.then(function () {
             busy = false;  prog.value = 100;
-            var ok = items.filter(function (it) { return it.sent; }).length;
+            var ok = items.filter(function (it) { return it.sent && !it.kept; }).length;
             render();
             sum.innerHTML = '<b>' + esc(txt.done) + '</b>: ' + ok + ' ' + esc(txt.uploaded) +
                             ' &nbsp; <a href="' + esc(showUrl) + '" class="txtbutt">' + esc(txt.show) + '</a>';
         });
-    });
+    }
 
     render();
 })();
