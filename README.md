@@ -284,7 +284,8 @@ Updating from 2.2.0: replace the program files (`folder-explorer.php`, `php2html
 **The easiest way - the boot file:** `folder-explorer-<version>-boot.zip` on the [release page](https://github.com/EV-soft/folder-explorer/releases)
 holds one file, `folder-explorer-install.php`. Unpack it on the web server and open it in the browser: it checks PHP and the
 folder, asks for a folder name and your administrator (name and password) - unpacks the program in the new folder, writes
-`fe-users.php` and deletes itself. Tick *Local libraries* when there is no internet access. (Made with `php tools/make-boot.php`.)
+`fe-users.php` and deletes itself. Choose **Minimal** (the 7 required files, English only), **Standard** (and the other languages,
+the icon, README - recommended) or **Maximal** (and the local libraries `_assets/` - without internet access). (Made with `php tools/make-boot.php`.)
 
 **By hand:**
 **Required - 7 files, about 0.9 MB**, in one folder on the web server:

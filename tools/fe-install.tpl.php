@@ -33,7 +33,13 @@ $checks= [
 $ok= !in_array(false, array_column($checks, 1), true);
 
 $err= [];  $done= null;
-$v= ['dir' => 'folder-explorer', 'user' => 'admin', 'assets' => '', 'del' => '1'];
+$v= ['dir' => 'folder-explorer', 'user' => 'admin', 'level' => 'standard', 'del' => '1'];
+// What each installation holds: minimal = the files the program needs - standard = and the texts in other languages, the icon, README - maximal = and the local libraries
+const FE_BOOT_MINIMAL= ['folder-explorer.php', 'php2html.lib.php', 'p2h_audit.inc.php', 'p2h_trans.inc.php', 'fe-preview.js', 'fe-tree.js', 'fe-upload.js'];
+function fe_boot_wanted(string $path, string $level): bool {
+    if ($level === 'minimal') return in_array($path, FE_BOOT_MINIMAL, true);
+    return $level === 'maximal' || !str_starts_with($path, '_assets/');
+}
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     foreach ($v as $k => $d) $v[$k]= is_string($_POST[$k] ?? null) ? trim($_POST[$k]) : '';
     $pw= is_string($_POST['pw'] ?? null) ? $_POST['pw'] : '';  $pw2= is_string($_POST['pw2'] ?? null) ? $_POST['pw2'] : '';
@@ -41,6 +47,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     elseif (!$ok)                                                         $err[]= 'A check above failed.';
     if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/', $v['dir']))     $err[]= 'The folder name: letters, digits . _ - (not first: . _ -)';
     if (!preg_match('/^[A-Za-z0-9._-]{2,32}$/', $v['user']))               $err[]= 'The user name: 2-32 letters, digits . _ -';
+    if (!in_array($v['level'], ['minimal', 'standard', 'maximal'], true))  $v['level']= 'standard';
     if (mb_strlen($pw) < 8)                                                $err[]= 'The password must have at least 8 characters.';
     elseif ($pw !== $pw2)                                                  $err[]= 'The two passwords are not the same.';
     $target= __DIR__.'/'.$v['dir'];
@@ -50,14 +57,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $pack= fe_boot_pack();  $n= 0;
         foreach ($err ? [] : $pack['files'] as $path => $data) {
             if (!is_string($path) || $path === '' || $path[0] === '/' || str_contains($path, '..') || str_contains($path, '\\')) continue;   // Only plain relative paths
-            if (str_starts_with($path, '_assets/') && $v['assets'] !== '1') continue;                                              // The local libraries: only when asked
+            if (!fe_boot_wanted($path, $v['level'])) continue;                                                                    // Minimal / standard / maximal
             $content= gzinflate($data);
             if ($content === false || sha1($content) !== ($pack['sha1'][$path] ?? '')) { $err[]= 'Damaged in this file: '.$path;  break; }
             if (!is_dir(dirname($target.'/'.$path)) && !@mkdir(dirname($target.'/'.$path), 0755, true)) { $err[]= 'Could not make the folder of '.$path;  break; }
             if (@file_put_contents($target.'/'.$path, $content, LOCK_EX) === false) { $err[]= 'Could not write '.$path;  break; }
             $n++;
         }
-        if (!$err && $v['assets'] === '1') {        // Local libraries: no CDN (no internet access)
+        if (!$err && $v['level'] === 'maximal') {   // Local libraries: no CDN (no internet access)
             $fe= $target.'/folder-explorer.php';  $src= (string)file_get_contents($fe);
             $req= "require_once (__DIR__.'/php2html.lib.php');";
             if (str_contains($src, $req)) file_put_contents($fe, preg_replace('/'.preg_quote($req, '/').'/', "\$gbl_LibSource= '1';      // Local libraries (_assets) - set by the installer\n".$req, $src, 1));
@@ -119,7 +126,13 @@ $url= rawurlencode($v['dir']).'/folder-explorer.php';
     <input type="password" id="pw" name="pw" required minlength="8" autocomplete="new-password">
     <label for="pw2">The password again</label>
     <input type="password" id="pw2" name="pw2" required minlength="8" autocomplete="new-password">
-    <label class="chk"><input type="checkbox" name="assets" value="1"<?= $v['assets'] === '1' ? ' checked' : '' ?>> Local libraries (<code>_assets</code>, 2.4 MB) - only when the server or the users have no internet access</label>
+    <label>The installation</label>
+    <?php $pk= fe_boot_pack()['files'] ?? [];  $cnt= fn($l) => count(array_filter(array_keys($pk), fn($f) => fe_boot_wanted((string)$f, $l)));
+          $mb= fn($l) => number_format(array_sum(array_map(fn($f) => strlen((string)gzinflate($pk[$f])), array_filter(array_keys($pk), fn($f) => fe_boot_wanted((string)$f, $l)))) / 1048576, 1);
+          foreach (['minimal' => 'Minimal - the program only, in English', 'standard' => 'Standard - and the texts in other languages (Danish ...), the icon, README (recommended)',
+                    'maximal' => 'Maximal - and the local libraries (jQuery, Tablesorter, Font Awesome): works without internet access'] as $lv => $txt): ?>
+    <label class="chk"><input type="radio" name="level" value="<?= $lv ?>"<?= $v['level'] === $lv ? ' checked' : '' ?>> <?= $enc($txt) ?> <small>(<?= $cnt($lv) ?> files, <?= $mb($lv) ?> MB)</small></label>
+    <?php endforeach; ?>
     <label class="chk"><input type="checkbox" name="del" value="1"<?= $v['del'] === '1' || $_SERVER['REQUEST_METHOD'] !== 'POST' ? ' checked' : '' ?>> Delete this installer when it is done (recommended)</label>
     <button type="submit">Install</button>
   </form>
