@@ -42,6 +42,15 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new in 2.2.1:
+- **A taken name is told:** when a copy, move or unpack had to save a file as `name (2)`, the message lists it (`report.pdf → report (2).pdf`).
+- **Faster pages:** php2html loads only the libraries a page uses - the login page loads no jQuery and no Tablesorter.
+- **Caps Lock warning** at the password field of the login - shown only while Caps Lock is on.
+- Built with php2html **1.9.1** (bundled, with `p2h_audit.inc.php` and `p2h_trans.inc.php`).
+
+Updating from 2.2.0: replace the program files (`folder-explorer.php`, `php2html.lib.php`, `p2h_audit.inc.php`, `p2h_trans.inc.php`,
+`fe-*.js`, `_trans.sys.json`) - copy your settings at the top of `folder-explorer.php` over; the accounts in `fe-users.php` stay.
+
 ### What is new in 2.2.0:
 - **Trash:** what is deleted goes to the trash (program menu - *Trash*, or the link in the message): restore it to its folder, delete it
   for good, or empty the trash. Everybody sees what was deleted in the folders they may write in, administrators all of it. Deleted for
@@ -55,7 +64,6 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 - **Manual** below the table - eight tabs: *Nice to know*, *Step by step*, *Questions*, *Mouse and keys*, *Your account* (your rights,
   here), *Limits* (the numbers of this installation), *File viewers*, *About*.
 - **Keyboard in the table:** Ctrl+A checks all rows, Ctrl+Shift+A none, Delete deletes (into the trash), F2 renames.
-- **A taken name is told:** when a copy, move or unpack had to save a file as `name (2)`, the message lists it (`report.pdf → report (2).pdf`).
 - **Analyse mode** shows the used space of every folder in the tree - each folder counted once.
 - **Danish everywhere:** about 75 texts that were still English (the buttons below the table, messages, column headings).
 - **Safer:** the folder of the program (and the trash) is never deleted or moved - also with the restrictions removed; *All* / *Inverse*
