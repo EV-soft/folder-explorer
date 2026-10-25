@@ -1317,6 +1317,11 @@ $p2h_Style = '
     [data-theme="dark"] .fePmItem.fePmDel, [data-theme="dark"] .fePmItem.fePmDel i { color: #ff7a8a; }
     /* Nice to know: sections in columns */
     .feSelDest { display: block; margin: 4px 0 2px; color: #555; }
+    /* File features for the checked rows: always visible - locked to the bottom of the scrolling file window (the card body) */
+    .tableStyle > span:has(#feSelSum) { position: sticky !important; bottom: 0; z-index: 4; display: block !important; padding: 4px 0 6px;
+                                        background: var(--CardsBgrd, #fff); border-top: 1px solid #c8d0d8; box-shadow: 0 -4px 6px -4px rgba(0,0,0,.25); }
+    .tableStyle > span:has(#feSelSum) fieldset { vertical-align: top; margin-top: 2px; margin-bottom: 2px; }
+    [data-theme="dark"] .tableStyle > span:has(#feSelSum) { border-top-color: #3f4852; box-shadow: 0 -4px 6px -4px rgba(0,0,0,.6); }
     .feSelSum { display: block; margin: 6px 2px 0; font-weight: 600; color: #1a5e8a; line-height: 1.4; }
     .feSelSum:empty { display: none; }
     .feSelSum div:not(:first-child) { font-weight: normal; padding-left: 10px; }
@@ -3064,7 +3069,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                                           '', ['left'  ,'','',$sort=false], 'space', '@Used space related to<br>Sum of all files in current folder and subfolders.']
         ),
         $RowSuff= array(), // tabl_row.ix
-        $TblNote= '<small>'.lang('@Filtering/Searching: Hold mouse over the colored row below the column headers.').'</small><br><br>'.
+        $TblNote= '<small>'.lang('@Filtering/Searching: Hold mouse over the colored row below the column headers.').'</small><br>'.
                   htm_Fieldset(capt:'@File features - for the checked rows:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
                       htm_Fieldset(capt:'@Select:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
                       htm_AcceptButt(labl:'@All',  icon:'', hint:'@All files and folders', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feSel("all")', idix:'').
