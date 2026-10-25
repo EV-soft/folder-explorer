@@ -5,3 +5,4 @@ _trans.*.tmp.json
 sys_2Google.txt
 fe-users.php
 zz_*.php
+dist/

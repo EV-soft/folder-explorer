@@ -46,6 +46,7 @@ Context menus can be activated by right-clicking on a file or folder row in the 
 - **The checked rows below the table:** how many - and the total size of the checked files, beside *All / None / Inverse*
   (folders are counted in Analyse mode).
 - README: the minimal installation, the requirements and the first log-in.
+- **The boot file** `folder-explorer-<version>-boot.zip`: one installer that unpacks the program in a new folder and makes the first administrator.
 
 Updating from 2.3.x: replace `folder-explorer.php` and `_trans.sys.json`.
 
@@ -280,6 +281,12 @@ Updating from 2.2.0: replace the program files (`folder-explorer.php`, `php2html
   `p2h_audit.inc.php` and `p2h_trans.inc.php`) - the bundled copy is always used.
 
 ### Minimal installation:
+**The easiest way - the boot file:** `folder-explorer-<version>-boot.zip` on the [release page](https://github.com/EV-soft/folder-explorer/releases)
+holds one file, `folder-explorer-install.php`. Unpack it on the web server and open it in the browser: it checks PHP and the
+folder, asks for a folder name and your administrator (name and password) - unpacks the program in the new folder, writes
+`fe-users.php` and deletes itself. Tick *Local libraries* when there is no internet access. (Made with `php tools/make-boot.php`.)
+
+**By hand:**
 **Required - 7 files, about 0.9 MB**, in one folder on the web server:
 
 | File | What |
