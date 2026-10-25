@@ -1116,21 +1116,29 @@ function fe_trash_link() { // " - Open the trash" after a message of a delete
 
 function fe_shares_load() { // The share links: token => [p path, d 1 = a folder, u maker, c made, x end (0: none), h password hash ('': none), n downloads]
     $f= (string)($GLOBALS['fe_shares_file'] ?? '');
-    if ($f === '' || !is_file($f)) return [];
-    try { $l= @include $f; } catch (Throwable $e) { $l= null; }
+    $c= ($f !== '' && is_file($f)) ? (string)@file_get_contents($f) : '';
+    $l= json_decode(substr($c, (int)strpos($c, "\n") + 1), true);     // JSON below the first line (read as a file: never an old copy of the PHP cache)
     return is_array($l) ? $l : [];
+}
+
+function fe_shares_change($fn) { // Change the share links: $fn(&$list) under a lock - two requests at the same time (a download is counted while a link is made): nothing lost
+    $lk= @fopen(sys_get_temp_dir().'/fe-shares-'.md5((string)$GLOBALS['fe_shares_file']).'.lock', 'c');
+    if ($lk) flock($lk, LOCK_EX);
+    $list= fe_shares_load();
+    $ok=   $fn($list) === false ? true : fe_shares_save($list);
+    if ($lk) { flock($lk, LOCK_UN);  fclose($lk); }
+    return $ok;
 }
 
 function fe_shares_save($list) { // Write the share links (fe-shares.php) - the ended ones away - written to a temp file first, then renamed
     $f= $GLOBALS['fe_shares_file'];
     $list= array_filter($list, fn($s) => is_array($s) && (empty($s['x']) || $s['x'] > time()));
     $tmp= $f.'.'.bin2hex(random_bytes(4)).'.tmp';
-    $code= "<?php // Folder-explorer share links - written by the program (file menu: Share link - program menu: Shared links).\n".
-           'return '.var_export($list, true).";\n";
+    $code= "<?php http_response_code(404);  exit; /* Folder-explorer share links - written by the program (file menu: Share link - program menu: Shared links) */ ?>\n".
+           json_encode($list, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE)."\n";
     if (@file_put_contents($tmp, $code, LOCK_EX) === false) return false;
     @chmod($tmp, 0640);
     if (!@rename($tmp, $f)) { @unlink($tmp);  return false; }
-    if (function_exists('opcache_invalidate')) @opcache_invalidate($f, true);
     return true;
 }
 
@@ -1197,8 +1205,7 @@ function fe_share_page($tok) { // ?share=<token>: the page of a share link - for
             elseif (!password_verify((string)($_POST['fe_spw'] ?? ''), (string)$s['h'])) { sleep(1);  fe_share_tries(true);  $err= lang('@Wrong password'); }
         }
         if ($err === '') {
-            $now= fe_shares_load();                     // Counted in the file as it is now
-            if (isset($now[$tok])) { $now[$tok]['n']= (int)($now[$tok]['n'] ?? 0) + 1;  fe_shares_save($now); }
+            fe_shares_change(function(&$l) use ($tok) { if (!isset($l[$tok])) return false;  $l[$tok]['n']= (int)($l[$tok]['n'] ?? 0) + 1; });     // Counted
             if (!is_dir($path)) {
                 $_SESSION[p2h_SESSION_ID]['logged']= lang('@share link').' ('.$s['u'].')';     // The activity log: fetched by the link
                 fe_send_file($path);
@@ -1206,15 +1213,19 @@ function fe_share_page($tok) { // ?share=<token>: the page of a share link - for
             $err= lang('@It could not be done');
             if (class_exists('ZipArchive')) {
                 fe_temp_cleanup();
-                $tmp= (string)tempnam(sys_get_temp_dir(), 'fez');  $n= 0;  $skip= 0;
-                $z= new ZipArchive();
-                if ($tmp !== '' && $z->open($tmp, ZipArchive::OVERWRITE) === true) { fe_zip_add($z, $path, basename($path), $n, $skip);  $z->close(); }
-                if ($n > 0 && is_file($tmp) && filesize($tmp) > 0) {
-                    register_shutdown_function(function() use ($tmp) { @unlink($tmp); });
-                    $_SESSION[p2h_SESSION_ID]['logged']= lang('@share link').' ('.$s['u'].')';
-                    fe_send_file($tmp, basename($path).'.zip');
+                $zf= sys_get_temp_dir().'/fez-share-'.$tok.'.zip';      // Made once - used again for 10 minutes: the link can not make the server pack the folder again and again
+                $n=  is_file($zf) && @filemtime($zf) > time() - 600 ? 1 : 0;  $skip= 0;
+                if (!$n) {
+                    $tmp= (string)tempnam(sys_get_temp_dir(), 'fez');
+                    $z= new ZipArchive();
+                    if ($tmp !== '' && $z->open($tmp, ZipArchive::OVERWRITE) === true) { fe_zip_add($z, $path, basename($path), $n, $skip);  $z->close(); }
+                    if ($n > 0 && is_file($tmp) && filesize($tmp) > 0 && @rename($tmp, $zf)) $tmp= '';
+                    if ($tmp !== '') @unlink($tmp);
                 }
-                @unlink($tmp);
+                if ($n > 0 && is_file($zf)) {
+                    $_SESSION[p2h_SESSION_ID]['logged']= lang('@share link').' ('.$s['u'].')';
+                    fe_send_file($zf, basename($path).'.zip');
+                }
                 if ($n === 0) $err= lang('@The folder is empty');
             }
         }
@@ -2599,7 +2610,7 @@ $can_write_here= $is_logged && fe_can_write($currPath);
 $quota_here=     $exch_path !== false && fe_in_dir($currPath, $exch_path) && !$fe_unlocked;     // Only the shared folder has a quota
 
 if ($is_logged && isset($_GET['fdl'])) {                // A prepared download (fe_offer_download) - once
-    $tok= (string)$_GET['fdl'];
+    $tok= (is_string($_GET['fdl']) ? $_GET['fdl'] : '');
     $d=   $_SESSION[p2h_SESSION_ID]['fdl'][$tok] ?? null;
     unset($_SESSION[p2h_SESSION_ID]['fdl'][$tok]);
     foreach ($_SESSION[p2h_SESSION_ID]['fdl'] ?? [] as $k => $o)        // Never fetched (older than an hour): forget it - and its temp file
@@ -2610,7 +2621,7 @@ if ($is_logged && isset($_GET['fdl'])) {                // A prepared download (
 }
 
 if ($is_logged && isset($_GET['dl'])) {                 // Download a file to the user's PC - where the user may read
-    $dl=   str_replace('\\', '/', (string)$_GET['dl']);
+    $dl=   str_replace('\\', '/', (is_string($_GET['dl']) ? $_GET['dl'] : ''));
     $file= preg_match('#^(/|[a-z]:/)#i', $dl) ? realpath($dl) : ($exch_path ? realpath($exch_path.'/'.ltrim($dl, '/')) : false);  // Old links: below the shared folder
     if ($file === false || !is_file($file) || !fe_can_read($file)) {
         http_response_code(404);
@@ -2621,7 +2632,7 @@ if ($is_logged && isset($_GET['dl'])) {                 // Download a file to th
 
 if ($is_logged && isset($_GET['fsz'])) {               // The size of one folder of the tree (fe-tree.js) - remembered 15 minutes
     session_write_close();                              // Counting a big folder must not lock the session of the other requests
-    $dir= realpath((string)$_GET['fsz']);
+    $dir= realpath((is_string($_GET['fsz']) ? $_GET['fsz'] : ''));
     while (ob_get_level()) ob_end_clean();
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: private, no-store');
@@ -2636,7 +2647,7 @@ if ($is_logged && isset($_GET['fsz'])) {               // The size of one folder
 
 if ($is_logged && isset($_GET['pv'])) {                // Hover preview of a file icon (fe-preview.js)
     session_write_close();                              // A long video must not lock the session of the other requests
-    $file= realpath((string)$_GET['pv']);
+    $file= realpath((is_string($_GET['pv']) ? $_GET['pv'] : ''));
     $kind= '';
     if ($file !== false && is_file($file) && fe_in_dir(p2h_norm_path($file), $root_path)) {
         $kind= fe_preview_kind(basename($file), fe_can_read($file), fe_media_ok($file));
@@ -2668,7 +2679,7 @@ if ($is_logged && isset($_GET['pv'])) {                // Hover preview of a fil
 
 if ($is_logged && isset($_GET['thumb'])) {             // A small picture of an image for the gallery - where the preview may show it
     session_write_close();                              // Many at the same time: never one after the other
-    $file= realpath((string)$_GET['thumb']);
+    $file= realpath((is_string($_GET['thumb']) ? $_GET['thumb'] : ''));
     $kind= ($file !== false && is_file($file) && fe_in_dir(p2h_norm_path($file), $root_path)) ? fe_preview_kind(basename($file), fe_can_read($file), fe_media_ok($file)) : '';
     while (ob_get_level()) ob_end_clean();
     if ($kind !== 'img') { http_response_code(404);  exit; }
@@ -2690,7 +2701,7 @@ if ($is_logged && isset($_GET['thumb'])) {             // A small picture of an 
 }
 
 if ($is_logged && isset($_GET['edt'])) {               // The text of a file for the editor (file menu: Edit)
-    $file= realpath((string)$_GET['edt']);
+    $file= realpath((is_string($_GET['edt']) ? $_GET['edt'] : ''));
     while (ob_get_level()) ob_end_clean();
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: private, no-store');
@@ -2963,25 +2974,24 @@ if ($is_logged && isset($_POST['fe_share'])) {
         elseif ($days < 0 || $days > (int)$fe_share_days || ($days === 0 && !fe_is_admin())) $err= lang('@Not an allowed end date');
         else {
             $tok=  bin2hex(random_bytes(12));
-            $list= fe_shares_load();
-            $list[$tok]= ['p' => $p, 'd' => is_dir($p) ? 1 : 0, 'u' => $_SESSION[p2h_SESSION_ID]['logged'], 'c' => time(), 'x' => $days ? time() + $days * 86400 : 0,
-                          'h' => $pw === '' ? '' : password_hash($pw, PASSWORD_DEFAULT), 'n' => 0];
-            if (!fe_shares_save($list)) $err= lang('@It could not be saved').': '.basename($fe_shares_file);
+            $new=  ['p' => $p, 'd' => is_dir($p) ? 1 : 0, 'u' => $_SESSION[p2h_SESSION_ID]['logged'], 'c' => time(), 'x' => $days ? time() + $days * 86400 : 0,
+                    'h' => $pw === '' ? '' : password_hash($pw, PASSWORD_DEFAULT), 'n' => 0];
+            if (!fe_shares_change(function(&$l) use ($tok, $new) { $l[$tok]= $new; })) $err= lang('@It could not be saved').': '.basename($fe_shares_file);
             else {
-                $res= ['url' => fe_share_url($tok), 'x' => $days ? date('Y-m-d H:i', $list[$tok]['x']) : ''];
-                fe_log('@Share link', fe_show_path($p), ($days ? lang('@Works until').' '.date('Y-m-d H:i', $list[$tok]['x']) : lang('@No end date')).($pw !== '' ? ' - '.lang('@with password') : ''));
+                $res= ['url' => fe_share_url($tok), 'x' => $days ? date('Y-m-d H:i', $new['x']) : ''];
+                fe_log('@Share link', fe_show_path($p), ($days ? lang('@Works until').' '.date('Y-m-d H:i', $new['x']) : lang('@No end date')).($pw !== '' ? ' - '.lang('@with password') : ''));
             }
         }
     } elseif (strpos($op, 'delete:') === 0) {
-        $tok=  substr($op, 7);
-        $list= fe_shares_load();
-        if (!isset($list[$tok]) || !fe_share_may($list[$tok])) $err= lang('@The link is not found');
-        else {
-            $was= fe_show_path((string)$list[$tok]['p']);
-            unset($list[$tok]);
-            if (!fe_shares_save($list)) $err= lang('@It could not be saved').': '.basename($fe_shares_file);
-            else fe_log('@Delete share link', $was);
-        }
+        $tok=  substr($op, 7);  $was= null;
+        $saved= fe_shares_change(function(&$l) use ($tok, &$was) {
+            if (!isset($l[$tok]) || !fe_share_may($l[$tok])) return false;
+            $was= fe_show_path((string)$l[$tok]['p']);
+            unset($l[$tok]);
+        });
+        if ($was === null) $err= lang('@The link is not found');
+        elseif (!$saved)   $err= lang('@It could not be saved').': '.basename($fe_shares_file);
+        else fe_log('@Delete share link', $was);
     } else $err= lang('@It could not be done');
     if ($err !== '') fe_log($op === 'create' ? '@Share link' : '@Delete share link', '', '✗ '.$err);
     if ($ajax) {
@@ -3869,7 +3879,7 @@ run_Script('
     }
     function feSel(how) {      /* All / Inverse: only the rows the filter shows (a hidden row was checked too - and DELETE took it) */
         feRows().forEach(function(c) {
-            var tr= c.closest("tr"), shown= tr.offsetParent !== null && !tr.classList.contains("filtered");
+            var tr= c.closest("tr"), shown= tr.style.display !== "none" && !tr.classList.contains("filtered");     /* (not offsetParent: the table is hidden in the gallery) */
             if (how === "none") c.checked= false;  else if (shown) c.checked= how === "all" ? true : !c.checked;
         });
         feSelSum();
@@ -4054,7 +4064,7 @@ run_Script('
                     at= new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});  show();
                 }).catch(function() { show();  sysAlert(feDT.fail); });
             };
-            var close= function() { d.close();  d.remove();  if (any) location.reload(); };
+            var close= function() { d.close();  d.remove();  if (any) location.replace(location.href); };       /* GET: a reload of the Analyse page (a POST) asked to send it again */
             var ask= function() { if (ta.value !== saved) sysConfirm(feDT.eLose, close);  else close(); };
             ta.addEventListener("input", show);
             d.addEventListener("keydown", function(e) { if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault();  if (ta.value !== saved) save(false); } });
