@@ -1316,6 +1316,11 @@ $p2h_Style = '
     [data-theme="dark"] .fe-drop .fe-pick { color: #8cc4f0; background: #24323f; border-color: #4b6a85; }
     [data-theme="dark"] .fePmItem.fePmDel, [data-theme="dark"] .fePmItem.fePmDel i { color: #ff7a8a; }
     /* Nice to know: sections in columns */
+    /* Used space (Analyse): the % text on the middle of the bar */
+    .feMeter { position: relative; width: 95%; }
+    .feMeter meter { width: 100%; display: block; }
+    .feMeter small { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 0 3px; line-height: 1.15;
+                     background: lightyellow; color: #333; opacity: .8; border-radius: 3px; white-space: nowrap; }
     .feSelDest { display: block; margin: 4px 0 2px; color: #555; }
     /* File features for the checked rows: always visible - locked to the bottom of the scrolling file window (the card body) */
     .tableStyle > span:has(#feSelSum) { position: sticky !important; bottom: 0; z-index: 4; display: block !important; padding: 4px 0 6px;
@@ -2016,8 +2021,7 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['perms']= $perms;
         $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
         $rec['access']= '-';
-        $rec['space']= !$calc_folder ? '' : '<meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
-                        <small style="/* width: 40px; */ display: inline-block; text-align: right; left: 40%; top: -16px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
+        $rec['space']= !$calc_folder ? '' : '<div class="feMeter"><meter id="currFold'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'">'.$meter.'</meter><small>'.number_format($meter*100,2).' %</small></div>';
         $foldRecords[]= $rec;
         
         flush();
@@ -2096,8 +2100,7 @@ function p2h_fileExplore($path,$parentDir) {
         $rec['perms']= $perms;
         $rec['owner']= p2h_enc($owner['name']);      //$rec['group']= $group['name'];
         $rec['access']= $accetime.$acces;
-        $rec['space']= !$calc_folder ? '' : '<meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'" style= "width: 95%;">'.$meter.'</meter>
-                        <small style="text-align: right; display: inline-block; left: 40%; top: -16px; position: relative; background: lightyellow; opacity: 0.7;">'.number_format($meter*100,2).' %</small>';
+        $rec['space']= !$calc_folder ? '' : '<div class="feMeter"><meter id="currFile'.$ix.'" low="0.15" optimum="0.30" high="0.60" max="1" value="'.$meter.'">'.$meter.'</meter><small>'.number_format($meter*100,2).' %</small></div>';
         $fileRecords[]= $rec;
 
    
@@ -2925,7 +2928,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     $me= $_SESSION[p2h_SESSION_ID]['logged'] ?? '';
     if (isset($_GET['users']) && fe_is_admin()) {
         htm_Card_(capt:'@Users',icon:'fas fa-users',hint:'@The accounts of Folder-explorer - read: download and preview, write: upload, copy, move, delete in the write folders',
-                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'background-color: white;');
             $act= basename(__FILE__).'?show='.urlencode($currPath);
             echo '<div class="feUsers"><table class="feUsrTbl"><tr><th>'.p2h_enc(lang('@User')).'</th><th>'.p2h_enc(lang('@Right')).'</th>'.
                  '<th>'.p2h_enc(lang('@Write folders')).' <small>('.p2h_enc(lang('@comma between - / = all')).')</small></th><th>Admin</th>'.
@@ -2962,7 +2965,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         $list= array_filter(fe_trash_list(), 'fe_trash_may');
         $act=  basename(__FILE__).'?show='.urlencode($currPath);
         htm_Card_(capt:'@Trash',icon:'fas fa-trash-restore',hint:'@Deleted files and folders - restore them to their folder, or delete them for good',
-                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'background-color: white;');
             echo '<div class="feUsers"><form id="feTrashForm" method="post" action="'.p2h_enc($act.'&trash=1').'">'.csrf_field(true).'</form>';
             if (!$list) echo '<p><i>'.p2h_enc(lang('@The trash is empty')).'</i></p>';
             else {
@@ -3001,7 +3004,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
     }
     if (isset($_GET['pw']) && fe_may_change_pw($me)) {
         htm_Card_(capt:'@Change my password',icon:'fas fa-key',hint:'',form:'',acti:'',clas:'cardW800',wdth:'800px',
-                  styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+                  styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'background-color: white;');
             $act= basename(__FILE__).'?show='.urlencode($currPath);
             echo '<form method="post" action="'.p2h_enc($act).'" class="fePwForm">'.csrf_field(true).
                  '<label>'.p2h_enc(lang('@Present password')).' <input type="password" name="pw_old" autocomplete="current-password" required></label> '.
@@ -3068,7 +3071,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
             ['@Perms',     '04%', 'text', '', ['center'],                   'perms',    '@The file permissions (UNIX.mode)'],
             ['@Owner',     '04%', 'text', '', ['center'],                   'owner',    '@ID for the file creater (UNIX.owner)'],
             ['@Accessed',  '10%', 'html', '', ['center'],                   'access',   '@File accessed date/time'],
-            ['@Space',     '20%', ($calc_folder == true ? 'html' : 'hidd'),
+            ['@Used space','20%', ($calc_folder == true ? 'html' : 'hidd'),
                                           '', ['left'  ,'','',$sort=false], 'space', '@Used space related to<br>Sum of all files in current folder and subfolders.']
         ),
         $RowSuff= array(), // tabl_row.ix
@@ -3390,7 +3393,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
         $maxFile=  min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX,
                        (fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX) - 65536);     // post_max_size: the whole request - room for the other fields (as fe-upload.js)
         htm_Card_(capt:'@Transfer',icon:'fas fa-exchange-alt',hint:'@Collect files and folders in the basket, and copy or move them to another folder - upload from your PC and download to it',
-                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'background-color: white;');
             if (fe_is_admin()) {    // Remove / restore the restrictions - admins only: a lock icon among the card's tool icons
                 $ulHint= $fe_unlocked ? lang('@<b>RESTRICTIONS REMOVED:</b> Click to restore the restrictions')
                                       : lang('@<b>REMOVE RESTRICTIONS:</b> see and change the whole account, any file type, no quota - only for you, only in this session');
