@@ -3659,6 +3659,7 @@ function p2hViewBar(bar) {
     function setZoom(z, save) {
         zoom= Math.round(Math.min(2, Math.max(0.5, z)) * 10) / 10;
         document.body.style.zoom= (zoom===1) ? "" : zoom;
+        document.documentElement.style.setProperty("--p2hZoom", zoom);     /* CSS: 100vw is not zoomed - calc(100vw / var(--p2hZoom)) is the window in the zoomed pixels of the page */
         out.textContent= Math.round(zoom*100) + "%";
         if (save) store(ZK, zoom===1 ? null : String(zoom));
     }
@@ -7906,7 +7907,7 @@ $CSS_system = '
 .cardW100 { width: 1020px; }
 /* Narrow screens: a fixed-width card is never wider than the window (no sideways page scrolling on phones) */
 .cardW120, .cardW110, .cardW100, .cardW960, .cardW800, .cardW720, .cardW640, .cardW560, .cardW480,
-.cardW400, .cardW320, .cardW280, .cardW240, .cardW160 { max-width: min(100%, calc(100vw - 32px)); box-sizing: border-box; }   /* (100vw includes the scrollbar) */
+.cardW400, .cardW320, .cardW280, .cardW240, .cardW160 { max-width: min(100%, calc(100vw / var(--p2hZoom, 1) - 32px)); box-sizing: border-box; }   /* (100vw includes the scrollbar - and is not zoomed: page zoom 90 % left 10 % unused) */
 .cardW960 { width: 960px;  }
 .cardW800 { width: 800px;  }
 .cardW720 { width: 720px;  }

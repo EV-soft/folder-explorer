@@ -1571,7 +1571,7 @@ $p2h_Style = '
     .fePvBody img { display: block; max-width: 100%; max-height: 50vh; margin: auto;
                     background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 0 0 / 16px 16px; }
     /* Cards: the same width when folded (wdth: 800px) - the full width card counts its border too, and never wider than the window */
-    [id^=card].cardWmax { box-sizing: border-box; max-width: min(100%, calc(100vw - 32px)); }
+    [id^=card].cardWmax { box-sizing: border-box; max-width: min(100%, calc(100vw / var(--p2hZoom, 1) - 32px)); }     /* (100vw is not zoomed: --p2hZoom of the view bar) */
     .fePvTbl { border-collapse: collapse; font: 11px/1.35 Arial, sans-serif; background: #fff; }
     .fePvTbl td { border: 1px solid #d0d7de; padding: 1px 5px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
     .fePvTbl tr:first-child td { background: #eef3f8; font-weight: 600; }
