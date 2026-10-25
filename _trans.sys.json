@@ -898,6 +898,7 @@
       "Enter":"Enter",
       "Space":"Mellemrum",
       "Used space":"Pladsforbrug",
+      "From your PC:":"Fra din pc:",
       "<b>Menus:</b> right-click a row (file / folder) - or the table outside the rows: the program menu (trash, shared links, users ...) &middot; <b>Filter:</b> rest the mouse on the coloured row below the column headings":"<b>Menuer:</b> højreklik på en række (fil / mappe) - eller i tabellen uden for rækkerne: programmenuen (papirkurv, delte links, brugere ...) &middot; <b>Filtrér:</b> hold musen over den farvede række under kolonneoverskrifterne",
       "Click <b>Search in subfolders</b> in the heading of the card Folder content.":"Klik på <b>Søg i undermapper</b> i overskriften på kortet Mappeindhold.",
       "Type the name or a part of it - <code>*</code> and <code>?</code> for the whole name, e.g. <code>*.pdf</code>. Check <b>also in the text of text files</b> to search in the content too.":"Skriv navnet eller en del af det - <code>*</code> og <code>?</code> for hele navnet, fx <code>*.pdf</code>. Sæt flueben ved <b>også i teksten i tekstfiler</b> for også at søge i indholdet.",

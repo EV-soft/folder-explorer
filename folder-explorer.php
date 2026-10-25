@@ -3730,7 +3730,9 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                       htm_AcceptButt(labl:'@Property',   icon:'', hint:'@Number and size of the checked files and folders',  form:'', wdth:'100px;', attr:$dis, akey:'', kind:'spc1', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("prop")', idix:'').
                       htm_AcceptButt(labl:'@DOWNLOAD',   icon:'', hint:'@Download the checked files / folders to your PC - more than one file as a ZIP', form:'', wdth:'100px;', attr:$dis, akey:'', kind:'get_', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("download")', idix:'').
                       htm_Fieldset_end(rtrn:true).
+                      htm_Fieldset(capt:'@From your PC:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).     // Its own field: on one line with the buttons beside it
                       htm_AcceptButt(labl:'@UPLOAD',     icon:'', hint:'@Upload files from your PC to this folder (the Transfer card)', form:'', wdth:'100px;', attr:'', akey:'', kind:'get_', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feDo("upload")', idix:'').
+                      htm_Fieldset_end(rtrn:true).
                       '<small class="feSelDest">'.p2h_enc(lang('@COPY / MOVE / Create ZIP go to the destination of the Transfer card - without one: this folder')).'</small>'.
                   htm_Fieldset_end(rtrn:true),
         data: $tabldata, 
