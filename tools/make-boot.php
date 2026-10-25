@@ -1,6 +1,7 @@
 <?php   // tools/make-boot.php - makes the boot file: dist/folder-explorer-<version>-boot.zip with one file, folder-explorer-install.php
 // The installer (tools/fe-install.tpl.php) gets the program files packed at its end: every file in git but .gitignore and tools/.
-// Run it in the repository after a release:   php tools/make-boot.php
+// Run it in the repository after a release:   php tools/make-boot.php   - then upload both ZIPs to the release:
+// gh release upload v<version> dist/folder-explorer-<version>-boot.zip dist/folder-explorer-boot.zip
 // Open folder-explorer-install.php on a web server: it unpacks the program in a new folder and makes the first administrator.
 declare(strict_types=1);
 chdir(dirname(__DIR__));
@@ -37,6 +38,7 @@ $z= new ZipArchive();
 if ($z->open($zipName, ZipArchive::CREATE) !== true) exit("Could not make $zipName\n");
 $z->addFile($out, 'folder-explorer-install.php');
 $z->close();
+copy($zipName, 'dist/folder-explorer-boot.zip');     // The same with a fixed name: README links to releases/latest/download/folder-explorer-boot.zip - upload both to the release
 
 printf("Folder-explorer %s: %d files (%.1f MB) packed - %s %.1f MB, %s %.1f MB\n", $ver, count($files['files']), $bytes / 1048576,
        $out, filesize($out) / 1048576, $zipName, filesize($zipName) / 1048576);

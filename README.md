@@ -2,6 +2,11 @@
 
 A browser that focuses on the disk space that folders takes up.
 
+**⬇ [Download the newest version](https://github.com/EV-soft/folder-explorer/releases/latest/download/folder-explorer-boot.zip)**
+(`folder-explorer-boot.zip`, about 1 MB) - one installer: unpack it on your web server, open `folder-explorer-install.php` in the
+browser, choose a folder and your administrator - done. See [Minimal installation](#minimal-installation) - all versions:
+[Releases](https://github.com/EV-soft/folder-explorer/releases).
+
 **Built with [php2html – Clever HTML Engine](https://github.com/EV-soft/Clever-Html-Engine)**, a PHP library that writes the HTML
 for you: every field, table, card and menu of this program is one PHP call. Folder-explorer is a real-world example of it,
 especially of the advanced table function `htm_Table()`. A taste of the code (the login card, shortened):
@@ -309,7 +314,7 @@ Updating from 2.2.0: replace the program files (`folder-explorer.php`, `php2html
   `p2h_audit.inc.php` and `p2h_trans.inc.php`) - the bundled copy is always used.
 
 ### Minimal installation:
-**The easiest way - the boot file:** `folder-explorer-<version>-boot.zip` on the [release page](https://github.com/EV-soft/folder-explorer/releases)
+**The easiest way - the boot file:** [`folder-explorer-boot.zip`](https://github.com/EV-soft/folder-explorer/releases/latest/download/folder-explorer-boot.zip) (the newest version) - or `folder-explorer-<version>-boot.zip` on the [release page](https://github.com/EV-soft/folder-explorer/releases)
 holds one file, `folder-explorer-install.php`. Unpack it on the web server and open it in the browser: it checks PHP and the
 folder, asks for a folder name and your administrator (name and password) - unpacks the program in the new folder, writes
 `fe-users.php` and deletes itself. Choose **Minimal** (the 7 required files, English only), **Standard** (and the other languages,
