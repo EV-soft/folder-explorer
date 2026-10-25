@@ -42,6 +42,11 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new (not released yet):
+- **The checked rows below the table:** how many - and the total size of the checked files, beside *All / None / Inverse*
+  (folders are counted in Analyse mode).
+- README: the minimal installation, the requirements and the first log-in.
+
 ### What is new in 2.3.2:
 - **Security (important):** a request with `csvFile=<name>` made the table write a file of that name in the program folder - any
   logged-in account, also a read only demo account, could overwrite `folder-explorer.php` or `fe-users.php`. Removed - please update.
@@ -260,23 +265,62 @@ Updating from 2.2.0: replace the program files (`folder-explorer.php`, `php2html
 - A red banner shows while the restrictions are removed; *Restore restrictions*, logout or a new login ends it.
 
 ### Requirements:
-- PHP 8.1 or newer. Tested on PHP 8.3.
-- `short_open_tag` is **not** required.
-- Built with [Clever-Html-Engine / PHP2HTML](https://github.com/EV-soft/Clever-Html-Engine) **1.9.1** (bundled, with its modules `p2h_audit.inc.php` and `p2h_trans.inc.php`).
+- **PHP 8.1 or newer** (tested on 8.3 and 8.5). `short_open_tag` is not needed.
+- **PHP extensions:** `mbstring` (required). Optional - the program works without them, only that feature is missing:
+  `zip` (create / unpack ZIP, download several files as one ZIP, preview of ZIP and Office files), `fileinfo` (the file type in
+  *File properties*), `xmlreader` (preview of spreadsheets).
+- **Web server:** Apache or LiteSpeed (the program closes its folders with `.htaccess`). On nginx those files do nothing: deny direct
+  access to the write folders, the shared folder and `.fe-trash/` in the server configuration yourself.
+- **Browser:** a current browser. jQuery, Tablesorter and Font Awesome are loaded from cdnjs.cloudflare.com - without internet
+  access copy `_assets/` too and add `$gbl_LibSource= '1';` at the top of `folder-explorer.php`, before the line
+  `require_once (__DIR__.'/php2html.lib.php');`.
+- Built with [Clever-Html-Engine / PHP2HTML](https://github.com/EV-soft/Clever-Html-Engine) **1.9.2** (bundled, with its modules
+  `p2h_audit.inc.php` and `p2h_trans.inc.php`) - the bundled copy is always used.
 
-### Installation:
-1. Copy the files to a folder on your web server.
-2. Open `folder-explorer.php` in the browser.
-3. The bundled `php2html.lib.php` (1.9.1) is always used.
-4. The web server must be able to write the folder `_cache/` (created automatically) - the library caches its CSS/JS there.
+### Minimal installation:
+**Required - 7 files, about 0.9 MB**, in one folder on the web server:
+
+| File | What |
+|---|---|
+| `folder-explorer.php` | the program (open this one in the browser) |
+| `php2html.lib.php` | the HTML library |
+| `p2h_audit.inc.php` | the activity log |
+| `p2h_trans.inc.php` | the translations (also the editor of administrators) |
+| `fe-preview.js` | the file and folder menus, the preview, the keyboard in the table |
+| `fe-tree.js` | the used space in the folder tree |
+| `fe-upload.js` | upload: the file list, drag and drop, batches |
+
+**Optional:**
+
+| File / folder | Size | Without it |
+|---|---|---|
+| `_trans.sys.json` | 0.26 MB | English only (it holds Danish and the other languages) |
+| `_assets/` | 2.4 MB | the libraries come from the CDN - needed only with `$gbl_LibSource= '1'` (no internet access) |
+| `favicon.svg` | | no icon in the browser tab |
+| `README.md`, `.gitignore` | | - |
+
+**Made by the program** (the folder must be writable by the web server):
+`_exchange/` (the shared folder, closed with `.htaccess`), `.fe-trash/` (the trash), `_cache/` (CSS / JS cache - only faster,
+the page works without it), `fe-audit.log.php` (the activity log) and `fe-users.php` (the accounts - when they are saved in the
+program). The log and the accounts are PHP files and the folders are closed: opened in the browser they show nothing
+(`_cache/` holds only the CSS / JS of the library).
+
+**The first log-in:** the accounts in `folder-explorer.php` are examples - their passwords are not published. Make your own
+administrator before the first log-in:
+1. Make a password hash - on the server or any PC with PHP:
+   `php -r "echo password_hash('your password', PASSWORD_DEFAULT), PHP_EOL;"`
+2. Save a file `fe-users.php` next to the program (it replaces the example accounts):
+   ```php
+   <?php return ['users' => ['admin' => ['$2y$10$...the hash...', 'root', 'rwx', ['']]], 'admins' => ['admin']];
+   ```
+   `['']` = it may write everywhere below the root folder (`$fe_root_path`) - e.g. `['_exchange', 'docs']` for some folders only.
+3. Open `folder-explorer.php`, log in as `admin` - and make the other accounts in the program: right-click the table - *Users*.
 
 ### Security / configuration:
 - Browsing is restricted to `$fe_root_path` (default: the folder containing `folder-explorer.php`)
   and its subfolders. Paths outside it (also via `../`) fall back to the root.
   Set `$fe_root_path` near the top of `folder-explorer.php` to change it.
-- Accounts are defined in `$auth_users` as bcrypt hashes. To create a new account,
-  try to log in with the wanted name and password: the error message shows a
-  `name: hash` line that you can copy into `$auth_users`.
-- Change or remove the demo accounts before you put the program on a public server.
+- Accounts: see *The first log-in* above - then the program menu (right-click the table) - *Users*. Only password hashes are saved.
+- Change or remove the example and demo accounts before you put the program on a public server.
 - All POST forms carry a CSRF token (php2html 1.7) - a POST without a valid token is rejected with 403.
 - `$gbl_SessionKeep` (default `true`): an open page keeps the session alive. On a shared computer, set it to `false`.

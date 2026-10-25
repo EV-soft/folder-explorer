@@ -1317,6 +1317,8 @@ $p2h_Style = '
     [data-theme="dark"] .fePmItem.fePmDel, [data-theme="dark"] .fePmItem.fePmDel i { color: #ff7a8a; }
     /* Nice to know: sections in columns */
     .feSelDest { display: block; margin: 4px 0 2px; color: #555; }
+    .feSelSum { display: inline-block; margin: 0 8px; font-weight: 600; color: #1a5e8a; vertical-align: middle; }
+    [data-theme="dark"] .feSelSum { color: #8ec5ea; }
     .feNice { columns: 2 340px; column-gap: 22px; font-size: 12.5px; line-height: 1.45; }
     .feNiceSec { break-inside: avoid; margin-bottom: 8px; }
     .feNiceSec h4 { margin: 2px 0 2px; font-size: 13px; color: #1a5276; }
@@ -3067,6 +3069,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                       htm_AcceptButt(labl:'@None', icon:'', hint:'@Deselect all', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feSel("none")', idix:'').
                       htm_AcceptButt(labl:'@Inverse', icon:'', hint:'@Reverse all', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feSel("inverse")', idix:'').
                       htm_AcceptButt(labl:'@Basket', icon:'fas fa-shopping-basket', hint:'@Put the checked rows in the basket - to copy or move them to a folder somewhere else', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feBasketChecked()', idix:'').
+                      '<span id="feSelSum" class="feSelSum" aria-live="polite"></span>'.     // The checked rows: number and total size (feSelSum)
                       htm_Fieldset_end(rtrn:true).
 
                       htm_Fieldset(capt:'@With selected do:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
@@ -3211,7 +3214,30 @@ run_Script('
             var tr= c.closest("tr"), shown= tr.offsetParent !== null && !tr.classList.contains("filtered");
             if (how === "none") c.checked= false;  else if (shown) c.checked= how === "all" ? true : !c.checked;
         });
+        feSelSum();
     }
+    function feSelSum() {      /* Below the table: how many rows are checked - and the total size of the checked files (folders: when Analyse has counted them) */
+        var out= document.getElementById("feSelSum");  if (!out) return;
+        var S= JSON.parse('.p2h_js(json_encode(['chk'=>lang('@checked'), 'files'=>lang('@files'), 'file'=>lang('@file'), 'folders'=>lang('@folders'), 'folder'=>lang('@folder'),
+                                     'nc'=>lang('@size of the folders not counted - Analyse counts it')])).');
+        var nf= 0, nd= 0, nu= 0, b= 0;
+        feRows().forEach(function(c) {
+            if (!c.checked) return;
+            var tr= c.closest("tr"), fn= tr.querySelector(".feFileName"), f= null;
+            try { f= JSON.parse((fn || tr.querySelector(".feBp[data-fm]") || {dataset: {}}).dataset.fm || "null"); } catch (e) {}
+            var n= f ? parseInt(String(f.s || "").replace(/\D/g, ""), 10) : NaN;
+            if (fn) nf++;  else { nd++;  if (isNaN(n)) nu++; }
+            if (!isNaN(n)) b+= n;
+        });
+        if (!nf && !nd) { out.textContent= "";  return; }
+        var u= ["B", "KB", "MB", "GB", "TB"], i= 0, v= b;  while (v >= 1024 && i < 4) { v/= 1024;  i++; }
+        out.textContent= (nf + nd) + " " + S.chk + ": " + (nf ? nf + " " + (nf === 1 ? S.file : S.files) : "") + (nf && nd ? ", " : "") +
+                         (nd ? nd + " " + (nd === 1 ? S.folder : S.folders) : "") + " - " + (i ? v.toLocaleString(undefined, {maximumFractionDigits: 2}) : v) + " " + u[i] +
+                         (nu ? " (" + S.nc + ")" : "");
+        out.title= b.toLocaleString() + " B";
+    }
+    document.addEventListener("change", function(e) { if (e.target.matches && e.target.matches("table input[type=checkbox]")) feSelSum(); });
+    addEventListener("pageshow", feSelSum);     /* Rows the browser kept checked after Back / reload */
     function feDo(op) {     /* File features below the table */
         var T= '.p2h_js(json_encode(['check'=>lang('@Check one or more rows in the table first'), 'noUp'=>lang('@You may not upload to this folder'),
                                      'delQ'=>lang(fe_trash_dir() !== false ? '@Move the checked files and folders to the trash?' : '@Delete the checked files and folders (folders with all their content)?'), 'title'=>lang('@The checked rows'),

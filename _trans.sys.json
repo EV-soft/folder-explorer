@@ -352,6 +352,9 @@
     "DateTime":"2022-06-17",
     "AppName":"PHP to HTML",
     "translation":{
+      "checked":"valgt",
+      "file":"fil",
+      "size of the folders not counted - Analyse counts it":"mappernes størrelse er ikke talt - Analyse tæller den",
       "How to use Folder-explorer - nice to know, step by step, questions, mouse and keys, your account, limits":"Sådan bruges Folder-explorer - godt at vide, trin for trin, spørgsmål, mus og taster, din konto, grænser",
       "The log-in can not be checked now - try again later":"Log-ind kan ikke kontrolleres lige nu - prøv igen senere",
       "Overwritten - the old one was too big for the trash and is deleted":"Overskrevet - den gamle var for stor til papirkurven og er slettet",
