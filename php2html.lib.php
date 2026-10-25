@@ -1,4 +1,4 @@
-<?php  $DocFileLib='../php2html.lib.php';    $DocVerFile='1.9.2';    $DocRevFile='2026-10-25';      $DocIniFile='evs';  $ModNoFile=0; ## File informative only
+<?php  $DocFileLib='../php2html.lib.php';    $DocVerFile='1.9.3';    $DocRevFile='2026-10-25';      $DocIniFile='evs';  $ModNoFile=0; ## File informative only
 defined('P2H_VERSION') or define('P2H_VERSION', $DocVerFile);   # The library version. The library sets none of the page's own $DocVer / $DocRev / $DocFil / $©
 { ## Group ******************** System HEAD: **************************
 #   PHP to HTML generator - "Clever-Html-Engine" for front-end design, with lots of advanced features.
@@ -3099,7 +3099,9 @@ var p2hCardSize= (function() {
         var card= cardOf(g), s0= size(card), x0= e.clientX, y0= e.clientY, last= null;
         e.preventDefault();  try { g.setPointerCapture(e.pointerId); } catch(err) {}
         var z= parseFloat(getComputedStyle(document.body).zoom) || 1;              /* Page zoom: mouse pixels are zoomed pixels */
-        function move(ev) { last= resize(card, s0.w + (ev.clientX - x0) / z, s0.h + (ev.clientY - y0) / z); }
+        var cr= card.getBoundingClientRect(), pr= card.parentElement.getBoundingClientRect();
+        var fx= Math.abs((cr.left - pr.left) - (pr.right - cr.right)) < 3 ? 2 : 1;  /* A centred card grows to both sides: twice the mouse move - the grip follows the mouse (it reached the window edge at half the width) */
+        function move(ev) { last= resize(card, s0.w + fx * (ev.clientX - x0) / z, s0.h + (ev.clientY - y0) / z); }
         function up()     { g.removeEventListener("pointermove", move);  g.removeEventListener("pointerup", up);  g.removeEventListener("pointercancel", up);
                             if (last) save(card, last); }
         g.addEventListener("pointermove", move);  g.addEventListener("pointerup", up);  g.addEventListener("pointercancel", up);
