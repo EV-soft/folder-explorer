@@ -250,7 +250,7 @@ function fe_made($path= null) { // Made by this request: a second item of the sa
 function fe_check_answer($list) { // The precheck of "Stop and ask": the taken names as JSON - nothing is done
     while (ob_get_level()) ob_end_clean();
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['c' => array_values(array_slice($list, 0, 500))], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    echo json_encode(['c' => array_values(array_slice($list, 0, 500))], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 }
 
@@ -279,6 +279,12 @@ function fe_old_away($path) { // Overwrite: the old file into the trash (without
 
 function fe_kept($path) { // Skip: the name was taken - the one there is kept (not an error)
     $GLOBALS['fe_kept'][]= basename($path);
+}
+
+function fe_zip_name($dir, $base) { // A new ZIP "name.zip" in $dir - never a name upload and rename refuse: a folder "x.php" gave "x.php.zip" (Apache may run it as PHP)
+    $n= fe_clean_name($base.'.zip');
+    if (!fe_name_allowed($n)) $n= str_replace('.', '_', fe_clean_name($base)).'.zip';
+    return fe_unique($dir.'/'.$n);
 }
 
 function fe_unique($target) { // Never overwrite: "name (2).ext" - "folder (2)" - a link (also a broken one) counts as there
@@ -511,7 +517,7 @@ function fe_trash_put($path, &$n, &$skip) { // Delete: into the trash - false: n
     if ($n === $n0) { fe_rm_all($t.'/'.$id);  return true; }           // Nothing of it could be moved
     @file_put_contents($t.'/'.$id.'.json', json_encode(['n' => basename($path), 'f' => p2h_norm_path(dirname($path)),
         'd' => is_dir($t.'/'.$id.'/'.basename($path)) ? 1 : 0, 'u' => $_SESSION[p2h_SESSION_ID]['logged'] ?? '', 't' => time(),
-        's' => fe_dir_size($t.'/'.$id)], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        's' => fe_dir_size($t.'/'.$id)], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
     fe_trash_trim();
     if (!is_file($t.'/'.$id.'.json')) $GLOBALS['fe_trash_big']= true;  // Bigger than the trash: deleted for good at once
     return true;
@@ -1605,7 +1611,7 @@ function p2h_get_mime_type($file_path) { // Get file mime type
 */
 
 function p2h_enc($text)
-{ return htmlspecialchars($text, ENT_QUOTES, 'UTF-8'); }
+{ return htmlspecialchars((string)$text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }     // ENT_SUBSTITUTE: a name with invalid UTF-8 (an old Latin-1 name on Linux) gave '' - the row had no name
 
 function p2h_convert_win($filename) {
     if (p2h_IS_WIN && function_exists('iconv')) 
@@ -1991,7 +1997,7 @@ function p2h_fileExplore($path,$parentDir) {
                  's'=>$calc_folder ? number_format((float)$foldsize, 0, ',', ' ') : '', 'm'=>$modif, 'a'=>'', 'p'=>$perms, 'u'=>(string)$owner['name'],
                  'e'=>($can_write_here && $fld[0] !== '.') ? 1 : (!fe_can('w') ? 2 : ($can_write_here ? 3 : 0)), 'w'=>$can_write_here && fe_can('w') ? 1 : 0,
                  'g'=>basename(__FILE__).'?show='.urlencode($file_path), 'b'=>p2h_norm_path($file_path),
-                 'k'=>in_array(p2h_norm_path($file_path), $basket ?? [], true) ? 1 : 0], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)).'" hidden></span></div>';
+                 'k'=>in_array(p2h_norm_path($file_path), $basket ?? [], true) ? 1 : 0], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)).'" hidden></span></div>';
         $rec['ext']= $ext;
         $rec['size']= $sortsize.'<div style="font-family:monospace; color:green;">'.fe_hint($showsize, number_format((float)$foldsize, 0,',',' ').' Bytes').'</div>';
         $rec['modifyed']= $sorttime.$modif;
@@ -2062,7 +2068,7 @@ function p2h_fileExplore($path,$parentDir) {
               'w'=>$can_write_here && fe_can('w') ? 1 : 0,                                                              // New folder here
               'o'=>($pvKind > '' && $pvKind !== 'lock') ? basename(__FILE__).'?pv='.rawurlencode(p2h_norm_path($file_path)).'&v='.$ftime.($pvKind === 'table' ? '&raw=1' : '') : '',
               'd'=>$can_dl ? $dlUrl : ''];
-        $nm= '<span class="feBp" data-bp="'.p2h_enc(p2h_norm_path($file_path)).'" hidden></span><span class="feFileName" tabindex="0" role="button" aria-haspopup="menu" data-fm="'.p2h_enc(json_encode($fm, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)).'">'.p2h_enc($fld).'</span>';
+        $nm= '<span class="feBp" data-bp="'.p2h_enc(p2h_norm_path($file_path)).'" hidden></span><span class="feFileName" tabindex="0" role="button" aria-haspopup="menu" data-fm="'.p2h_enc(json_encode($fm, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)).'">'.p2h_enc($fld).'</span>';
         if ($calc_folder)
             $nameFld= '<div class="file-name-div">'.$ic.'&nbsp;'. $nm. ($ix < 1200 ? '<div class="live-preview-img">'.$fileInfo.'</div>' : ''). '</div>';  // Max 200 on one page ($ix starts at 1000)
         else
@@ -2248,7 +2254,7 @@ if (isset($_GET['calc'])) {
 }
 
 $root_path= p2h_norm_path(($fe_unlocked ? realpath($fe_unlocked_root) : false) ?: realpath($fe_root_path) ?: $fe_root_path);
-$currPath= p2h_safe_path($_POST['show'] ?? $_GET['show'] ?? '', $root_path);  // Never outside $root_path
+$currPath= p2h_safe_path(is_string($s= $_POST['show'] ?? $_GET['show'] ?? '') ? $s : '', $root_path);  // Never outside $root_path - (?show[]=x was a fatal error)
 if (fe_is_trash($currPath)) $currPath= $root_path;                             // The trash is only seen in its card (program menu: Trash)
 
 ##### RIGHTS: write in the account's write folders - read (download, content) there and in the shared folder ($fe_exchange_path)
@@ -2401,7 +2407,7 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
         while (ob_get_level()) ob_end_clean();
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['error' => $error, 'done' => $done, 'fail' => $fail, 'kept' => $kept, 'trash' => fe_trash_dir() !== false ? 1 : 0,
-                          'show' => basename(__FILE__).'?show='.urlencode(is_string($upDest ?? null) ? $upDest : $currPath)]);   // The destination
+                          'show' => basename(__FILE__).'?show='.urlencode(is_string($upDest ?? null) ? $upDest : $currPath)], JSON_INVALID_UTF8_SUBSTITUTE);   // The destination
         exit;
     }
     $failTxt= implode(', ', array_map(fn($f) => p2h_enc($f[1]).' ('.p2h_enc($f[2]).')', $fail));
@@ -2423,7 +2429,7 @@ if ($is_logged && isset($_POST['fe_delete'])) {      // Delete a file in the cur
                             fe_msg(p2h_enc(lang('@File not found')).': '.p2h_enc($name), 'error');
     elseif (($inTrash= fe_trash_put($file, $tn, $ts)) && $tn)
                             fe_msg(p2h_enc(lang(empty($fe_trash_big) ? '@Moved to the trash' : '@Deleted - too big for the trash')).': <b>'.p2h_enc($name).'</b>'.fe_trash_link());
-    elseif (!$inTrash && @unlink($file)) fe_msg(p2h_enc(lang('@Deleted')).': <b>'.p2h_enc($name).'</b>');
+    elseif (!$inTrash && !fe_program_file($file) && @unlink($file)) fe_msg(p2h_enc(lang('@Deleted')).': <b>'.p2h_enc($name).'</b>');
     else                    fe_msg(p2h_enc(lang('@Could not delete')).': '.p2h_enc($name), 'error');
     fe_redirect($currPath);
 }
@@ -2465,7 +2471,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
             || p2h_norm_path(dirname(p2h_norm_path($file))) !== $currPath || (!$isDir && !fe_name_allowed($name)))
                             $err= lang('@File not found').': '.$name;
     elseif ($act === 'zip') {               // name.zip beside it - never overwrite: "name (2).zip"
-        $target= fe_unique($currPath.'/'.($isDir ? $name : preg_replace('/\.[^.]*$/', '', $name)).'.zip');
+        $target= fe_zip_name($currPath, $isDir ? $name : preg_replace('/\.[^.]*$/', '', $name));
     } elseif ($act === 'move' || $act === 'copy') {     // A new name - or a path below the current folder: "old/new name.txt"
         $into= realpath($currPath.'/'.$to);               // An existing folder ("sub" or "sub/"): into it, with the same name
         if (substr((string)($_POST['fe_to'] ?? ''), -1) === '/' || ($to !== '' && $into !== false && is_dir($into) && p2h_norm_path($into) !== p2h_norm_path($file)))
@@ -2683,7 +2689,7 @@ if ($is_logged && isset($_POST['fe_sel'])) {
         } elseif (!class_exists('ZipArchive')) fe_msg(p2h_enc(lang('@It could not be done')), 'error');
         else {
             $one= count($items) === 1 ? (is_dir($items[0]) ? basename($items[0]) : pathinfo($items[0], PATHINFO_FILENAME)) : '';    // A folder "my.photos": not "my"
-            $target= fe_unique($dest.'/'.($one > '' ? $one : basename($currPath).' - '.lang('@selection')).'.zip');
+            $target= fe_zip_name($dest, $one > '' ? $one : basename($currPath).' - '.lang('@selection'));
             $z= new ZipArchive();
             if ($z->open($target, ZipArchive::CREATE | ZipArchive::EXCL) === true) {
                 foreach ($items as $it) fe_zip_add($z, $it, basename($it), $n, $skip);
@@ -2740,7 +2746,6 @@ if ($is_logged && isset($_POST['fe_trash'])) {     // The trash (program menu): 
     header('Location: '.basename(__FILE__).'?show='.urlencode($currPath).'&trash=1', true, 303);
     exit;
 }
-if (isset($_POST['csvFile']))   { $csvFile= basename($_POST['csvFile']); }   // No paths in export filename
 
 $root_dir= basename(p2h_norm_path($_SERVER['DOCUMENT_ROOT'] ?? ''));  // web
 $parentDir= basename(dirname($currPath));
@@ -3263,7 +3268,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         styl: $TblStyle= 'width:98%; cursor: alias; ',
         from: $CalledFrom= __FILE__ ,
         list: $MultiList= ['',''],
-        expo: $ExportTo= $csvFile ?? ''
+        expo: $ExportTo= ''           # Never from the request: POST csvFile= wrote a file of any name in the program folder (also folder-explorer.php) - for any account
     );
     echo $Context_Row;
     // Search + mode up into the header of this card - left of the tool icons (without JavaScript they stay above the table)
