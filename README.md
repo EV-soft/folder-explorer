@@ -38,7 +38,16 @@ File/Folder space is also displayed graphically.
 **Quick** mode: it speeds up and works like a typical file-browser without analyzing subfolder content.
 One button in the header of the *Folder-Details* card switches between the two modes (the search field is beside it).
 
-Context menus can be activated by right-clicking on a file or folder row in the table - or by resting the mouse on a file name.
+### Menus - most of the program is in them:
+| Menu | How to open it | What is in it |
+|---|---|---|
+| **File menu** | rest the mouse on a file name, click it - or right-click the row | view, download, properties, share link, basket, edit, rename / move, copy, ZIP, unpack, delete |
+| **Folder menu** | right-click the row of a folder | open, download as ZIP, properties, share link, basket, rename, copy, ZIP, synchronize, delete |
+| **Program menu** | right-click the table **outside** the rows | trash, shared links, change my password, help, about, log out - administrators also: users, activity log, translations, remove restrictions |
+| **Card menu** | right-click a card heading | fold / open all cards, heights, the original order |
+
+Keyboard: the menu key or Shift+F10 (on a row: its menu - elsewhere in the table: the program menu), arrow up / down, Esc.
+Touch screen: a long press is a right-click. The line below the table says it too.
 
 ### Folder tree:
 - Drawn connector lines and folder icons; the level number of each folder at the far left and a level axis below the tree.

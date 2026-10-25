@@ -3711,7 +3711,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                                           '', ['left'  ,'','',$sort=false], 'space', '@Used space related to<br>Sum of all files in current folder and subfolders.']
         ),
         $RowSuff= array(), // tabl_row.ix
-        $TblNote= '<small>'.lang('@Filtering/Searching: Hold mouse over the colored row below the column headers.').'</small><br>'.
+        $TblNote= '<small>'.lang('@<b>Menus:</b> right-click a row (file / folder) - or the table outside the rows: the program menu (trash, shared links, users ...) &middot; <b>Filter:</b> rest the mouse on the coloured row below the column headings').'</small><br>'.     // The menus are not seen - they are told here (also on a touch screen: a long press)
                   htm_Fieldset(capt:'@File features - for the checked rows:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
                       htm_Fieldset(capt:'@Select:',icon:'', hint:'',wdth:'',marg:'',attr:'',rtrn:true).
                       htm_AcceptButt(labl:'@All',  icon:'', hint:'@All files and folders', form:'', wdth:'', attr:'', akey:'', kind:'spc2', rtrn:true, tplc:'LblTip_text', tsty:'', acti:'feSel("all")', idix:'').
