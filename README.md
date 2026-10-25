@@ -56,6 +56,17 @@ Touch screen: a long press is a right-click. The line below the table says it to
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new in 2.4.2:
+- **Closed cards all have the same height** (38 px) - also Folder content in Analyse mode (Gallery and Duplicates only as icons while it is closed).
+- **The cards fill the page** also with a page zoom below 100 % (90 % left 10 % unused at the sides) - and a centred card
+  (Transfer, Folder tree) can be dragged to the full width: its size grip now follows the mouse (php2html 1.9.3 bundled).
+- The hint of the size grip of Folder content is no longer hidden behind the locked file features.
+- **UPLOAD** is in its own field (From your PC:) - on one line with the other buttons of the Transfer card.
+- **The menus are told:** a line below the table says where the right-click menus are - and the README has a Menus table.
+- **Manual:** users (make, change, delete), share links, edit, duplicates, search - and limits, your account, keys.
+
+Updating from 2.4.1: replace `folder-explorer.php`, `php2html.lib.php` and `_trans.sys.json`.
+
 ### What is new in 2.4.1:
 - **Files without a known type** (`error_log`, `access_log.1`, `LICENSE` ...): the content decides - text is previewed, searched and
   edited as text, with the text icon; binary files stay hex.
