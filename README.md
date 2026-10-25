@@ -16,7 +16,7 @@ htm_Card_end();
 Install the library for your own projects with `composer require ev-soft/clever-html-engine` or from
 [GitHub](https://github.com/EV-soft/Clever-Html-Engine).
 
-Look / try a [demo here](https://ev-soft.dk/foldexpl/folder-explorer.php) It runs on PHP 8.3
+Look / try a [demo here](https://ev-soft.dk/foldexpl/folder-explorer.php) - it runs on PHP 8.5 (requires PHP 8.1 or newer)
 
 
 ### Description:
