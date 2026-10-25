@@ -1653,6 +1653,7 @@ $p2h_Style = '
     [data-theme="dark"] .feFindCut, [data-theme="dark"] .p2hDlgFoot .feEdSt.feEdDirty { color: #ffb066; }
     /* Closed cards: all the same height - the 8 px padding of some cards (Folder tree, Transfer ...) only around an open body */
     [id^=card]:has(> [id^=HideBody][style*="display: none"]) { padding-top: 2px !important; padding-bottom: 2px !important; }
+    [id^=card]:has([id^=HideBody][style*="display: none"]) .feToolTxt { display: none; }       /* Closed (800 px wide): Gallery and Duplicates only as icons - the tools stay on one line */
     .feDetTools.feInHead .inpField { min-height: 0 !important; margin: 0 !important; }      /* The search field in the heading: no higher than the other tools (the library: min-height 38px) */
     /* Gallery and Duplicates (card header) */
     .feGalBtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px; border: 1px solid #9aa5b1; border-radius: 17px; background: #fff;
@@ -3682,9 +3683,9 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                         '<b>'.lang('@Quick').':</b> '.lang('@shows the folder at once.').'<br>'.
                         '<b>'.lang('@Analyse').':</b> '.lang('@calculates the content of all sub-folders - size, graphs, Sync/ZipClone - and can take time in big folders.').'<br>'.
                         '<i>'.lang('@Click to switch.').'</i>').
-                fe_hint('<button type="button" id="feGalBtn" class="feGalBtn" aria-pressed="false" onclick="feGalToggle()"><i class="fas fa-th-large"></i> '.lang('@Gallery').'</button>',
+                fe_hint('<button type="button" id="feGalBtn" class="feGalBtn" aria-pressed="false" aria-label="'.p2h_enc(lang('@Gallery')).'" onclick="feGalToggle()"><i class="fas fa-th-large"></i><span class="feToolTxt"> '.lang('@Gallery').'</span></button>',
                         lang('@The files as tiles - images as small pictures. Click a tile: the file menu - double-click: view. Click again: the table.')).
-                ($calc_folder ? fe_hint('<a class="feGalBtn" href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($currPath).'&dupl=1').'"><i class="fas fa-clone"></i> '.lang('@Duplicates').'</a>',
+                ($calc_folder ? fe_hint('<a class="feGalBtn" href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($currPath).'&dupl=1').'" aria-label="'.p2h_enc(lang('@Duplicates')).'"><i class="fas fa-clone"></i><span class="feToolTxt"> '.lang('@Duplicates').'</span></a>',
                                         lang('@Find files with the same content in this folder and all folders below it')) : '').
                 '</form>'.      // (Language, "Logged as" and Logout: in the view bar)
             '</div><div style="clear: both;"></div>'
