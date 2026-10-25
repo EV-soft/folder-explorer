@@ -1218,7 +1218,7 @@ function fe_share_page($tok) { // ?share=<token>: the page of a share link - for
             $err= lang('@It could not be done');
             if (class_exists('ZipArchive')) {
                 fe_temp_cleanup();
-                $zf= sys_get_temp_dir().'/fez-share-'.$tok.'.zip';      // Made once - used again for 10 minutes: the link can not make the server pack the folder again and again
+                $zf= sys_get_temp_dir().'/fez-share-'.hash('sha256', __FILE__.'|'.$tok).'.zip';     // Made once - used again for 10 minutes (not the token in the name: the temp folder may be shared)
                 $n=  is_file($zf) && @filemtime($zf) > time() - 600 ? 1 : 0;  $skip= 0;
                 if (!$n) {
                     $tmp= (string)tempnam(sys_get_temp_dir(), 'fez');
@@ -1341,6 +1341,15 @@ function fe_thumb($file, $ext) { // A JPEG of at most 240 px of an image (GD) fo
     if (is_file($t)) { @touch($t);  return $t; }
     $info= @getimagesize($file);
     if (!$info || $info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 40000000) return null;     // Over 40 megapixels: not read (the memory)
+    $lk= @fopen(sys_get_temp_dir().'/fe-thumb-'.md5(__FILE__).'.lock', 'c');        // One at a time: the tiles of a gallery ask for many at once
+    if ($lk) flock($lk, LOCK_EX);
+    if (is_file($t)) { if ($lk) fclose($lk);  return $t; }                          // Made by another request meanwhile
+    $r= fe_thumb_make($file, $t, $fn, $info);
+    if ($lk) fclose($lk);
+    return $r;
+}
+
+function fe_thumb_make($file, $t, $fn, $info) { // fe_thumb(): read the image with GD, make the small JPEG $t - null: it could not
     $need= memory_get_usage() + $info[0] * $info[1] * 5 + 16 * 1048576;                             // What GD may need
     $lim=  fe_ini_bytes((string)ini_get('memory_limit'));
     if ($lim > 0 && $need > $lim) { if ($need > 512 * 1048576 || @ini_set('memory_limit', (string)$need) === false) return null; }
@@ -2851,7 +2860,9 @@ if ($is_logged && isset($_POST['fe_edit'])) {      // Save the text of the edito
         $res= ['err' => lang('@The file was changed by someone else after you opened it'), 'conflict' => 1];
     else {
         $old= (string)file_get_contents($file);
-        if (strpos($old, "\r\n") !== false) $text= str_replace("\n", "\r\n", $text);     // The line ends of the file are kept - and its byte order mark
+        $nCrlf= substr_count($old, "\r\n");  $nLf= substr_count($old, "\n") - $nCrlf;  $nCr= substr_count($old, "\r") - $nCrlf;
+        if ($nCrlf > $nLf && $nCrlf >= $nCr) $text= str_replace("\n", "\r\n", $text);     // The line ends most lines of the file have (was: one CRLF made all CRLF)
+        elseif ($nCr > $nLf)                 $text= str_replace("\n", "\r", $text);       // (and its byte order mark below)
         $new= (strncmp($old, "\xEF\xBB\xBF", 3) === 0 ? "\xEF\xBB\xBF" : '').$text;
         if ($new === $old) $res= ['ok' => 1, 'm' => sha1($old), 'same' => 1];
         elseif ($quota_here && strlen($new) - strlen($old) > $fe_exchange_quota - fe_dir_size($exch_path)) $res['err']= lang('@the shared folder is full');
@@ -2861,14 +2872,16 @@ if ($is_logged && isset($_POST['fe_edit'])) {      // Save the text of the edito
             if (@file_put_contents($tmp, $new, LOCK_EX) !== strlen($new)) { @unlink($tmp);  $res['err']= lang('@It could not be saved'); }
             else {
                 @chmod($tmp, $perm);
-                if (!fe_old_away($file))           { @unlink($tmp);  $res['err']= lang('@It could not be saved'); }
+                $recent= fe_trash_dir() !== false && array_filter(fe_trash_list(), fn($m) => ($m['f'] ?? '') === $currPath && ($m['n'] ?? '') === basename($file) && (int)($m['t'] ?? 0) > time() - 900);
+                if ($recent) { if (!@rename($tmp, $file) && !(@unlink($file) && @rename($tmp, $file))) { @unlink($tmp);  $res['err']= lang('@It could not be saved'); } }    // A version of the last 15 minutes is in the trash: enough
+                elseif (!fe_old_away($file))       { @unlink($tmp);  $res['err']= lang('@It could not be saved'); }
                 elseif (!@rename($tmp, $file))     { @unlink($tmp);  $res['err']= lang('@It could not be saved').' - '.lang('@the old version is in the trash'); }
-                else {
+                if (!isset($res['err'])) {
                     clearstatcache();
                     $res= ['ok' => 1, 'm' => sha1_file($file)];
                     fe_size_forget($currPath);
                     fe_log('@Edit file', fe_show_path(p2h_norm_path($file)), html_entity_decode(p2h_nice_filesize(strlen($old)).' → '.p2h_nice_filesize(strlen($new)), ENT_QUOTES | ENT_HTML5, 'UTF-8').
-                           (fe_trash_dir() !== false ? ' - '.lang('@the old version is in the trash') : ''));
+                           (fe_trash_dir() !== false && !$recent ? ' - '.lang('@the old version is in the trash') : ''));
                 }
             }
         }
@@ -3101,7 +3114,11 @@ if ($is_logged && (isset($_POST['fe_users']) || isset($_POST['fe_pw']))) {
         if ($err === '' && !array_intersect(array_keys($users), $admins)) $err= lang('@There must be at least one administrator');
     }
     if ($err === '' && $ok !== '') {
-        if (fe_save_users($users, $admins)) fe_msg(p2h_enc($ok));
+        if (fe_save_users($users, $admins)) {
+            if (($op ?? '') === 'delete')       // Its share links go too - a new account of the same name would get them back
+                fe_shares_change(function(&$l) use ($name) { $n= count($l);  $l= array_filter($l, fn($x) => ($x['u'] ?? '') !== $name);  if (count($l) === $n) return false; });
+            fe_msg(p2h_enc($ok));
+        }
         else fe_msg(p2h_enc(lang('@The accounts file could not be written')).': '.p2h_enc(basename($fe_users_file)), 'error');
     } elseif ($err !== '') fe_msg(p2h_enc($err), 'error');
     header('Location: '.$back, true, 303);
@@ -4005,7 +4022,7 @@ run_Script('
                  'eTitle'=>lang('@Edit'), 'eSave'=>lang('@Save'), 'eSaved'=>lang('@Saved'), 'eChanged'=>lang('@Changed - not saved'), 'eLines'=>lang('@lines'),
                  'eWrap'=>lang('@Wrap long lines'), 'eLose'=>lang('@Close without saving the changes?'),
                  'eForce'=>lang('@The file was changed by someone else after you opened it. Save your version anyway? (The other version goes into the trash.)'),
-                 'eTrash'=>fe_trash_dir() !== false ? lang('@Each save puts the old version into the trash') : '', 'eKeys'=>lang('@Ctrl+S saves'),
+                 'eTrash'=>fe_trash_dir() !== false ? lang('@The old version goes into the trash (one per 15 minutes)') : '', 'eKeys'=>lang('@Ctrl+S saves'),
                  'load'=>lang('@Loading...'), 'tTitle'=>lang('@Edit with TinyMCE'), 'tNote'=>lang('@TinyMCE writes the HTML in its own way - scripts and styles are kept'),
                  'tFail'=>lang('@TinyMCE could not be loaded (no internet access?) - the text editor is used'),
                  'tUrl'=>$fe_tinymce_url, 'tLang'=>fe_tiny_lang(), 'tLangUrl'=>$fe_tinymce_lang])).');

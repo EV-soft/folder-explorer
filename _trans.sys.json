@@ -898,6 +898,7 @@
       "Enter":"Enter",
       "Space":"Mellemrum",
       "Used space":"Pladsforbrug",
+      "The old version goes into the trash (one per 15 minutes)":"Den gamle udgave lægges i papirkurven (én pr. 15 minutter)",
       "Edit with TinyMCE":"Redigér med TinyMCE",
       "TinyMCE writes the HTML in its own way - scripts and styles are kept":"TinyMCE skriver HTML'en på sin egen måde - scripts og styles bevares",
       "TinyMCE could not be loaded (no internet access?) - the text editor is used":"TinyMCE kunne ikke hentes (ingen internetadgang?) - tekst-editoren bruges",
