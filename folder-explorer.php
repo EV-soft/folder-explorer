@@ -1322,9 +1322,12 @@ $p2h_Style = '
                                         background: var(--CardsBgrd, #fff); border-top: 1px solid #c8d0d8; box-shadow: 0 -4px 6px -4px rgba(0,0,0,.25); }
     .tableStyle > span:has(#feSelSum) fieldset { vertical-align: top; margin-top: 2px; margin-bottom: 2px; }
     [data-theme="dark"] .tableStyle > span:has(#feSelSum) { border-top-color: #3f4852; box-shadow: 0 -4px 6px -4px rgba(0,0,0,.6); }
-    .feSelSum { display: block; margin: 6px 2px 0; font-weight: 600; color: #1a5e8a; line-height: 1.4; }
+    .feSelSum { display: block; width: 0; min-width: 100%; margin: 4px 0 0; color: #1a5e8a; line-height: 1.35; }      /* Never wider than the 4 buttons: the facts wrap */
     .feSelSum:empty { display: none; }
-    .feSelSum div:not(:first-child) { font-weight: normal; padding-left: 10px; }
+    .feSelSum div { display: inline-block; white-space: nowrap; }
+    .feSelSum div:first-child { font-weight: 600; }
+    .feSelSum div + div:not(.feSelNc)::before { content: "·"; margin: 0 5px; color: #888; }
+    .feSelSum div.feSelNc { display: block; white-space: normal; font-size: 11px; opacity: .85; }
     [data-theme="dark"] .feSelSum { color: #8ec5ea; }
     .feNice { columns: 2 340px; column-gap: 22px; font-size: 12.5px; line-height: 1.45; }
     .feNiceSec { break-inside: avoid; margin-bottom: 8px; }
@@ -3238,12 +3241,12 @@ run_Script('
         });
         if (!nf && !nd) { out.replaceChildren();  return; }
         var u= ["B", "KB", "MB", "GB", "TB"], i= 0, v= b;  while (v >= 1024 && i < 4) { v/= 1024;  i++; }
-        var L= [(nf + nd) + " " + S.chk];      /* A column below the 4 buttons: one fact per line */
+        var L= [(nf + nd) + " " + S.chk];      /* Below the 4 buttons, as wide as they are: the facts wrap */
         if (nf) L.push(nf + " " + (nf === 1 ? S.file : S.files));
         if (nd) L.push(nd + " " + (nd === 1 ? S.folder : S.folders));
         L.push((i ? v.toLocaleString(undefined, {maximumFractionDigits: 2}) : v) + " " + u[i]);
         if (nu) L.push("(" + S.nc + ")");
-        out.replaceChildren.apply(out, L.map(function(t) { var d= document.createElement("div");  d.textContent= t;  return d; }));
+        out.replaceChildren.apply(out, L.map(function(t, k) { var d= document.createElement("div");  d.textContent= t;  if (nu && k === L.length - 1) d.className= "feSelNc";  return d; }));
         out.title= b.toLocaleString() + " B";
     }
     document.addEventListener("change", function(e) { if (e.target.matches && e.target.matches("table input[type=checkbox]")) feSelSum(); });
