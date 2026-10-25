@@ -55,6 +55,10 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   Two folders of the same name are merged: the files inside follow the choice. A file against a folder of the same name only gets a
   new name - and a protected file is never replaced. The message lists what was renamed, overwritten and skipped.
 - Without JavaScript nothing is overwritten: `name (2)`, as before.
+- **Safer:** the files of the program (its PHP files, `fe-*.js`, `_trans*.json`, the accounts, `_assets`) are never overwritten,
+  deleted, renamed / moved or synchronized over - also with the restrictions removed. Before, a write account with the program folder
+  as a write folder could replace a script of the program.
+- The quota of the shared folder counts only the difference when a file is overwritten.
 
 ### What is new in 2.2.1:
 - **A taken name is told:** when a copy, move or unpack had to save a file as `name (2)`, the message lists it (`report.pdf → report (2).pdf`).
