@@ -233,9 +233,16 @@ function fe_choice($key) { // What to do with the taken name $key: rename / over
     return $m === 'ask' ? ($GLOBALS['fe_ch'][$key] ?? $GLOBALS['fe_chall'] ?? 'rename') : $m;
 }
 
+function fe_up_repl($base, $rel, $name) { // Upload: the bytes of the file it will overwrite (0: none) - for the quota of the shared folder
+    $d= fe_rel_dir($base, $rel, false);
+    $t= $d === false ? '' : $d.'/'.$name;
+    return ($t !== '' && is_file($t) && !is_link($t) && !fe_made($t) && fe_choice(ltrim(substr($t, strlen($base)), '/')) === 'overwrite') ? (int)filesize($t) : 0;
+}
+
 function fe_made($path= null) { // Made by this request: a second item of the same name (two folders in the basket, twice in a ZIP) never replaces the first - null: is it?
     static $made= [];
-    $k= strtolower(p2h_norm_path((string)$path));
+    $k= p2h_norm_path((string)$path);
+    if (in_array(PHP_OS_FAMILY, ['Windows', 'Darwin'], true)) $k= strtolower($k);     // There A.txt and a.txt are the same file - on Linux two files
     if (func_num_args() === 2) { $made[$k]= 1;  return true; }
     return isset($made[$k]);
 }
@@ -260,7 +267,7 @@ function fe_same($a, $b) { // The same file or folder (also with other upper / l
 }
 
 function fe_old_away($path) { // Overwrite: the old file into the trash (without a trash: deleted) - false: it stays (a folder, a link, a protected file)
-    if (!is_file($path) || is_link($path) || (empty($GLOBALS['fe_unlocked']) && !fe_name_allowed(basename($path)))) return false;
+    if (!is_file($path) || is_link($path) || (empty($GLOBALS['fe_unlocked']) && !fe_name_allowed(basename($path))) || fe_program_file($path)) return false;
     $tn= 0;  $ts= 0;  $GLOBALS['fe_trash_big']= false;
     $inTrash= fe_trash_put($path, $tn, $ts);
     if (!$inTrash) @unlink($path);
@@ -330,7 +337,7 @@ function fe_move_tree($src, $dst, &$n, &$skip) { // Move a folder into a folder 
         if (@rmdir($src) && $mt) @touch($dst, max($mt, (int)@filemtime($dst)));     // Empty now - else something stayed (kept, protected)
         return;
     }
-    if (empty($GLOBALS['fe_unlocked']) && !fe_name_allowed(basename($src))) { $skip++;  return; }   // A protected file: stays
+    if ((empty($GLOBALS['fe_unlocked']) && !fe_name_allowed(basename($src))) || fe_program_file($src)) { $skip++;  return; }   // A protected file - or one of the program: stays
     if (file_exists($dst) || is_link($dst)) {
         $m= $GLOBALS['fe_merge'] ?? '';
         if ($m === 'skip' && is_file($dst) && !is_link($dst)) { fe_kept($dst);  return; }     // It stays where it was
@@ -366,15 +373,16 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
             elseif ($how === 'skip' && !is_dir($src)) { fe_kept($dst);  continue; }
         }
         $merge= is_dir($src) && ($how === 'overwrite' || $how === 'skip');     // Two folders: merged - a taken file name inside as chosen
+        $repl=  ($how === 'overwrite' && !$merge && is_file($dst) && !is_link($dst)) ? (int)filesize($dst) : 0;     // Replaced: its bytes leave the folder (into the trash) - the quota counts the difference
         if ($op === 'move' && $room !== PHP_INT_MAX && !fe_in_dir($src, $exch_path)) {     // Into the shared folder from outside it: its quota
             $size= is_dir($src) ? fe_dir_size($src) : filesize($src);
-            if ($size > $room) { $skip++;  continue; }
-            $room-= $size;
+            if ($size - $repl > $room) { $skip++;  continue; }
+            $room-= $size - $repl;
         }
         if ($op === 'move' && fe_holds_program($src)) { $skip++;  continue; }     // The program itself: never moved
         $GLOBALS['fe_merge']= $merge ? $how : '';
         if ($op === 'move') {
-            if (!fe_can_write(p2h_norm_path(dirname($src))) || (empty($fe_unlocked) && (basename($src)[0] === '.' || (!is_dir($src) && !fe_name_allowed(basename($src))))))
+            if (!fe_can_write(p2h_norm_path(dirname($src))) || (empty($fe_unlocked) && (basename($src)[0] === '.' || (!is_dir($src) && !fe_name_allowed(basename($src))))) || (!is_dir($src) && fe_program_file($src)))
                 $skip++;
             elseif ($merge) { fe_move_tree($src, $dst, $n, $skip);  if (!file_exists($src)) $done[]= $src;  fe_made($dst, true); }
             elseif ($how === 'overwrite' && !fe_old_away($dst)) $skip++;            // A protected file there: never replaced
@@ -382,11 +390,11 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
             else $skip++;
         } else {
             $size= is_dir($src) ? fe_dir_size($src) : filesize($src);
-            if ($size > $room) { $skip++;  continue; }
+            if ($size - $repl > $room) { $skip++;  continue; }
             if ($how === 'overwrite' && !$merge && !fe_old_away($dst)) { $skip++;  continue; }
             fe_copy_tree($src, $dst, $n, $skip);
             if (file_exists($dst)) { fe_renamed($src, $dst);  fe_made($dst, true); }
-            $room-= $size;
+            $room-= $size - $repl;
         }
         $GLOBALS['fe_merge']= '';
     }
@@ -407,7 +415,7 @@ function fe_sync_tree($src, $dst, &$n, &$skip) { // One way: copy what is missin
     if (!fe_can_read($src) || is_dir($dst)) { $skip++;  return; }
     if (is_file($dst)) {
         if (filemtime($dst) >= filemtime($src)) return;                           // The same or newer there: kept
-        if (empty($GLOBALS['fe_unlocked']) && !fe_name_allowed(basename($dst))) { $skip++;  return; }   // Never replace a protected file
+        if ((empty($GLOBALS['fe_unlocked']) && !fe_name_allowed(basename($dst))) || fe_program_file($dst)) { $skip++;  return; }   // Never replace a protected file - or one of the program
     }
     if (@copy($src, $dst)) { @touch($dst, filemtime($src));  $n++; }
     else $skip++;
@@ -435,8 +443,21 @@ function fe_delete_tree($path, &$n, &$skip) { // Delete a file, or a folder with
         if (@rmdir($path)) $n++; else $skip++;
         return;
     }
-    if ((!empty($GLOBALS['fe_unlocked']) || fe_name_allowed(basename($path))) && @unlink($path)) $n++;
+    if ((!empty($GLOBALS['fe_unlocked']) || fe_name_allowed(basename($path))) && !fe_program_file($path) && @unlink($path)) $n++;
     else $skip++;
+}
+
+function fe_program_file($path) { // A file of the program (its PHP files, scripts, texts, accounts, _assets): never overwritten, deleted, moved or synchronized over - also without restrictions
+    static $list= null;
+    $r= realpath((string)$path);
+    if ($r === false) return false;
+    $low= fn($p) => strtolower(p2h_norm_path($p));
+    if ($list === null) {
+        $list= [];
+        foreach (array_merge(get_included_files(), glob(__DIR__.'/fe-*.js') ?: [], glob(__DIR__.'/_trans*.json') ?: [], [__DIR__.'/favicon.svg', (string)($GLOBALS['fe_users_file'] ?? '')]) as $f)
+            if ($f !== '' && ($x= realpath($f)) !== false) $list[$low($x)]= 1;
+    }
+    return isset($list[$low($r)]) || strpos($low($r).'/', $low(__DIR__.'/_assets').'/') === 0;
 }
 
 function fe_holds_program($path) { // The folder of the program - or a folder above it, or the trash: never deleted or moved (the program would be gone)
@@ -476,7 +497,7 @@ function fe_trash_move($path, $dst, &$n, &$skip) { // As fe_delete_tree() - but 
         else $skip++;
         return;
     }
-    if ((!empty($GLOBALS['fe_unlocked']) || fe_name_allowed(basename($path))) && @rename($path, $dst)) $n++;
+    if ((!empty($GLOBALS['fe_unlocked']) || fe_name_allowed(basename($path))) && !fe_program_file($path) && @rename($path, $dst)) $n++;
     else $skip++;
 }
 
@@ -575,7 +596,10 @@ function fe_unzip($zip, $dest, $room, &$n, &$skip, $check= false) { // Unpack a 
         $bad=   !$parts || $name[0] === '/' || preg_match('#^[a-z]:#i', $name);
         foreach ($parts as $part) if ($part[0] === '.') $bad= true;       // .. and hidden files / folders
         if ($bad || (!$isDir && !fe_name_allowed(end($parts)))) { $skip++;  continue; }
-        if (!$isDir && $total + $st['size'] > $room) { $skip++;  continue; }      // Too large: skipped (not counted - a smaller file after it may fit), no folders made for it
+        $repl= 0;                                                               // A file it will overwrite: its bytes leave the folder
+        if (!$isDir && $room !== PHP_INT_MAX && ($d0= fe_rel_dir($dest, implode('/', $parts), false)) !== false && is_file($p0= $d0.'/'.fe_clean_name(end($parts)))
+            && !is_link($p0) && !fe_made($p0) && fe_choice(ltrim(substr($p0, strlen($dest)), '/')) === 'overwrite') $repl= (int)filesize($p0);
+        if (!$isDir && $total + $st['size'] - $repl > $room) { $skip++;  continue; }      // Too large: skipped (not counted - a smaller file after it may fit), no folders made for it
         $dir= fe_rel_dir($dest, implode('/', $parts).($isDir ? '/-' : ''), !$check);
         if ($dir === false) { $skip++;  continue; }
         if ($isDir) continue;
@@ -594,7 +618,7 @@ function fe_unzip($zip, $dest, $room, &$n, &$skip, $check= false) { // Unpack a 
         $in=  $z->getStream($st['name']);
         $out= $in ? @fopen($target, 'xb') : false;
         if (!$out) { if ($in) fclose($in);  $skip++;  continue; }
-        $total+= (int)stream_copy_to_stream($in, $out, $st['size']);      // Never more than the ZIP says (a false size in the ZIP)
+        $total+= (int)stream_copy_to_stream($in, $out, $st['size']) - $repl;      // Never more than the ZIP says (a false size in the ZIP)
         fclose($in);  fclose($out);
         @touch($target, $st['mtime']);
         fe_made($target, true);
@@ -2344,13 +2368,14 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
             if     ($err !== UPLOAD_ERR_OK)          $why= lang('@upload error').' '.$err.($err <= 2 ? ' - '.lang('@the file is too large') : '');
             elseif (!fe_name_allowed($name))         $why= lang('@this file type is not allowed');
             elseif ($size > $fe_max_upload && !$fe_unlocked) $why= lang('@the file is too large');
-            elseif ($used + $size > $quota)          $why= lang('@the shared folder is full');
+            elseif ($used + $size - ($repl= $quota_up ? fe_up_repl($upDest, is_string($rels[$i] ?? null) ? $rels[$i] : '', $name) : 0) > $quota)
+                                                     $why= lang('@the shared folder is full');     // A file it overwrites: the difference
             elseif (($dir= fe_rel_dir($upDest, is_string($rels[$i] ?? null) ? $rels[$i] : '')) === false)       // Folders made only for an accepted file
                                                      $why= lang('@the folder name is not allowed');
             else {
                 $target= $dir.'/'.$name;    $how= 'new';
                 if (file_exists($target) || is_link($target)) {     // The name is taken: as chosen - a folder or a link of that name: "name (2)"
-                    $how= is_file($target) && !is_link($target) ? fe_choice(ltrim(substr($target, strlen($upDest)), '/')) : 'rename';
+                    $how= is_file($target) && !is_link($target) && !fe_made($target) ? fe_choice(ltrim(substr($target, strlen($upDest)), '/')) : 'rename';     // Twice in this upload: "name (2)"
                     if ($how === 'skip') { $kept[]= [$i, fe_show_path($target)];  fe_kept($target);  continue; }
                     $g0= count($GLOBALS['fe_gone'] ?? []);
                     if ($how === 'overwrite' && !fe_old_away($target)) { $fail[]= [$i, $name, lang('@the file there can not be replaced')];  continue; }
@@ -2358,7 +2383,7 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
                     if ($how === 'rename') $target= fe_unique($target);
                 }
                 if (move_uploaded_file($up['tmp_name'][$i], $target)) {
-                    @chmod($target, 0644);  $used+= $size;
+                    @chmod($target, 0644);  $used+= $size - ($how === 'overwrite' || $how === 'gone' ? $repl : 0);  fe_made($target, true);
                     $done[]= [$i, fe_show_path($target), $how === 'overwrite' ? 1 : ($how === 'gone' ? 2 : 0)];  continue;     // 1: the old file was replaced (into the trash) - 2: deleted for good
                 }
                 $why= lang('@could not be saved');
@@ -2415,7 +2440,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
     $to=   trim(str_replace('\\', '/', (string)($_POST['fe_to'] ?? '')), '/ ');
     $file= $name === '' ? false : realpath($currPath.'/'.$name);
     if ($file !== false && fe_is_trash($file)) $file= false;      // Never the trash itself
-    if ($file !== false && $act === 'move' && is_dir($file) && fe_holds_program($file)) $file= false;    // Nor the folder of the program (renamed: the program is gone)
+    if ($file !== false && $act === 'move' && (is_dir($file) ? fe_holds_program($file) : fe_program_file($file))) $file= false;    // Nor the folder or a file of the program (renamed: the program is gone)
     $isDir= $file !== false && is_dir($file);
     $err=  '';  $target= '';  $n= 0;  $skip= 0;
     $room= $quota_here ? $fe_exchange_quota - fe_dir_size($exch_path) : PHP_INT_MAX;
@@ -2465,7 +2490,7 @@ if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename 
         elseif ($act === 'mkdir') $ok= @mkdir($target, 0755);
         elseif ($act === 'move')  $ok= @rename($file, $target);
         elseif ($act === 'copy')  { if ($isDir) { fe_copy_tree($file, $target, $n, $skip);  $ok= is_dir($target); } else $ok= @copy($file, $target); }
-        elseif ($act === 'unzip') $ok= fe_unzip($file, $currPath, $room, $n, $skip) && $n > 0;
+        elseif ($act === 'unzip') $ok= fe_unzip($file, $currPath, $room, $n, $skip) && ($n > 0 || !empty($fe_kept) || !empty($fe_over));     // All skipped as chosen: told, not an error
         else {
             $ok= false;
             if (class_exists('ZipArchive')) {
