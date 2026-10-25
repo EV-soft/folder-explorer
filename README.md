@@ -42,6 +42,13 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new in 2.3.1:
+- Built with php2html **1.9.2** - ten fixes, among them: *My notes* are kept per program folder (other programs on the same
+  domain saw them), number fields accept units longer than 4 characters, choices with `&` or `'` are marked again, and the log-in
+  always waits after wrong passwords.
+
+Updating from 2.3.0: replace `php2html.lib.php` and `_trans.sys.json`.
+
 ### What is new in 2.3.0:
 - **A taken name - you choose:** the field *A taken name* on the Transfer card decides what copy, move, unpack and upload do when the
   name is there already - remembered in your browser:
