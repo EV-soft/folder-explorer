@@ -1689,6 +1689,7 @@ $p2h_Style = '
     /* File features for the checked rows: always visible - locked to the bottom of the scrolling file window (the card body) */
     .tableStyle > span:has(#feSelSum) { position: sticky !important; bottom: 0; z-index: 4; display: block !important; padding: 4px 0 6px;
                                         background: var(--CardsBgrd, #fff); border-top: 1px solid #c8d0d8; box-shadow: 0 -4px 6px -4px rgba(0,0,0,.25); }
+    abbr.hint.p2hGripHint:hover, abbr.hint.p2hGripHint:focus-within { z-index: 6; }     /* The hint of the size grip: above the locked file features (z-index 4) - it was hidden behind them */
     .tableStyle > span:has(#feSelSum) fieldset { vertical-align: top; margin-top: 2px; margin-bottom: 2px; }
     [data-theme="dark"] .tableStyle > span:has(#feSelSum) { border-top-color: #3f4852; box-shadow: 0 -4px 6px -4px rgba(0,0,0,.6); }
     .feSelSum { display: block; width: 0; min-width: 100%; margin: 4px 0 0; color: #1a5e8a; line-height: 1.35; }      /* Never wider than the 4 buttons: the facts wrap */
