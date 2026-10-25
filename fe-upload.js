@@ -186,7 +186,7 @@
                     batch.forEach(function (it) { setStatus(it, (r && r.error) || (txt.server + ' (' + xhr.status + ')'), true); });
                 } else {
                     if (r.show) showUrl = r.show;     // The destination - for "Show the folder"
-                    (r.done || []).forEach(function (d) { var it = batch[d[0]]; if (it) { it.sent = true; it.chk = false; cfg.quotaLeft -= it.file.size; setStatus(it, txt.saved + ' ' + d[1] + (d[2] ? ' - ' + (r.trash ? txt.overT : txt.over) : '')); } });
+                    (r.done || []).forEach(function (d) { var it = batch[d[0]]; if (it) { it.sent = true; it.chk = false; cfg.quotaLeft -= it.file.size; setStatus(it, txt.saved + ' ' + d[1] + (d[2] ? ' - ' + (d[2] === 1 && r.trash ? txt.overT : txt.over) : '')); } });
                     (r.kept || []).forEach(function (k) { var it = batch[k[0]]; if (it) { it.sent = true; it.chk = false; it.kept = true;  setStatus(it, txt.kept); } });     // Skipped: the name was taken
                     (r.fail || []).forEach(function (f) { var it = batch[f[0]]; if (it) setStatus(it, f[2], true); });
                 }
@@ -203,11 +203,9 @@
         var sel = chosen();
         if (busy || !sel.length) return;
         if (typeof window.feAsk !== 'function') { start(sel, []); return; }
-        var de = document.getElementById('feDest'), f = [['fe_upcheck', '1'], ['fe_dest', de ? de.value.trim() : '']];     // "Stop and ask": the names first - no file is sent
-        sel.forEach(function (it) {
-            f.push(['fe_name[]', it.file.name]);  f.push(['fe_relpath[]', it.rel]);
-            f.push(['fe_size[]', String(it.file.size)]);  f.push(['fe_time[]', String(Math.round((it.file.lastModified || 0) / 1000))]);
-        });
+        var de = document.getElementById('feDest');     // "Stop and ask": the names first - no file is sent (one field: PHP's max_input_vars)
+        var f = [['fe_upcheck', '1'], ['fe_dest', de ? de.value.trim() : ''],
+                 ['fe_files', JSON.stringify(sel.map(function (it) { return [it.file.name, it.rel, it.file.size, Math.round((it.file.lastModified || 0) / 1000)]; }))]];
         busy = true;  send.disabled = true;
         window.feAsk(f, function (extra) { start(sel, extra); }, form.action, function () { busy = false;  summary(); });     // Cancel: nothing is sent
     });

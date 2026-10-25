@@ -224,11 +224,20 @@ function fe_conf_init() { // A taken name (POST fe_conf): ask (the answers per n
     $GLOBALS['fe_conf']= in_array($m, ['ask', 'rename', 'overwrite', 'skip'], true) ? $m : 'rename';
     $ch= json_decode((string)($_POST['fe_ch'] ?? ''), true);
     $GLOBALS['fe_ch']= is_array($ch) ? array_filter($ch, fn($v) => in_array($v, ['rename', 'overwrite', 'skip'], true)) : [];
+    $a= (string)($_POST['fe_chall'] ?? '');                       // The choice of All - for the names not in the list (more than the dialog shows)
+    $GLOBALS['fe_chall']= in_array($a, ['rename', 'overwrite', 'skip'], true) ? $a : 'rename';
 }
 
-function fe_choice($key) { // What to do with the taken name $key: rename / overwrite / skip - asked, but not answered (taken after the question): rename
+function fe_choice($key) { // What to do with the taken name $key: rename / overwrite / skip - asked, but not in the answers: the choice of All (none: rename)
     $m= $GLOBALS['fe_conf'] ?? 'rename';
-    return $m === 'ask' ? ($GLOBALS['fe_ch'][$key] ?? 'rename') : $m;
+    return $m === 'ask' ? ($GLOBALS['fe_ch'][$key] ?? $GLOBALS['fe_chall'] ?? 'rename') : $m;
+}
+
+function fe_made($path= null) { // Made by this request: a second item of the same name (two folders in the basket, twice in a ZIP) never replaces the first - null: is it?
+    static $made= [];
+    $k= strtolower(p2h_norm_path((string)$path));
+    if (func_num_args() === 2) { $made[$k]= 1;  return true; }
+    return isset($made[$k]);
 }
 
 function fe_check_answer($list) { // The precheck of "Stop and ask": the taken names as JSON - nothing is done
@@ -252,10 +261,12 @@ function fe_same($a, $b) { // The same file or folder (also with other upper / l
 
 function fe_old_away($path) { // Overwrite: the old file into the trash (without a trash: deleted) - false: it stays (a folder, a link, a protected file)
     if (!is_file($path) || is_link($path) || (empty($GLOBALS['fe_unlocked']) && !fe_name_allowed(basename($path)))) return false;
-    $tn= 0;  $ts= 0;
-    if (!fe_trash_put($path, $tn, $ts)) @unlink($path);
+    $tn= 0;  $ts= 0;  $GLOBALS['fe_trash_big']= false;
+    $inTrash= fe_trash_put($path, $tn, $ts);
+    if (!$inTrash) @unlink($path);
     if (file_exists($path)) return false;
-    $GLOBALS['fe_over'][]= basename($path);
+    if ($inTrash && !empty($GLOBALS['fe_trash_big'])) $GLOBALS['fe_gone'][]= basename($path);     // Bigger than the trash: deleted for good
+    else $GLOBALS['fe_over'][]= basename($path);
     return true;
 }
 
@@ -281,6 +292,8 @@ function fe_renamed_note() { // "<br>The name was taken - saved as: a.pdf &rarr;
         $out.= '<br>'.p2h_enc(lang('@The name was taken - saved as')).': '.$five(array_map(fn($p) => '<b>'.p2h_enc($p[0]).'</b> &rarr; <b>'.p2h_enc($p[1]).'</b>', $r));
     if ($o= $GLOBALS['fe_over'] ?? [])
         $out.= '<br>'.p2h_enc(lang(fe_trash_dir() !== false ? '@Overwritten - the old one is in the trash' : '@Overwritten')).': '.$five(array_map(fn($x) => '<b>'.p2h_enc($x).'</b>', $o));
+    if ($g= $GLOBALS['fe_gone'] ?? [])
+        $out.= '<br>'.p2h_enc(lang('@Overwritten - the old one was too big for the trash and is deleted')).': '.$five(array_map(fn($x) => '<b>'.p2h_enc($x).'</b>', $g));
     if ($k= $GLOBALS['fe_kept'] ?? [])
         $out.= '<br>'.p2h_enc(lang('@Skipped - the name was taken, the one there is kept')).': '.$five(array_map(fn($x) => '<b>'.p2h_enc($x).'</b>', $k));
     return $out;
@@ -348,7 +361,7 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
         $dst= $dest.'/'.basename($src);  $how= 'new';
         if (file_exists($dst) || is_link($dst)) {       // The name is taken: as chosen - a file against a folder (or a link): only "name (2)"
             $how= fe_choice(basename($src));
-            if (is_link($dst) || is_dir($dst) !== is_dir($src) || fe_same($dst, $src)) $how= 'rename';      // (a copy in its own folder: never over itself)
+            if (is_link($dst) || is_dir($dst) !== is_dir($src) || fe_same($dst, $src) || fe_made($dst)) $how= 'rename';      // (a copy in its own folder: never over itself - nor over what this request made)
             if ($how === 'rename') $dst= fe_unique($dst);
             elseif ($how === 'skip' && !is_dir($src)) { fe_kept($dst);  continue; }
         }
@@ -363,16 +376,16 @@ function fe_transfer($items, $dest, $op, &$n, &$skip) { // Copy or move files / 
         if ($op === 'move') {
             if (!fe_can_write(p2h_norm_path(dirname($src))) || (empty($fe_unlocked) && (basename($src)[0] === '.' || (!is_dir($src) && !fe_name_allowed(basename($src))))))
                 $skip++;
-            elseif ($merge) { fe_move_tree($src, $dst, $n, $skip);  if (!file_exists($src)) $done[]= $src; }
+            elseif ($merge) { fe_move_tree($src, $dst, $n, $skip);  if (!file_exists($src)) $done[]= $src;  fe_made($dst, true); }
             elseif ($how === 'overwrite' && !fe_old_away($dst)) $skip++;            // A protected file there: never replaced
-            elseif (@rename($src, $dst)) { $n++;  $done[]= $src;  fe_renamed($src, $dst); }
+            elseif (@rename($src, $dst)) { $n++;  $done[]= $src;  fe_renamed($src, $dst);  fe_made($dst, true); }
             else $skip++;
         } else {
             $size= is_dir($src) ? fe_dir_size($src) : filesize($src);
             if ($size > $room) { $skip++;  continue; }
             if ($how === 'overwrite' && !$merge && !fe_old_away($dst)) { $skip++;  continue; }
             fe_copy_tree($src, $dst, $n, $skip);
-            if (file_exists($dst)) fe_renamed($src, $dst);
+            if (file_exists($dst)) { fe_renamed($src, $dst);  fe_made($dst, true); }
             $room-= $size;
         }
         $GLOBALS['fe_merge']= '';
@@ -573,7 +586,7 @@ function fe_unzip($zip, $dest, $room, &$n, &$skip, $check= false) { // Unpack a 
             continue;
         }
         if (file_exists($target) || is_link($target)) {
-            $how= is_file($target) && !is_link($target) ? fe_choice($key) : 'rename';     // A folder or a link of that name: "name (2)"
+            $how= is_file($target) && !is_link($target) && !fe_made($target) ? fe_choice($key) : 'rename';     // A folder or a link of that name - or twice in the ZIP: "name (2)"
             if ($how === 'skip') { fe_kept($target);  continue; }
             if ($how === 'overwrite' && !fe_old_away($target)) { $skip++;  continue; }
             if ($how === 'rename') $target= fe_unique($target);
@@ -584,6 +597,7 @@ function fe_unzip($zip, $dest, $room, &$n, &$skip, $check= false) { // Unpack a 
         $total+= (int)stream_copy_to_stream($in, $out, $st['size']);      // Never more than the ZIP says (a false size in the ZIP)
         fclose($in);  fclose($out);
         @touch($target, $st['mtime']);
+        fe_made($target, true);
         $n++;
         fe_renamed(fe_clean_name(end($parts)), $target);
     }
@@ -2294,13 +2308,14 @@ if ($is_logged && isset($_POST['fe_upcheck'])) {      // "Stop and ask" before a
     $c= [];
     $upDest= fe_resolve_dest($_POST['fe_dest'] ?? '');       // A new destination folder: nothing is taken there
     if (fe_can('w') && csrf_verify() && $upDest !== false && fe_can_write($upDest)) {
-        $rels= (array)($_POST['fe_relpath'] ?? []);  $sizes= (array)($_POST['fe_size'] ?? []);  $times= (array)($_POST['fe_time'] ?? []);
-        foreach (array_slice((array)($_POST['fe_name'] ?? []), 0, 5000, true) as $i => $orig) {
-            $name= fe_clean_name((string)$orig);
-            if ($name === '' || !fe_name_allowed($name)) continue;
-            $dir= fe_rel_dir($upDest, is_string($rels[$i] ?? null) ? $rels[$i] : '', false);
+        $files= json_decode((string)($_POST['fe_files'] ?? ''), true);       // [[name, relative path, size, time], ...] - one field: max_input_vars cut a list of fields (250 files)
+        foreach (array_slice(is_array($files) ? $files : [], 0, 20000) as $f) {
+            if (!is_array($f) || !is_string($f[0] ?? null)) continue;
+            $name= fe_clean_name($f[0]);
+            if ($name === '' || substr(trim($f[0]), 0, 1) === '.' || !fe_name_allowed($name)) continue;      // Refused anyway (a hidden file)
+            $dir= fe_rel_dir($upDest, is_string($f[1] ?? null) ? $f[1] : '', false);
             if ($dir === false || (!file_exists($dir.'/'.$name) && !is_link($dir.'/'.$name))) continue;
-            $c[]= fe_conflict(ltrim(substr($dir.'/'.$name, strlen($upDest)), '/'), '', $dir.'/'.$name, (int)($sizes[$i] ?? 0), (int)($times[$i] ?? 0) ?: null);
+            $c[]= fe_conflict(ltrim(substr($dir.'/'.$name, strlen($upDest)), '/'), '', $dir.'/'.$name, (int)($f[2] ?? 0), (int)($f[3] ?? 0) ?: null);
         }
     }
     fe_check_answer($c);
@@ -2337,12 +2352,14 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
                 if (file_exists($target) || is_link($target)) {     // The name is taken: as chosen - a folder or a link of that name: "name (2)"
                     $how= is_file($target) && !is_link($target) ? fe_choice(ltrim(substr($target, strlen($upDest)), '/')) : 'rename';
                     if ($how === 'skip') { $kept[]= [$i, fe_show_path($target)];  fe_kept($target);  continue; }
+                    $g0= count($GLOBALS['fe_gone'] ?? []);
                     if ($how === 'overwrite' && !fe_old_away($target)) { $fail[]= [$i, $name, lang('@the file there can not be replaced')];  continue; }
+                    if ($how === 'overwrite' && count($GLOBALS['fe_gone'] ?? []) > $g0) $how= 'gone';     // Too big for the trash: deleted for good
                     if ($how === 'rename') $target= fe_unique($target);
                 }
                 if (move_uploaded_file($up['tmp_name'][$i], $target)) {
                     @chmod($target, 0644);  $used+= $size;
-                    $done[]= [$i, fe_show_path($target), $how === 'overwrite' ? 1 : 0];  continue;     // 1: the old file was replaced (into the trash)
+                    $done[]= [$i, fe_show_path($target), $how === 'overwrite' ? 1 : ($how === 'gone' ? 2 : 0)];  continue;     // 1: the old file was replaced (into the trash) - 2: deleted for good
                 }
                 $why= lang('@could not be saved');
             }
@@ -2352,7 +2369,7 @@ if ($is_logged && isset($_FILES['fe_upload'])) {     // Upload files from the us
     fe_log('@Upload', is_string($upDest ?? null) ? fe_show_path($upDest) : '',
            ($error > '' ? '✗ '.$error : count($done).' '.lang('@files').($done ? ': '.implode(', ', array_map(fn($d) => basename($d[1]), $done)) : '')).
            ($fail ? ' - '.lang('@Not uploaded').': '.implode(', ', array_map(fn($f) => $f[1].' ('.$f[2].')', $fail)) : '').
-           (!empty($fe_over) ? ' - '.lang('@Overwritten').': '.implode(', ', $fe_over) : '').
+           (!empty($fe_over) || !empty($fe_gone) ? ' - '.lang('@Overwritten').': '.implode(', ', array_merge($fe_over ?? [], $fe_gone ?? [])) : '').
            ($kept ? ' - '.lang('@Skipped - the name was taken, the one there is kept').': '.implode(', ', array_map(fn($k) => basename($k[1]), $kept)) : ''));
     if (is_string($upDest ?? null)) fe_size_forget($upDest);       // (the JSON answer has no fe_msg)
     if ($ajax) {
@@ -3277,7 +3294,7 @@ run_Script('
                 document.body.style.cursor= "";
                 var c= (j && j.c) || [];
                 if (!c.length) go([["fe_conf", "rename"]]);       /* Nothing taken */
-                else feAskDlg(c, function(ch) { go([["fe_conf", "ask"], ["fe_ch", JSON.stringify(ch)]]); }, stop);
+                else feAskDlg(c, function(ch, a) { go([["fe_conf", "ask"], ["fe_ch", JSON.stringify(ch)], ["fe_chall", a]]); }, stop);
             }).catch(function() { document.body.style.cursor= "";  sysAlert(feT.fail);  if (stop) stop(); });
     }
     function feAskDlg(c, ok, no) {   /* The taken names: the new one and the one there (size, date) - a choice per name, and one for all */
@@ -3292,6 +3309,7 @@ run_Script('
         b.appendChild(el("p", feT.q, "margin: 0 0 8px;"));
         var all= sel([["", "—"], ["rename", feT.rename], ["overwrite", feT.over], ["skip", feT.skip]], "");
         var al= el("label", feT.all + ": ", "display: block; margin-bottom: 8px; font-weight: 600;");  al.appendChild(all);  b.appendChild(al);
+        all.setAttribute("aria-label", feT.all);
         var wrap= el("div", undefined, "max-height: 50vh; overflow: auto;"), t= el("table", undefined, "border-collapse: collapse; width: 100%; font-size: 13px;");
         var hr= el("tr");  [feT.name, feT["new"], feT.there, feT["do"]].forEach(function(x) { hr.appendChild(el("th", x, "text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--grayColor);")); });
         t.appendChild(hr);
@@ -3303,6 +3321,7 @@ run_Script('
                 td.appendChild(el("br"));  td.appendChild(el("small", day(s[1]), bold ? "font-weight: 700;" : ""));  return td; };
             info(r.a, r.d, newer);  info(r.b, r.d, !newer && (r.b[1] || 0) > (r.a[1] || 0));
             var s= sel(opts(r), "rename");  if (r.x) s.disabled= true;
+            s.setAttribute("aria-label", feT["do"] + ": " + r.k);     /* A screen reader names the row */
             cell("").appendChild(s);
             rows.push([r, s]);  t.appendChild(tr);
         });
@@ -3319,8 +3338,7 @@ run_Script('
             if (!yes) { if (no) no();  return; }
             var ch= {};
             rows.forEach(function(p) { ch[p[0].k]= p[1].value; });
-            c.slice(shown.length).forEach(function(r) { ch[r.k]= r.x || !all.value ? "rename" : all.value; });     /* Not shown: as All */
-            ok(ch);
+            ok(ch, all.value || "rename");     /* The names not shown (and those the server did not list): the choice of All */
         };
         bc.onclick= function() { close(false); };  bo.onclick= function() { close(true); };
         d.addEventListener("cancel", function(e) { e.preventDefault();  close(false); });     /* Esc: nothing is done */

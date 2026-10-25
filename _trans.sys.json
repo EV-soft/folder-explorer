@@ -352,6 +352,7 @@
     "DateTime":"2022-06-17",
     "AppName":"PHP to HTML",
     "translation":{
+      "Overwritten - the old one was too big for the trash and is deleted":"Overskrevet - den gamle var for stor til papirkurven og er slettet",
       "<b>A taken name:</b> choose in the field A taken name - Stop and ask (you see the names and choose for each), a new name (name (2)), overwrite (the old file goes to the trash) or skip. Two folders are merged. The message tells what was done.":"<b>Navnesammenfald:</b> vælg i feltet Navnesammenfald - Stop og spørg (du ser navnene og vælger for hvert), nyt navn (navn (2)), overskriv (den gamle fil kommer i papirkurven) eller spring over. To mapper flettes. Beskeden fortæller, hvad der skete.",
       "Only safe names - a taken name as chosen in the field A taken name - in the shared folder: at most its free space":"Kun sikre navne - et navnesammenfald som valgt i feltet Navnesammenfald - i den fælles mappe: højst dens ledige plads",
       "A taken name: as chosen on the Transfer card - Stop and ask, name (2), overwrite (the old file into the trash) or skip - a protected file is never replaced":"Navnesammenfald: som valgt på kortet Overfør - Stop og spørg, navn (2), overskriv (den gamle fil i papirkurven) eller spring over - en beskyttet fil erstattes aldrig",
