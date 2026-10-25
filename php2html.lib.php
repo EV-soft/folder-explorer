@@ -1,4 +1,4 @@
-<?php  $DocFileLib='../php2html.lib.php';    $DocVerFile='1.9.1';    $DocRevFile='2026-10-24';      $DocIniFile='evs';  $ModNoFile=0; ## File informative only
+<?php  $DocFileLib='../php2html.lib.php';    $DocVerFile='1.9.2';    $DocRevFile='2026-10-25';      $DocIniFile='evs';  $ModNoFile=0; ## File informative only
 defined('P2H_VERSION') or define('P2H_VERSION', $DocVerFile);   # The library version. The library sets none of the page's own $DocVer / $DocRev / $DocFil / $©
 { ## Group ******************** System HEAD: **************************
 #   PHP to HTML generator - "Clever-Html-Engine" for front-end design, with lots of advanced features.
@@ -358,12 +358,12 @@ function htm_Input(# labl:'', icon:'', hint:'', plho:'@Enter...', vrnt:'text', n
     $fldName= trim(strip_tags(lang($labl))) ?: (trim(strip_tags(lang($hint))) ?: (trim(strip_tags(lang($plho))) ?: $name));   # No label: the hint, placeholder or name
     $eventInvalid= ' oninvalid="this.setCustomValidity('.sys_enc(json_encode(lang('@Wrong or missing data in ').$fldName.' !', JSON_UNESCAPED_UNICODE)).')" oninput="setCustomValidity(\'\')" ';   # (a ' in the label was a script error)
     $pattern= '';
-    $numPattern= ' pattern="^[^0-9\-]{0,4}\s?-?\d[\d\s.,]*\s?[^0-9]{0,4}$" ';   # Formatted numbers: "$ 1 234,50", "87 %", "-12.5"
+    $numPattern= ' pattern="^[^0-9\-]{0,15}\s?-?\d[\d\s.,]*\s?[^0-9]{0,15}$" ';   # Formatted numbers: "$ 1 234,50", "87 %", "-12.5", "1 234,50 kr/md" (a unit up to 15 characters - was 4: " kr/md" made the field's own value invalid)
 
     if ($disa==true) $aktiv=' disabled '; else $aktiv= '';
     # Number fields (dec0..2, num0..3): the value as formatted number - empty stays empty, a non-number is shown as typed
     $numVal= function($dec) use ($valu) {
-        $v= trim((string)$valu);
+        $v= trim(html_entity_decode((string)$valu, ENT_QUOTES, 'UTF-8'));    # $valu is escaped above - sys_enc() below once more gave "a&amp;amp;b"
         if ($v === '') return '';
         if (!preg_match('/\d/', $v)) return sys_enc($v);
         return number_format(sys_toFloat($v), $dec, DecimalSep, ThousandsSep);
@@ -489,7 +489,7 @@ function htm_Input(# labl:'', icon:'', hint:'', plho:'@Enter...', vrnt:'text', n
                             $i=0;
                             foreach ($list as $rec) { // $list= [['name','@Label','@ToolTip'], ['0:name',1:'@Label',2:'@ToolTip',3:state:'checked/selected',4:otherAttr (id="idxx")], ['@Label','@ToolTip'],...]
                                 $rec = array_pad($rec, 4, null); // Ensures that there are always at least 4 elements
-                                $on= isset($_POST[$rec[0]]) || ($valu == $rec[0]) || ($valu == 'checked') ||
+                                $on= isset($_POST[$rec[0]]) || ($valu === sys_enc((string)$rec[0])) || ($valu === 'checked') ||
                                      (is_string($rec[3]) && (stripos(' '.$rec[3], 'checked') > 0));
                                 $chk= $on ? ' checked ' : ' ';
                                 array_push($rec, '', '');   # Prevent error on $rec[3] / $rec[4]
@@ -504,8 +504,9 @@ function htm_Input(# labl:'', icon:'', hint:'', plho:'@Enter...', vrnt:'text', n
                              // $result.= '<input type= "checkbox" id="'.$rec[0].'" name="'.$rec[0].'" value="checked" '.$aktiv. (is_array($rec[3]) ? $rec[3][$i++][1] : $rec[3]).' '. $rec[4]. ' '.$valu.' style="width: 20px; box-shadow: none; scale:1.3;"/>'.
                                 $cid= sys_uid(preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$rec[0]) ?: 'chk');    # A unique, safe id (was the value itself)
                                 if (!isset($lblFirst)) $lblFirst= $cid;          # The group label points to the first box
-                                $result.= '<input type= "checkbox" id="'.$cid.'" name="'.sys_enc((string)$rec[0]).'" value="checked" '.$aktiv. $chk. $rec[4]. ' style="width: 20px; box-shadow: none; scale:1.3;"/>'.
-                                   '<label for="'.$cid.'" style="position: relative; top: 0px; width: min-content;'.$lpos.'">'.Lbl_Tip($rec[1],$rec[2],'','12px; box-shadow: none; '.$attr).'</label>';
+                                $attrCss= (strpos($attr, ':') !== false && strpos($attr, '=') === false);      # attr: attributes of each box (as documented) - CSS ("padding:0") styles the label, as before
+                                $result.= '<input type= "checkbox" id="'.$cid.'" name="'.sys_enc((string)$rec[0]).'" value="checked" '.$aktiv. $chk. $rec[4]. ($attrCss ? '' : ' '.$attr).' style="width: 20px; box-shadow: none; scale:1.3;"/>'.
+                                   '<label for="'.$cid.'" style="position: relative; top: 0px; width: min-content;'.$lpos.'">'.Lbl_Tip($rec[1],$rec[2],'','12px; box-shadow: none; '.($attrCss ? $attr : '')).'</label>';   # (was always in the label style: onchange="..." broke it)
                                  //  '<label for="'.$rec[0].'"                                              ">'.Lbl_Tip($rec[1],$rec[2],'','12px; box-shadow: none; '.$attr).'</label>';
                                 $result.= '</span>';
                              //   if ($rows=='1') $result.= '&nbsp;'; else $result.= '<br>';
@@ -514,7 +515,7 @@ function htm_Input(# labl:'', icon:'', hint:'', plho:'@Enter...', vrnt:'text', n
         case 'rado' : $result.= ## RADIO:
                             '<span class="fieldContent boxStyle" style="'.$bord.'"><small>';
                             foreach ($list as $rec) { // $list= [[0:'value',1:'Label',2:'@ToolTip',3:state:'checked/selected'], ['Label','@ToolTip'],...]
-                                if ($valu==$rec[0]) $chk= ' checked '; else $chk= ' ';
+                                if ($valu === sys_enc((string)($rec[0] ?? ''))) $chk= ' checked '; else $chk= ' ';   # $valu is escaped: "R&D" never matched - and == made "1" match "1.0"
                                     $rid= sys_uid($iid.'_'.(preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$rec[0]) ?: 'opt'));   # A unique, safe id (was the raw value)
                                     if (!isset($lblFirst)) $lblFirst= $rid;      # The group label points to the first button
                                     $result.= '<input type= "radio" id="'.$rid.'" name="'.$name.'" value="'.sys_enc((string)$rec[0]).'" '.
@@ -530,7 +531,7 @@ function htm_Input(# labl:'', icon:'', hint:'', plho:'@Enter...', vrnt:'text', n
                             foreach ($list as $rec) { # $list= [[0:value, 1:name, 2:@ToolTip, 3:state:'checked/selected', [...]]
                                 $ov= sys_enc((string)($rec[0] ?? ''));                 # Escaped like $valu (a " in a value or text broke the list)
                                 $result.= '<option '. 'title="'.sys_enc(strip_tags(lang($rec[2] ?? ''))).'" value="'.$ov.'" '.($rec[3] ?? '').' '.($rec[4] ?? ''); //  Firefox does not support Label !
-                                if ($ov==$valu) $result.= ' selected ';
+                                if ($ov === $valu) $result.= ' selected ';     # As strings: == selected "01" for "1" too (the browser showed the last one)
                                 $result.= '>'.sys_enc(strip_tags(lang($rec[1] ?? ''))).'</option> ';
                             }   $result.= '</select></small>'.($subm ?? '').'</span>';  break;
                             
@@ -1643,7 +1644,7 @@ function htm_Table(# capt:[ ], pref:[ ], body:[ ], suff:[ ], note:'', list:['','
             ## Special Output formats:
                 if (!($GLOBALS["Øshow"] ?? '')>0)
                     switch ($bdy[3]) { # OutFormat
-                        case '0d': if ($valu==null) $valu= 0;       else $valu= number_format(sys_toFloat($valu), 0,DecimalSep,ThousandsSep); break;
+                        case '0d': if ($valu===null or $valu==='') $valu='';  else $valu= number_format(sys_toFloat($valu), 0,DecimalSep,ThousandsSep); break;  # Empty: blank, as 1d / 2d (was 0: a missing value looked like a real 0)
                         case '1d': if ($valu===null or $valu==='') $valu='';  else $valu= number_format(sys_toFloat($valu), 1,DecimalSep,ThousandsSep); break;
                         case '2d': if ($valu==' ')  $valu= $valu;   else
                                         if ($valu===null or $valu==='') $valu='';  else $valu= number_format(sys_toFloat($valu), 2,DecimalSep,ThousandsSep); break;  //  88 888 888,88  (0 was shown blank: 0==null)
@@ -3468,13 +3469,15 @@ function htm_NotePad(# rtrn:false)
              '</div>'.
              '<script>
 (function(){    /* Notepad: auto-save (localStorage), "saved" state, download, clear; movable like the help window */
-  var KEY= "p2h-notepad", T= '.json_encode(['saved'=>strip_tags(lang('@Saved in this browser')), 'nostore'=>strip_tags(lang('@The notes cannot be saved in this browser')),
+  var OLD= "p2h-notepad", KEY= OLD + ":" + location.pathname.replace(/[^\/]*$/, "")'.(sys_loginUser() > '' ? ' + ":" + '.json_encode(substr(md5(sys_loginUser()), 0, 12)) : '').',     /* Per program folder (and user) - was one for the whole site: other programs and users saw the notes */
+      T= '.json_encode(['saved'=>strip_tags(lang('@Saved in this browser')), 'nostore'=>strip_tags(lang('@The notes cannot be saved in this browser')),
                                           'ask'=>strip_tags(lang('@Delete all notes?')), 'chars'=>strip_tags(lang('@characters'))]).';
   var win= document.getElementById("p2hNoteWin"), ta= win.querySelector(".p2hNoteText"), st= win.querySelector(".p2hNoteState"), timer= null, opener= null;
   function get()  { try { return localStorage.getItem(KEY) || ""; } catch(e) { return ""; } }
   function put(v) { try { if (v) localStorage.setItem(KEY, v); else localStorage.removeItem(KEY); return true; } catch(e) { return false; } }
   function mark() { document.querySelectorAll(".p2hNoteButt").forEach(function(b) { b.classList.toggle("hasNotes", get() !== ""); }); }
   function save() { st.textContent= put(ta.value) ? T.saved + " - " + ta.value.length + " " + T.chars : T.nostore;  mark(); }
+  try { if (!localStorage.getItem(KEY) && localStorage.getItem(OLD)) { localStorage.setItem(KEY, localStorage.getItem(OLD));  localStorage.removeItem(OLD); } } catch(e) {}     /* The notes of before: to the first program that opens them */
   ta.value= get();  mark();
   ta.addEventListener("input", function() { clearTimeout(timer);  timer= setTimeout(save, 400); });
   function show(b) { if (win.parentNode !== document.documentElement) document.documentElement.appendChild(win);
@@ -4337,7 +4340,7 @@ function htm_Chart(# capt:'', vrnt:'bar', data:[], mark:[], curr:null, unit:'', 
     $vhgh= '220px',         # string: The height of the drawing area
     $rtrn= false            # bool:   Return or echo result
 ) {
-    $vals= [];  foreach ((array)$data as $k => $v) if (is_numeric($v)) $vals[(string)$k]= (float)$v;
+    $vals= [];  foreach ((array)$data as $k => $v) if (is_numeric($v) && is_finite((float)$v)) $vals[(string)$k]= (float)$v;     # (NAN / INF - e.g. a division by 0 - drew NAN in the SVG: no chart at all)
     if (!$vals) { $result= '';  if (!$rtrn) echo $result;  return $result; }
     $W= 760;  $H= max(60, (int)$vhgh);  $L= 46;  $T= 8;  $B= 20;
     $max= $ymax ?? max(max($vals), 0.0);  $min= $ymin ?? min(0.0, min($vals));
@@ -4390,9 +4393,12 @@ function sys_login(# hash:'', pass:'', user:'', file:'')
     $user= '',              # string: The user name - kept in the session (sys_loginUser()); the wait counts per user name
     $file= ''               # string: The file that keeps the wrong tries (JSON) - '' : in the temp folder of the server, one per program folder
 ) {
-    $file= $file > '' ? $file : sys_get_temp_dir().'/p2h_login_'.md5(dirname($_SERVER['SCRIPT_FILENAME'] ?? __DIR__)).'.json';
-    $fp= @fopen($file, 'c+');
-    if ($fp) flock($fp, LOCK_EX);
+    $tmp=  sys_get_temp_dir().'/p2h_login_'.md5(dirname($_SERVER['SCRIPT_FILENAME'] ?? __DIR__)).'.json';
+    $fp= @fopen($file > '' ? $file : $tmp, 'c+');
+    if (!$fp && $file > '') { error_log('php2html sys_login: '.$file.' can not be opened - the temp folder is used');  $fp= @fopen($tmp, 'c+'); }
+    if (!$fp) { error_log('php2html sys_login: no file for the wrong tries - log-in refused');       # Without it there would be no wait at all (unlimited guessing)
+                return lang('@The log-in can not be checked now - try again later'); }
+    flock($fp, LOCK_EX);
     $all= $fp ? (json_decode((string)stream_get_contents($fp), true) ?: []) : [];
     $key= md5(mb_strtolower($user));  $me= $all[$key] ?? ['f' => 0, 'w' => 0];  $now= time();
     if (($me['w'] ?? 0) > $now)                                   { $res= sprintf(lang('@Locked after wrong passwords - try again at %s'), date('H:i:s', $me['w']));
@@ -4403,8 +4409,12 @@ function sys_login(# hash:'', pass:'', user:'', file:'')
     if (function_exists('p2h_audit')) p2h_audit($ev[0], '', $ev[1], $user > '' ? $user : '-');    # The activity log - when p2h_audit.inc.php is included
     $all[$key]= $me;
     foreach ($all as $k => $v) if (empty($v['f']) || ($v['w'] ?? 0) < $now - 86400) unset($all[$k]);   # Only the recent wrong tries are kept
-    if ($fp) { ftruncate($fp, 0);  rewind($fp);  fwrite($fp, json_encode($all));  flock($fp, LOCK_UN);  fclose($fp); }
-    if ($res === '') { session_regenerate_id(true);  $_SESSION['p2h_user']= $user > '' ? $user : '-';  $_SESSION['p2h_since']= $now; }
+    ftruncate($fp, 0);  rewind($fp);  fwrite($fp, json_encode($all));  flock($fp, LOCK_UN);  fclose($fp);
+    if ($res === '') {
+        if (!headers_sent()) session_regenerate_id(true);                                        # A new session id (fixation) - and a new CSRF token: the one of the page before the log-in is no longer valid
+        $_SESSION['csrf_token']= bin2hex(random_bytes(32));
+        $_SESSION['p2h_user']= $user > '' ? $user : '-';  $_SESSION['p2h_since']= $now;
+    }
     return $res;
 }
 
@@ -7295,6 +7305,7 @@ function sys_toFloat($v) {   # A number typed by a person: "1 234,50", "1.234,50
     if (is_int($v) or is_float($v)) return (float)$v;
     $s= str_replace([' ', "\u{00A0}", "\u{202F}", "'", '’'], '', trim((string)$v));   # Thousands separators: space, nbsp, narrow nbsp, ' (Swiss)
     if (!in_array(ThousandsSep, ['.', ','], true)) $s= str_replace(ThousandsSep, '', $s);
+    $s= preg_replace('/^[^\d,.\-]*\p{L}\./u', '', $s) ?? $s;                                  # "kr. 99", "ca. 3": the dot of the word is not a decimal point (gave 0.99 / 0.3)
     $neg= (bool)preg_match('/^[^\d]*\d.*-\s*$/', $s) && !preg_match('/-\s*\d/', $s);       # "1.234,50-": a minus after the number
     $c= substr_count($s, ',');  $d= substr_count($s, '.');
     if ($c && $d)  $s= strrpos($s, ',') > strrpos($s, '.') ? str_replace(['.', ','], ['', '.'], $s) : str_replace(',', '', $s);   # Both: the last one is the decimal sign
