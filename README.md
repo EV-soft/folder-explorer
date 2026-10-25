@@ -47,6 +47,18 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new in 2.4.1:
+- **Files without a known type** (`error_log`, `access_log.1`, `LICENSE` ...): the content decides - text is previewed, searched and
+  edited as text, with the text icon; binary files stay hex.
+- **Share links of a deleted account** are deleted with it (a new account of the same name got them back).
+- The cached ZIP of a shared folder no longer has the link token in its name (the temp folder may be shared on a web hotel).
+- Editor: one old version per file per 15 minutes goes into the trash (many saves pushed deleted files out of the trash) - and the
+  line ends most lines have are kept (one CRLF made all lines CRLF; CR-only files got LF).
+- Gallery: one thumbnail is made at a time (big photos at once could use a lot of memory on the server).
+- README: a download link to the newest boot file at the top.
+
+Updating from 2.4.0: replace `folder-explorer.php` and `_trans.sys.json`.
+
 ### What is new in 2.4.0:
 - **Share link** (file and folder menu): a link for people without an account - it works for 1, 7, 30 or `$fe_share_days` days
   (administrators: also without an end) and may have a password. A folder is fetched as one ZIP file. The link works only while
