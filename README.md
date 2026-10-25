@@ -42,10 +42,12 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
-### What is new (not released yet):
+### What is new in 2.3.3:
 - **The checked rows below the table:** how many - and the total size of the checked files, beside *All / None / Inverse*
   (folders are counted in Analyse mode).
 - README: the minimal installation, the requirements and the first log-in.
+
+Updating from 2.3.x: replace `folder-explorer.php` and `_trans.sys.json`.
 
 ### What is new in 2.3.2:
 - **Security (important):** a request with `csvFile=<name>` made the table write a file of that name in the program folder - any
