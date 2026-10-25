@@ -754,10 +754,20 @@ function fe_media_ok($file) { // Images, video, audio, fonts: shown everywhere -
     return true;
 }
 
-function fe_preview_kind($name, $text_ok, $media_ok= true) { // The kind of preview of a file - '' = none
+function fe_looks_text($path) { // The start of a file looks like text: no NUL byte, UTF-8 (or a byte order mark) - for files without a known extension: error_log, LICENSE, x.log.1
+    $h= @file_get_contents($path, false, null, 0, 4096);
+    if (!is_string($h)) return false;
+    if (strncmp($h, "\xFF\xFE", 2) === 0 || strncmp($h, "\xFE\xFF", 2) === 0) return true;          // UTF-16 with its mark (fe_bom() reads it)
+    if (strpos($h, "\0") !== false) return false;
+    if (strlen($h) === 4096) $h= substr($h, 0, strlen(mb_strcut($h, 0, 4093, 'UTF-8')));          // A character cut at the end of the 4 KB
+    return mb_check_encoding($h, 'UTF-8') || preg_match_all('/[\x00-\x08\x0E-\x1A\x1C-\x1F\x7F]/', $h) * 100 < strlen($h);   // Or old 8-bit text: few control characters
+}
+
+function fe_preview_kind($name, $text_ok, $media_ok= true, $path= '') { // The kind of preview of a file - '' = none - $path: an unknown type is looked at (text or hex)
     $ext= strtolower(pathinfo($name, PATHINFO_EXTENSION));
     if ($ext === '' && in_array(strtolower($name), ['makefile','dockerfile','license','readme'], true)) $ext= 'txt';
     $kind= FE_PV_MEDIA[$ext][0] ?? (in_array($ext, FE_PV_TXT, true) ? 'txt' : ($text_ok ? 'hex' : ''));    // Any other file: its first bytes (hex)
+    if ($kind === 'hex' && $path !== '' && fe_looks_text($path)) $kind= 'txt';                   // No type it knows - but the content is text (error_log ...)
     if (in_array($kind, ['img','video','audio','font'], true) && !$media_ok) return 'lock';
     if (in_array($kind, ['txt','pdf','zip','doc','table','arch'], true) && !$text_ok) return 'lock';
     return $kind;
@@ -1287,7 +1297,7 @@ function fe_edit_refused($file) { // Why the logged user may not edit the file $
     if (!is_file($file) || is_link($file)) return lang('@File not found');
     if (!fe_can('w') || !fe_can_write(p2h_norm_path(dirname($file))) || !fe_can_read($file) || !fe_name_allowed(basename($file)) || fe_program_file($file) || fe_is_trash($file))
         return lang('@This file can not be changed here');
-    if (fe_preview_kind(basename($file), true) !== 'txt') return lang('@Only text files can be edited');
+    if (fe_preview_kind(basename($file), true, true, $file) !== 'txt') return lang('@Only text files can be edited');
     if (filesize($file) > FE_EDIT_MAX) return lang('@The file is too big to be edited here (max. 2 MB)');
     return '';
 }
@@ -1320,7 +1330,7 @@ function fe_find($dir, $term, $content) { // Search the names below $dir - and t
             $seen++;
             $hit= $re ? preg_match($re, $f) === 1 : mb_stripos($f, $term, 0, 'UTF-8') !== false;
             $in=  null;
-            if (!$hit && $content && !$isDir && @filesize($p) <= FE_EDIT_MAX && fe_preview_kind($f, true) === 'txt' && fe_can_read($p)) {
+            if (!$hit && $content && !$isDir && @filesize($p) <= FE_EDIT_MAX && fe_preview_kind($f, true, true, $p) === 'txt' && fe_can_read($p)) {
                 $txt= @file_get_contents($p);
                 if (is_string($txt) && $txt !== '') $in= fe_find_hit($txt, $term);
             }
@@ -2423,7 +2433,8 @@ function p2h_fileExplore($path,$parentDir) {
         $can_dl=  fe_can_read($file_path);
         $dlUrl=   basename(__FILE__).'?dl='.rawurlencode(p2h_norm_path($file_path));
         // The file icon: preview when the mouse is over it (fePv script) - the file information of Analyse mode is shown below it
-        $pvKind= $is_link ? '' : fe_preview_kind($fld, $can_dl, $can_dl || fe_media_ok($file_path));
+        $pvKind= $is_link ? '' : fe_preview_kind($fld, $can_dl, $can_dl || fe_media_ok($file_path), $file_path);
+        if ($pvKind === 'txt' && $showType === 'File') { $icoc= 'far fa-file-alt colr4';  $showType= 'Text'; }      // No known type, but text (error_log ...)
         $ic= '<i class="'.$icoc.' feFileIc" data-pk="'.$pvKind.'" data-pn="'.p2h_enc($fld).'" data-ps="'.p2h_enc(html_entity_decode(p2h_nice_filesize($filesize_raw))).'" data-pm="'.$modif.'"'.
              ($pvKind > '' && $pvKind !== 'lock' ? ' data-pv="'.p2h_enc(basename(__FILE__).'?pv='.rawurlencode(p2h_norm_path($file_path)).'&v='.$ftime).'"' : '').'></i>';
         // The file name: a menu when the mouse rests on it (fe-preview.js) - only the actions the user may do
@@ -2434,7 +2445,7 @@ function p2h_fileExplore($path,$parentDir) {
               'w'=>$can_write_here && fe_can('w') ? 1 : 0,                                                              // New folder here
               'o'=>($pvKind > '' && $pvKind !== 'lock') ? basename(__FILE__).'?pv='.rawurlencode(p2h_norm_path($file_path)).'&v='.$ftime.($pvKind === 'table' ? '&raw=1' : '') : '',
               'd'=>$can_dl ? $dlUrl : '',
-              'x'=>$fe_x= $wr_file && $filesize_raw <= FE_EDIT_MAX && fe_preview_kind($fld, true) === 'txt' && !fe_program_file($file_path) ? 1 : 0,   // Edit (a text file)
+              'x'=>$fe_x= $wr_file && $filesize_raw <= FE_EDIT_MAX && fe_preview_kind($fld, true, true, $file_path) === 'txt' && !fe_program_file($file_path) ? 1 : 0,   // Edit (a text file)
               'h'=>$fe_x && $GLOBALS['fe_tinymce_url'] !== '' && in_array(strtolower($ext), ['html', 'htm', 'xhtml'], true) ? 1 : 0,                  // Edit with TinyMCE (HTML)
               'l'=>!$is_link && fe_share_may_make(p2h_norm_path($file_path)) ? 1 : 0];                                                 // Share link
         $nm= '<span class="feBp" data-bp="'.p2h_enc(p2h_norm_path($file_path)).'" hidden></span><span class="feFileName" tabindex="0" role="button" aria-haspopup="menu" data-fm="'.p2h_enc(json_encode($fm, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)).'">'.p2h_enc($fld).'</span>';
@@ -2678,7 +2689,7 @@ if ($is_logged && isset($_GET['pv'])) {                // Hover preview of a fil
     $file= realpath((is_string($_GET['pv']) ? $_GET['pv'] : ''));
     $kind= '';
     if ($file !== false && is_file($file) && fe_in_dir(p2h_norm_path($file), $root_path)) {
-        $kind= fe_preview_kind(basename($file), fe_can_read($file), fe_media_ok($file));
+        $kind= fe_preview_kind(basename($file), fe_can_read($file), fe_media_ok($file), $file);
     }
     while (ob_get_level()) ob_end_clean();
     header('X-Content-Type-Options: nosniff');
