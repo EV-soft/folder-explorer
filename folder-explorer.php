@@ -1317,7 +1317,9 @@ $p2h_Style = '
     [data-theme="dark"] .fePmItem.fePmDel, [data-theme="dark"] .fePmItem.fePmDel i { color: #ff7a8a; }
     /* Nice to know: sections in columns */
     .feSelDest { display: block; margin: 4px 0 2px; color: #555; }
-    .feSelSum { display: inline-block; margin: 0 8px; font-weight: 600; color: #1a5e8a; vertical-align: middle; }
+    .feSelSum { display: block; margin: 6px 2px 0; font-weight: 600; color: #1a5e8a; line-height: 1.4; }
+    .feSelSum:empty { display: none; }
+    .feSelSum div:not(:first-child) { font-weight: normal; padding-left: 10px; }
     [data-theme="dark"] .feSelSum { color: #8ec5ea; }
     .feNice { columns: 2 340px; column-gap: 22px; font-size: 12.5px; line-height: 1.45; }
     .feNiceSec { break-inside: avoid; margin-bottom: 8px; }
@@ -3229,11 +3231,14 @@ run_Script('
             if (fn) nf++;  else { nd++;  if (isNaN(n)) nu++; }
             if (!isNaN(n)) b+= n;
         });
-        if (!nf && !nd) { out.textContent= "";  return; }
+        if (!nf && !nd) { out.replaceChildren();  return; }
         var u= ["B", "KB", "MB", "GB", "TB"], i= 0, v= b;  while (v >= 1024 && i < 4) { v/= 1024;  i++; }
-        out.textContent= (nf + nd) + " " + S.chk + ": " + (nf ? nf + " " + (nf === 1 ? S.file : S.files) : "") + (nf && nd ? ", " : "") +
-                         (nd ? nd + " " + (nd === 1 ? S.folder : S.folders) : "") + " - " + (i ? v.toLocaleString(undefined, {maximumFractionDigits: 2}) : v) + " " + u[i] +
-                         (nu ? " (" + S.nc + ")" : "");
+        var L= [(nf + nd) + " " + S.chk];      /* A column below the 4 buttons: one fact per line */
+        if (nf) L.push(nf + " " + (nf === 1 ? S.file : S.files));
+        if (nd) L.push(nd + " " + (nd === 1 ? S.folder : S.folders));
+        L.push((i ? v.toLocaleString(undefined, {maximumFractionDigits: 2}) : v) + " " + u[i]);
+        if (nu) L.push("(" + S.nc + ")");
+        out.replaceChildren.apply(out, L.map(function(t) { var d= document.createElement("div");  d.textContent= t;  return d; }));
         out.title= b.toLocaleString() + " B";
     }
     document.addEventListener("change", function(e) { if (e.target.matches && e.target.matches("table input[type=checkbox]")) feSelSum(); });
