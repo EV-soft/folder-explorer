@@ -3001,185 +3001,6 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         htm_nl(1);
     }
 
-    ### TRANSFER: the folders the user may write in, the basket (source -> destination), upload from the PC
-    if ($is_logged) {
-        $rootRel=  function($d) use ($root_path) { $r= ltrim(substr($d, strlen($root_path)), '/');  return $r === '' ? '/' : $r; };
-        $maxFile=  min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX,
-                       (fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX) - 65536);     // post_max_size: the whole request - room for the other fields (as fe-upload.js)
-        htm_Card_(capt:'@Transfer',icon:'fas fa-exchange-alt',hint:'@Collect files and folders in the basket, and copy or move them to another folder - upload from your PC and download to it',
-                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
-            if (fe_is_admin()) {    // Remove / restore the restrictions - admins only: a lock icon among the card's tool icons
-                $ulHint= $fe_unlocked ? lang('@<b>RESTRICTIONS REMOVED:</b> Click to restore the restrictions')
-                                      : lang('@<b>REMOVE RESTRICTIONS:</b> see and change the whole account, any file type, no quota - only for you, only in this session');
-                // The form (also the button without JavaScript):
-                echo '<div id="feUnlockBox" style="float: right; margin: 0 10px 4px 8px;">'.
-                        '<form id="feUnlockForm" method="post" action="'.basename(__FILE__).'" style="display:inline;">'.csrf_field(true).
-                        '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
-                        '<input type="hidden" name="fe_unlock" value="'.($fe_unlocked ? '0' : '1').'">'.
-                        '<button type="submit" class="txtbutt" style="border-radius: 54px; padding: 2px 12px; color: #b00020; background: ivory;">'.
-                            '<i class="fas fa-'.($fe_unlocked ? 'lock' : 'unlock').'"></i> '.p2h_enc(lang($fe_unlocked ? '@Restore restrictions' : '@Remove restrictions')).'</button>'.
-                        '</form>'.
-                     '</div>';
-                // The tool icon - moved into the card header beside the other tool icons:
-                echo '<abbr class="hint p2hCtrlHint" id="feUnlockTool" hidden>'.
-                        '<ic class="fas fa-'.($fe_unlocked ? 'lock-open' : 'lock').'" role="button" tabindex="0" '.
-                            'aria-label="'.p2h_enc(strip_tags($ulHint)).'" '.
-                            'style="height:12px; margin:5px 8px 0 0; font-size: 13px; cursor: pointer; color: '.($fe_unlocked ? '#d00000' : '#555').';"></ic>'.
-                        '<data-hint>'.$ulHint.'</data-hint>'.
-                     '</abbr>'.
-                     '<script>(function(){'.
-                        'var t= document.getElementById("feUnlockTool"), f= document.getElementById("feUnlockForm"), box= document.getElementById("feUnlockBox");'.
-                        'var card= t.closest("[id^=card]"), head= card && card.querySelector("[id^=chead]");'.
-                        'if (!head) return;'.
-                        'var tools= head.querySelectorAll("abbr.p2hCtrlHint"), last= tools[tools.length - 1];'.
-                        'head.insertBefore(t, last ? last.nextSibling : null);     /* floats right: after the last one = left of the group */'.
-                        't.hidden= false;  box.style.display= "none";'.
-                        't.querySelector("ic").addEventListener("click", function(e) {'.
-                            'e.stopPropagation();     /* not the card header click */'.
-                            ($fe_unlocked ? 'f.submit();' : 'var q= '.p2h_js(lang('@Remove the restrictions for this session?')).';'.
-                                              'if (typeof sysConfirm === "function") sysConfirm(q, function(){ f.submit(); });  else if (confirm(q)) f.submit();').
-                        '});'.
-                     '})();</script>';
-                if ($fe_unlocked)
-                    echo '<div class="p2hAlert p2hAlert-error" style="margin: 4px 10px 8px;" role="alert">'.
-                            '<i class="fas fa-lock-open"></i> <b>'.p2h_enc(lang('@Restrictions removed')).'</b> - '.
-                            p2h_enc(lang('@you can see and download everything below')).' <b>'.p2h_enc($root_path).'</b>, '.
-                            p2h_enc(lang('@and write everywhere - any file type (not hidden files), with no size limit or quota of its own. Only for you, only in this session.')).
-                            ' '.p2h_enc(lang('@Restore them with the lock icon in the card header.')).
-                         '</div>';
-            }
-            $wd= fe_write_dirs();
-            $destDef= $can_write_here ? $currPath : ($wd[0] ?? '');      // The destination: the folder you are in - else the first write folder
-            echo '<div class="feXfer">';
-            // Where the user may write
-            echo '<div class="feXfRow"><abbr class="hint"><b>'.p2h_enc(lang('@You may write in')).':</b><data-hint>'.p2h_enc(lang('@The folders your account may write in: upload, copy / move to, create ZIP and new folders - click one to open it')).'</data-hint></abbr> ';
-            if (!$wd) echo '<i>'.p2h_enc(lang('@nothing - your account can only read')).'</i>';
-            foreach ($wd as $d)
-                echo '<a href="'.basename(__FILE__).'?show='.urlencode($d).'" class="txtbutt feXfDir"><i class="far fa-folder colr0"></i> '.p2h_enc($rootRel($d)).'</a> ';
-            echo $can_write_here ? ' <abbr class="hint"><small class="feXfHere"><i class="fas fa-check"></i> '.p2h_enc(lang('@also here')).'</small><data-hint>'.p2h_enc(lang('@You may also write in the folder you are in now - it is the destination, unless you choose another')).'</data-hint></abbr>' : '';
-            echo '</div>';
-            if ($wd && fe_can('w')) {      // Where uploads and the basket go - typed or chosen, it need not be the folder you are in
-                $opts= array_unique(array_merge($can_write_here ? [$currPath] : [], $wd));
-                echo '<div class="feXfRow feXfDestRow"><label for="feDest"><i class="fas fa-arrow-right"></i> <b>'.p2h_enc(lang('@Destination')).'</b>:</label> '.
-                     '<input type="text" id="feDest" list="feDestOpts" autocomplete="off" value="'.p2h_enc(fe_show_path($destDef)).'" '.
-                        'aria-describedby="feDestTip" placeholder="'.p2h_enc(lang('@a folder you may write in')).'"> '.
-                     '<datalist id="feDestOpts">'.implode('', array_map(fn($d) => '<option value="'.p2h_enc(fe_show_path($d)).'">', $opts)).'</datalist>'.
-                     ' <small id="feDestTip">'.p2h_enc(lang('@for upload and the basket - choose or type a folder you may write in')).'</small></div>';
-                $confOpts= ['ask' => '@Stop and ask', 'rename' => '@New name - name (2)',
-                            'overwrite' => fe_trash_dir() !== false ? '@Overwrite - the old one into the trash' : '@Overwrite', 'skip' => '@Skip - keep the one there'];
-                echo '<div class="feXfRow"><label for="feConf"><i class="far fa-clone"></i> <b>'.p2h_enc(lang('@A taken name')).'</b>:</label> '.
-                     '<select id="feConf" aria-describedby="feConfTip">'.implode('', array_map(fn($k, $l) => '<option value="'.$k.'">'.p2h_enc(lang($l)).'</option>', array_keys($confOpts), $confOpts)).'</select>'.
-                     ' <small id="feConfTip">'.p2h_enc(lang('@when copy, move, unpack or upload meets a name that is there already - a folder is merged')).'</small></div>'.
-                     '<script>(function(){ var s= document.getElementById("feConf"), v= "ask";'.      // Remembered in this browser - "Stop and ask" first
-                        'try { v= localStorage.getItem("feConf") || "ask"; } catch (e) {}'.
-                        'if (s.querySelector("option[value=\'" + v + "\']")) s.value= v;'.
-                        's.addEventListener("change", function(){ try { localStorage.setItem("feConf", s.value); } catch (e) {} });'.
-                     '})();</script>';
-            }
-
-            // The basket
-            echo '<div class="feXfRow feBasket"><b><i class="fas fa-shopping-basket"></i> '.p2h_enc(lang('@Basket')).'</b> ';
-            $chkBtn= '<button type="button" class="txtbutt feXfBtn" onclick="feBasketChecked()"><i class="far fa-check-square"></i> '.p2h_enc(lang('@Put the checked rows in the basket')).'</button>';
-            if (!$basket)
-                echo '<small>'.p2h_enc(lang('@empty - put files in it with the file menu (rest the mouse on a file name), or check rows in the table:')).'</small> '.$chkBtn;
-            else {
-                $bSize= 0;  $bDirs= 0;
-                echo '<table class="feBkList">';
-                foreach ($basket as $b) {
-                    $isDir= is_dir($b);
-                    if ($isDir) $bDirs++; else $bSize+= (int)@filesize($b);
-                    echo '<tr><td><i class="'.($isDir ? 'far fa-folder colr0' : 'far fa-file').'"></i></td>'.
-                         '<td><a href="'.basename(__FILE__).'?show='.urlencode(dirname($b)).'">'.p2h_enc($fe_unlocked ? $b : basename($root_path).'/'.ltrim(substr($b, strlen($root_path)), '/')).'</a></td>'.   // Unlocked: the whole path (which drive / account folder)
-                         '<td class="feBkSize">'.($isDir ? p2h_enc(lang('@folder')) : p2h_nice_filesize((int)@filesize($b))).'</td>'.
-                         '<td>'.fe_hint('<button type="button" class="feBkDel" onclick="feBasket(\'remove\', ['.p2h_enc(p2h_js($b)).'])" aria-label="'.p2h_enc(lang('@Take out of the basket')).'">'.
-                                '<i class="fas fa-times"></i></button>', p2h_enc(lang('@Take out of the basket'))).'</td></tr>';
-                }
-                echo '</table>';
-                echo '<div class="feXfSum">'.count($basket).' '.p2h_enc(lang('@in the basket')).' - '.p2h_nice_filesize($bSize).
-                     ($bDirs ? ' + '.$bDirs.' '.p2h_enc(lang('@folders')) : '').'</div>';
-                $why= lang('@Your account may not change files');
-                $off= ($wd && fe_can('w')) ? '' : ' disabled';
-                $btn= function($op, $icon, $labl, $hint, $dis= '') {
-                    return fe_hint('<button type="button" class="txtbutt feXfBtn"'.$dis.' onclick="feBasket(\''.$op.'\')"><i class="'.$icon.'"></i> '.p2h_enc(lang($labl)).'</button>', p2h_enc($hint));
-                };
-                echo $btn('copy', 'fas fa-copy', '@Copy to the destination', $off ? $why : lang('@Copy everything in the basket to the destination folder (above) - the basket is kept'), $off).
-                     $btn('move', 'fas fa-dolly', '@Move to the destination', $off ? $why : lang('@Move everything in the basket to the destination folder (above) - from folders you may write in'), $off).
-                     $btn('zip', 'fas fa-file-archive', '@Download as ZIP', lang('@One ZIP file with everything in the basket you may read - to your PC')).
-                     $btn('clear', 'fas fa-times', '@Empty the basket', lang('@Take everything out of the basket - nothing is deleted')).' '.$chkBtn;
-            }
-            echo '</div>';
-
-            // Upload from the PC to the current folder
-            echo '<div class="feXfRow">';
-            if ($wd && fe_can('w')) {
-                $used= $exch_path !== false ? fe_dir_size($exch_path) : 0;
-                // Settings and texts for fe-upload.js (the form also works without JavaScript: plain file field + submit)
-                $feCfg= [
-                    'maxFile'   => $maxFile,
-                    'quotaLeft' => 1e18,       // The server checks the quota of the shared folder for the destination chosen
-                    'maxCount'  => max(1, (int)ini_get('max_file_uploads') ?: 20),
-                    'maxPost'   => fe_ini_bytes(ini_get('post_max_size')) ?: 8 * 1024 * 1024,
-                    'deny'      => $fe_unlocked ? '(?!)' : FE_DENY_EXT,     // (?!) never matches: all types allowed
-                    'strict'    => !$fe_unlocked,
-                    'txt'       => array_map('lang', [
-                        'type'    => '@this file type is not allowed',
-                        'folder'  => '@the folder name is not allowed',
-                        'big'     => '@the file is too large',
-                        'quota'   => '@The selected files are larger than the free space in the shared folder',
-                        'ready'   => '@ready',
-                        'sending' => '@uploading...',
-                        'saved'   => '@uploaded as',
-                        'uploaded'=> '@uploaded',
-                        'server'  => '@the server refused the upload',
-                        'files'   => '@files selected',
-                        'none'    => '@No files selected yet',
-                        'done'    => '@Finished',
-                        'show'    => '@Show the folder',
-                        'name'    => '@File',
-                        'size'    => '@Size',
-                        'status'  => '@Status',
-                        'all'     => '@Select / deselect all',
-                        'kept'    => '@skipped - the name was taken, the one there is kept',
-                        'over'    => '@overwritten',
-                        'overT'   => '@overwritten - the old one is in the trash',
-                    ]),
-                ];
-                echo '<b><i class="fas fa-cloud-upload-alt"></i> '.p2h_enc(lang('@Upload from your PC')).' <i class="fas fa-arrow-right"></i> '.p2h_enc(lang('@the destination (above)')).'</b><br><small>'.
-                        ($exch_path !== false && !$fe_unlocked ? p2h_enc(lang('@Shared folder')).' '.p2h_enc(fe_show_path($exch_path)).': '.p2h_nice_filesize($used).' '.p2h_enc(lang('@of')).' '.p2h_nice_filesize($fe_exchange_quota).' &nbsp;-&nbsp; ' : '').
-                        p2h_enc(lang('@Max per file')).': '.p2h_nice_filesize($maxFile).
-                        ' &nbsp;-&nbsp; '.p2h_enc($fe_unlocked ? lang('@All file types allowed - except hidden files') : lang('@Not allowed: server scripts (.php ...) and hidden files')).
-                        ' &nbsp;-&nbsp; '.p2h_enc(lang('@A ZIP file is unpacked with the file menu: Unpack here')).'</small>';
-                echo '<form id="feUpload" method="post" enctype="multipart/form-data" action="'.basename(__FILE__).'?show='.urlencode($currPath).'" '.
-                           'data-cfg="'.p2h_enc(json_encode($feCfg)).'" style="margin: 6px 0;">'.
-                         csrf_field(true).
-                         '<div id="feDrop" class="fe-drop">'.
-                            '<i class="fas fa-cloud-upload-alt fa-2x colr9"></i><br>'.
-                            p2h_enc(lang('@Drag files or folders from your PC here - or')).'<br>'.
-                            '<label class="txtbutt fe-pick"><input type="file" name="fe_upload[]" id="feFiles" multiple>'.
-                                '<i class="far fa-file"></i> '.p2h_enc(lang('@Choose files')).'</label> '.
-                            '<label class="txtbutt fe-pick fe-js"><input type="file" id="feFolder" webkitdirectory multiple>'.
-                                '<i class="far fa-folder colr0"></i> '.p2h_enc(lang('@Choose a folder')).'</label>'.
-                         '</div>'.
-                         '<div id="feList" class="fe-list" aria-live="polite"></div>'.
-                         '<button type="submit" id="feSend" class="txtbutt" style="border-radius: 54px; height: 30px; background-color: ivory; padding: 0 15px;">'.
-                            '<i class="fas fa-upload"></i> '.p2h_enc(lang('@Upload')).'</button> '.
-                         '<button type="button" id="feClear" class="txtbutt fe-js" style="border-radius: 54px; height: 30px; padding: 0 15px;">'.
-                            '<i class="fas fa-times"></i> '.p2h_enc(lang('@Clear list')).'</button> '.
-                         '<input type="hidden" name="fe_dest" value="'.p2h_enc(fe_show_path($destDef)).'">'.     // (without JavaScript: the default destination)
-
-                         '<progress id="feProg" max="100" value="0" hidden style="width: 200px; vertical-align: middle;"></progress> '.
-                         '<span id="feSum"></span>'.
-                     '</form>'.
-                     '<script src="fe-upload.js?v='.@filemtime(__DIR__.'/fe-upload.js').'" defer></script>';
-            }
-            elseif (fe_can('w')) echo '<small><i>'.p2h_enc(lang('@Your account has no folder to write in.')).'</i></small>';
-            else echo '<small><i>'.p2h_enc(lang('@Your account can only read: view and download where it may - and download the basket as a ZIP.')).'</i></small>';
-            echo '</div>';
-            echo '</div>';     // feXfer
-        htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
-        htm_nl(1);
-    }
-
     htm_Card_(capt:'@Folder content',icon:'fas fa-folder-open',hint: '',form:'xxx',acti:'',clas:'cardWmax',
                 wdth:'800px',styl:'background-color: white;',attr:'', show:true, head: 'background-color: white;');
     echo '<small>';
@@ -3430,7 +3251,7 @@ run_Script('
         var ask= typeof sysPrompt === "function" ? sysPrompt : function(q, fn) { var v= prompt(q);  if (v !== null) fn(v); };
         ask('.p2h_js(lang('@Name of the new folder:')).', function(v) { if (v && String(v).trim()) fePost([["fe_act", "mkdir"], ["fe_name", ""], ["fe_to", String(v).trim()]]); });
     }
-    function feHelp() {          /* Program menu: the tab Nice to know below the table - its card opened first */
+    function feHelp() {          /* Program menu: the tab Nice to know in the card Manual - the card opened first */
         var b= document.querySelector(".p2hTabs button[onclick*=nice]"), card= b && b.closest("[id^=card]"), open= card && window["CardMaximize" + card.id.slice(4)];
         if (typeof open === "function") open();
         if (b) { b.click();  b.scrollIntoView({block: "center"}); }
@@ -3519,6 +3340,194 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
 
 // arrPretty($selected,'Selected:');
 // arrPretty($ChkBoxes,'ChkBoxes:');
+
+    echo '</small>';
+    htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);     // Folder content: the table - the transfer and the manual are cards of their own below it
+    htm_nl(1);
+
+    ### TRANSFER: the folders the user may write in, the basket (source -> destination), upload from the PC
+    if ($is_logged) {
+        $rootRel=  function($d) use ($root_path) { $r= ltrim(substr($d, strlen($root_path)), '/');  return $r === '' ? '/' : $r; };
+        $maxFile=  min($fe_unlocked ? PHP_INT_MAX : $fe_max_upload, fe_ini_bytes(ini_get('upload_max_filesize')) ?: PHP_INT_MAX,
+                       (fe_ini_bytes(ini_get('post_max_size')) ?: PHP_INT_MAX) - 65536);     // post_max_size: the whole request - room for the other fields (as fe-upload.js)
+        htm_Card_(capt:'@Transfer',icon:'fas fa-exchange-alt',hint:'@Collect files and folders in the basket, and copy or move them to another folder - upload from your PC and download to it',
+                  form:'',acti:'',clas:'cardW800',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'');
+            if (fe_is_admin()) {    // Remove / restore the restrictions - admins only: a lock icon among the card's tool icons
+                $ulHint= $fe_unlocked ? lang('@<b>RESTRICTIONS REMOVED:</b> Click to restore the restrictions')
+                                      : lang('@<b>REMOVE RESTRICTIONS:</b> see and change the whole account, any file type, no quota - only for you, only in this session');
+                // The form (also the button without JavaScript):
+                echo '<div id="feUnlockBox" style="float: right; margin: 0 10px 4px 8px;">'.
+                        '<form id="feUnlockForm" method="post" action="'.basename(__FILE__).'" style="display:inline;">'.csrf_field(true).
+                        '<input type="hidden" name="show" value="'.p2h_enc($currPath).'">'.
+                        '<input type="hidden" name="fe_unlock" value="'.($fe_unlocked ? '0' : '1').'">'.
+                        '<button type="submit" class="txtbutt" style="border-radius: 54px; padding: 2px 12px; color: #b00020; background: ivory;">'.
+                            '<i class="fas fa-'.($fe_unlocked ? 'lock' : 'unlock').'"></i> '.p2h_enc(lang($fe_unlocked ? '@Restore restrictions' : '@Remove restrictions')).'</button>'.
+                        '</form>'.
+                     '</div>';
+                // The tool icon - moved into the card header beside the other tool icons:
+                echo '<abbr class="hint p2hCtrlHint" id="feUnlockTool" hidden>'.
+                        '<ic class="fas fa-'.($fe_unlocked ? 'lock-open' : 'lock').'" role="button" tabindex="0" '.
+                            'aria-label="'.p2h_enc(strip_tags($ulHint)).'" '.
+                            'style="height:12px; margin:5px 8px 0 0; font-size: 13px; cursor: pointer; color: '.($fe_unlocked ? '#d00000' : '#555').';"></ic>'.
+                        '<data-hint>'.$ulHint.'</data-hint>'.
+                     '</abbr>'.
+                     '<script>(function(){'.
+                        'var t= document.getElementById("feUnlockTool"), f= document.getElementById("feUnlockForm"), box= document.getElementById("feUnlockBox");'.
+                        'var card= t.closest("[id^=card]"), head= card && card.querySelector("[id^=chead]");'.
+                        'if (!head) return;'.
+                        'var tools= head.querySelectorAll("abbr.p2hCtrlHint"), last= tools[tools.length - 1];'.
+                        'head.insertBefore(t, last ? last.nextSibling : null);     /* floats right: after the last one = left of the group */'.
+                        't.hidden= false;  box.style.display= "none";'.
+                        't.querySelector("ic").addEventListener("click", function(e) {'.
+                            'e.stopPropagation();     /* not the card header click */'.
+                            ($fe_unlocked ? 'f.submit();' : 'var q= '.p2h_js(lang('@Remove the restrictions for this session?')).';'.
+                                              'if (typeof sysConfirm === "function") sysConfirm(q, function(){ f.submit(); });  else if (confirm(q)) f.submit();').
+                        '});'.
+                     '})();</script>';
+                if ($fe_unlocked)
+                    echo '<div class="p2hAlert p2hAlert-error" style="margin: 4px 10px 8px;" role="alert">'.
+                            '<i class="fas fa-lock-open"></i> <b>'.p2h_enc(lang('@Restrictions removed')).'</b> - '.
+                            p2h_enc(lang('@you can see and download everything below')).' <b>'.p2h_enc($root_path).'</b>, '.
+                            p2h_enc(lang('@and write everywhere - any file type (not hidden files), with no size limit or quota of its own. Only for you, only in this session.')).
+                            ' '.p2h_enc(lang('@Restore them with the lock icon in the card header.')).
+                         '</div>';
+            }
+            $wd= fe_write_dirs();
+            $destDef= $can_write_here ? $currPath : ($wd[0] ?? '');      // The destination: the folder you are in - else the first write folder
+            echo '<div class="feXfer">';
+            // Where the user may write
+            echo '<div class="feXfRow"><abbr class="hint"><b>'.p2h_enc(lang('@You may write in')).':</b><data-hint>'.p2h_enc(lang('@The folders your account may write in: upload, copy / move to, create ZIP and new folders - click one to open it')).'</data-hint></abbr> ';
+            if (!$wd) echo '<i>'.p2h_enc(lang('@nothing - your account can only read')).'</i>';
+            foreach ($wd as $d)
+                echo '<a href="'.basename(__FILE__).'?show='.urlencode($d).'" class="txtbutt feXfDir"><i class="far fa-folder colr0"></i> '.p2h_enc($rootRel($d)).'</a> ';
+            echo $can_write_here ? ' <abbr class="hint"><small class="feXfHere"><i class="fas fa-check"></i> '.p2h_enc(lang('@also here')).'</small><data-hint>'.p2h_enc(lang('@You may also write in the folder you are in now - it is the destination, unless you choose another')).'</data-hint></abbr>' : '';
+            echo '</div>';
+            if ($wd && fe_can('w')) {      // Where uploads and the basket go - typed or chosen, it need not be the folder you are in
+                $opts= array_unique(array_merge($can_write_here ? [$currPath] : [], $wd));
+                echo '<div class="feXfRow feXfDestRow"><label for="feDest"><i class="fas fa-arrow-right"></i> <b>'.p2h_enc(lang('@Destination')).'</b>:</label> '.
+                     '<input type="text" id="feDest" list="feDestOpts" autocomplete="off" value="'.p2h_enc(fe_show_path($destDef)).'" '.
+                        'aria-describedby="feDestTip" placeholder="'.p2h_enc(lang('@a folder you may write in')).'"> '.
+                     '<datalist id="feDestOpts">'.implode('', array_map(fn($d) => '<option value="'.p2h_enc(fe_show_path($d)).'">', $opts)).'</datalist>'.
+                     ' <small id="feDestTip">'.p2h_enc(lang('@for upload and the basket - choose or type a folder you may write in')).'</small></div>';
+                $confOpts= ['ask' => '@Stop and ask', 'rename' => '@New name - name (2)',
+                            'overwrite' => fe_trash_dir() !== false ? '@Overwrite - the old one into the trash' : '@Overwrite', 'skip' => '@Skip - keep the one there'];
+                echo '<div class="feXfRow"><label for="feConf"><i class="far fa-clone"></i> <b>'.p2h_enc(lang('@A taken name')).'</b>:</label> '.
+                     '<select id="feConf" aria-describedby="feConfTip">'.implode('', array_map(fn($k, $l) => '<option value="'.$k.'">'.p2h_enc(lang($l)).'</option>', array_keys($confOpts), $confOpts)).'</select>'.
+                     ' <small id="feConfTip">'.p2h_enc(lang('@when copy, move, unpack or upload meets a name that is there already - a folder is merged')).'</small></div>'.
+                     '<script>(function(){ var s= document.getElementById("feConf"), v= "ask";'.      // Remembered in this browser - "Stop and ask" first
+                        'try { v= localStorage.getItem("feConf") || "ask"; } catch (e) {}'.
+                        'if (s.querySelector("option[value=\'" + v + "\']")) s.value= v;'.
+                        's.addEventListener("change", function(){ try { localStorage.setItem("feConf", s.value); } catch (e) {} });'.
+                     '})();</script>';
+            }
+
+            // The basket
+            echo '<div class="feXfRow feBasket"><b><i class="fas fa-shopping-basket"></i> '.p2h_enc(lang('@Basket')).'</b> ';
+            $chkBtn= '<button type="button" class="txtbutt feXfBtn" onclick="feBasketChecked()"><i class="far fa-check-square"></i> '.p2h_enc(lang('@Put the checked rows in the basket')).'</button>';
+            if (!$basket)
+                echo '<small>'.p2h_enc(lang('@empty - put files in it with the file menu (rest the mouse on a file name), or check rows in the table:')).'</small> '.$chkBtn;
+            else {
+                $bSize= 0;  $bDirs= 0;
+                echo '<table class="feBkList">';
+                foreach ($basket as $b) {
+                    $isDir= is_dir($b);
+                    if ($isDir) $bDirs++; else $bSize+= (int)@filesize($b);
+                    echo '<tr><td><i class="'.($isDir ? 'far fa-folder colr0' : 'far fa-file').'"></i></td>'.
+                         '<td><a href="'.basename(__FILE__).'?show='.urlencode(dirname($b)).'">'.p2h_enc($fe_unlocked ? $b : basename($root_path).'/'.ltrim(substr($b, strlen($root_path)), '/')).'</a></td>'.   // Unlocked: the whole path (which drive / account folder)
+                         '<td class="feBkSize">'.($isDir ? p2h_enc(lang('@folder')) : p2h_nice_filesize((int)@filesize($b))).'</td>'.
+                         '<td>'.fe_hint('<button type="button" class="feBkDel" onclick="feBasket(\'remove\', ['.p2h_enc(p2h_js($b)).'])" aria-label="'.p2h_enc(lang('@Take out of the basket')).'">'.
+                                '<i class="fas fa-times"></i></button>', p2h_enc(lang('@Take out of the basket'))).'</td></tr>';
+                }
+                echo '</table>';
+                echo '<div class="feXfSum">'.count($basket).' '.p2h_enc(lang('@in the basket')).' - '.p2h_nice_filesize($bSize).
+                     ($bDirs ? ' + '.$bDirs.' '.p2h_enc(lang('@folders')) : '').'</div>';
+                $why= lang('@Your account may not change files');
+                $off= ($wd && fe_can('w')) ? '' : ' disabled';
+                $btn= function($op, $icon, $labl, $hint, $dis= '') {
+                    return fe_hint('<button type="button" class="txtbutt feXfBtn"'.$dis.' onclick="feBasket(\''.$op.'\')"><i class="'.$icon.'"></i> '.p2h_enc(lang($labl)).'</button>', p2h_enc($hint));
+                };
+                echo $btn('copy', 'fas fa-copy', '@Copy to the destination', $off ? $why : lang('@Copy everything in the basket to the destination folder (above) - the basket is kept'), $off).
+                     $btn('move', 'fas fa-dolly', '@Move to the destination', $off ? $why : lang('@Move everything in the basket to the destination folder (above) - from folders you may write in'), $off).
+                     $btn('zip', 'fas fa-file-archive', '@Download as ZIP', lang('@One ZIP file with everything in the basket you may read - to your PC')).
+                     $btn('clear', 'fas fa-times', '@Empty the basket', lang('@Take everything out of the basket - nothing is deleted')).' '.$chkBtn;
+            }
+            echo '</div>';
+
+            // Upload from the PC to the current folder
+            echo '<div class="feXfRow">';
+            if ($wd && fe_can('w')) {
+                $used= $exch_path !== false ? fe_dir_size($exch_path) : 0;
+                // Settings and texts for fe-upload.js (the form also works without JavaScript: plain file field + submit)
+                $feCfg= [
+                    'maxFile'   => $maxFile,
+                    'quotaLeft' => 1e18,       // The server checks the quota of the shared folder for the destination chosen
+                    'maxCount'  => max(1, (int)ini_get('max_file_uploads') ?: 20),
+                    'maxPost'   => fe_ini_bytes(ini_get('post_max_size')) ?: 8 * 1024 * 1024,
+                    'deny'      => $fe_unlocked ? '(?!)' : FE_DENY_EXT,     // (?!) never matches: all types allowed
+                    'strict'    => !$fe_unlocked,
+                    'txt'       => array_map('lang', [
+                        'type'    => '@this file type is not allowed',
+                        'folder'  => '@the folder name is not allowed',
+                        'big'     => '@the file is too large',
+                        'quota'   => '@The selected files are larger than the free space in the shared folder',
+                        'ready'   => '@ready',
+                        'sending' => '@uploading...',
+                        'saved'   => '@uploaded as',
+                        'uploaded'=> '@uploaded',
+                        'server'  => '@the server refused the upload',
+                        'files'   => '@files selected',
+                        'none'    => '@No files selected yet',
+                        'done'    => '@Finished',
+                        'show'    => '@Show the folder',
+                        'name'    => '@File',
+                        'size'    => '@Size',
+                        'status'  => '@Status',
+                        'all'     => '@Select / deselect all',
+                        'kept'    => '@skipped - the name was taken, the one there is kept',
+                        'over'    => '@overwritten',
+                        'overT'   => '@overwritten - the old one is in the trash',
+                    ]),
+                ];
+                echo '<b><i class="fas fa-cloud-upload-alt"></i> '.p2h_enc(lang('@Upload from your PC')).' <i class="fas fa-arrow-right"></i> '.p2h_enc(lang('@the destination (above)')).'</b><br><small>'.
+                        ($exch_path !== false && !$fe_unlocked ? p2h_enc(lang('@Shared folder')).' '.p2h_enc(fe_show_path($exch_path)).': '.p2h_nice_filesize($used).' '.p2h_enc(lang('@of')).' '.p2h_nice_filesize($fe_exchange_quota).' &nbsp;-&nbsp; ' : '').
+                        p2h_enc(lang('@Max per file')).': '.p2h_nice_filesize($maxFile).
+                        ' &nbsp;-&nbsp; '.p2h_enc($fe_unlocked ? lang('@All file types allowed - except hidden files') : lang('@Not allowed: server scripts (.php ...) and hidden files')).
+                        ' &nbsp;-&nbsp; '.p2h_enc(lang('@A ZIP file is unpacked with the file menu: Unpack here')).'</small>';
+                echo '<form id="feUpload" method="post" enctype="multipart/form-data" action="'.basename(__FILE__).'?show='.urlencode($currPath).'" '.
+                           'data-cfg="'.p2h_enc(json_encode($feCfg)).'" style="margin: 6px 0;">'.
+                         csrf_field(true).
+                         '<div id="feDrop" class="fe-drop">'.
+                            '<i class="fas fa-cloud-upload-alt fa-2x colr9"></i><br>'.
+                            p2h_enc(lang('@Drag files or folders from your PC here - or')).'<br>'.
+                            '<label class="txtbutt fe-pick"><input type="file" name="fe_upload[]" id="feFiles" multiple>'.
+                                '<i class="far fa-file"></i> '.p2h_enc(lang('@Choose files')).'</label> '.
+                            '<label class="txtbutt fe-pick fe-js"><input type="file" id="feFolder" webkitdirectory multiple>'.
+                                '<i class="far fa-folder colr0"></i> '.p2h_enc(lang('@Choose a folder')).'</label>'.
+                         '</div>'.
+                         '<div id="feList" class="fe-list" aria-live="polite"></div>'.
+                         '<button type="submit" id="feSend" class="txtbutt" style="border-radius: 54px; height: 30px; background-color: ivory; padding: 0 15px;">'.
+                            '<i class="fas fa-upload"></i> '.p2h_enc(lang('@Upload')).'</button> '.
+                         '<button type="button" id="feClear" class="txtbutt fe-js" style="border-radius: 54px; height: 30px; padding: 0 15px;">'.
+                            '<i class="fas fa-times"></i> '.p2h_enc(lang('@Clear list')).'</button> '.
+                         '<input type="hidden" name="fe_dest" value="'.p2h_enc(fe_show_path($destDef)).'">'.     // (without JavaScript: the default destination)
+
+                         '<progress id="feProg" max="100" value="0" hidden style="width: 200px; vertical-align: middle;"></progress> '.
+                         '<span id="feSum"></span>'.
+                     '</form>'.
+                     '<script src="fe-upload.js?v='.@filemtime(__DIR__.'/fe-upload.js').'" defer></script>';
+            }
+            elseif (fe_can('w')) echo '<small><i>'.p2h_enc(lang('@Your account has no folder to write in.')).'</i></small>';
+            else echo '<small><i>'.p2h_enc(lang('@Your account can only read: view and download where it may - and download the basket as a ZIP.')).'</i></small>';
+            echo '</div>';
+            echo '</div>';     // feXfer
+        htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
+        htm_nl(1);
+    }
+
+    ### MANUAL: a card of its own at the bottom of the page
+    htm_Card_(capt:'@Manual',icon:'fas fa-book',hint:'@How to use Folder-explorer - nice to know, step by step, questions, mouse and keys, your account, limits',
+              form:'',acti:'',clas:'cardWmax',wdth:'800px',styl:'background-color: white;',attr:'text-align: left;',show:true, head:'background-color: white;');
+    echo '<small>';
 
     $nice= [     // Nice to know: [heading, [lines]] - the texts are translated (_trans.sys.json)
         ['Menus - how to open them', [
@@ -3742,7 +3751,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             '<div><h4>'.p2h_enc(lang('@Shortcut keys')).'</h4><table class="feKeys"><tr><th>'.p2h_enc(lang('@Keys')).'</th><th>'.p2h_enc(lang('@Where')).'</th><th>'.p2h_enc(lang('@What')).'</th></tr>'.
             implode('', array_map(fn($r) => '<tr><td>'.implode(' / ', array_map(fn($k) => '<kbd>'.p2h_enc(preg_match('/^(Space|Menu key|Arrow|Alt\+Arrow|Arrows)/', trim($k)) ? lang('@'.trim($k)) : trim($k)).'</kbd>', explode(' | ', $r[0]))).'</td><td>'.$cell($r[1]).'</td><td>'.$cell($r[2]).'</td></tr>', $keys)).'</table>'.
             '<small>'.p2h_enc(lang('@Not while you type in a field - and not while a dialog is open.')).'</small></div></div>';
-    htm_Tabs_(head:'<h3 class="feManHead"><i class="fas fa-book" aria-hidden="true"></i> '.p2h_enc(lang('@Manual')).'</h3>', styl:'display: block;', rtrn:false);
+    htm_Tabs_(head:'', styl:'display: block;', rtrn:false);     // (the card caption says Manual)
     // The tabs of the manual - in the order people need them: [label, body, name, colour, colour in the dark theme] - one lightness, eight hues
     $manTabs= [
         ['@Nice to know:',   $body1, 'nice',  '#fdf6d8', '#38331f'],

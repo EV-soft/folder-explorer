@@ -352,6 +352,7 @@
     "DateTime":"2022-06-17",
     "AppName":"PHP to HTML",
     "translation":{
+      "How to use Folder-explorer - nice to know, step by step, questions, mouse and keys, your account, limits":"Sådan bruges Folder-explorer - godt at vide, trin for trin, spørgsmål, mus og taster, din konto, grænser",
       "The log-in can not be checked now - try again later":"Log-ind kan ikke kontrolleres lige nu - prøv igen senere",
       "Overwritten - the old one was too big for the trash and is deleted":"Overskrevet - den gamle var for stor til papirkurven og er slettet",
       "<b>A taken name:</b> choose in the field A taken name - Stop and ask (you see the names and choose for each), a new name (name (2)), overwrite (the old file goes to the trash) or skip. Two folders are merged. The message tells what was done.":"<b>Navnesammenfald:</b> vælg i feltet Navnesammenfald - Stop og spørg (du ser navnene og vælger for hvert), nyt navn (navn (2)), overskriv (den gamle fil kommer i papirkurven) eller spring over. To mapper flettes. Beskeden fortæller, hvad der skete.",
