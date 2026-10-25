@@ -42,6 +42,16 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The bars can show the share of the parent folder or of BASE.
 - The card can be dragged to its full height with the size grip.
 
+### What is new in 2.3.2:
+- **Security (important):** a request with `csvFile=<name>` made the table write a file of that name in the program folder - any
+  logged-in account, also a read only demo account, could overwrite `folder-explorer.php` or `fe-users.php`. Removed - please update.
+- Deleting one file with the trash switched off could remove a file of the program - refused now.
+- A ZIP made of a folder `x.php` was called `x.php.zip` (a name upload and rename refuse) - now `x_php.zip`.
+- `?show[]=x` gave a fatal error - and file names with invalid UTF-8 (old Latin-1 names on Linux) are shown again.
+- **Layout:** the Transfer card is below the folder content, and the manual is a card of its own at the bottom of the page.
+
+Updating from 2.3.x: replace `folder-explorer.php` and `_trans.sys.json`.
+
 ### What is new in 2.3.1:
 - Built with php2html **1.9.2** - ten fixes, among them: *My notes* are kept per program folder (other programs on the same
   domain saw them), number fields accept units longer than 4 characters, choices with `&` or `'` are marked again, and the log-in
