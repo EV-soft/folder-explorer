@@ -77,6 +77,11 @@ $fe_trash_max=  $fe_trash_max  ?? 500 * 1024 * 1024;
 $fe_shares_file= $fe_shares_file ?? __DIR__.'/fe-shares.php';
 $fe_share_days=  $fe_share_days  ?? 90;         // The longest time a link may work (days) - administrators may also make a link without an end
 
+## TinyMCE (file menu of an HTML file: Edit with TinyMCE): fetched from here the first time it is used, not on every page - '' = not offered.
+## Without internet access: put TinyMCE in _assets/tinymce/ and write '_assets/tinymce/' here (and '' for the languages: English).
+$fe_tinymce_url=  $fe_tinymce_url  ?? 'https://cdnjs.cloudflare.com/ajax/libs/tinymce/8.9.3/';
+$fe_tinymce_lang= $fe_tinymce_lang ?? 'https://cdn.jsdelivr.net/npm/tinymce-i18n@26.9.28/langs8/';    // The language packs of TinyMCE - '' = English
+
 
 ## "Remove restrictions" (admins only, per session): browse, download and write everywhere below $fe_unlocked_root,
 ## any file type (never hidden files like .htaccess) and no quota / size limit of its own.
@@ -1266,6 +1271,17 @@ function fe_share_page($tok) { // ?share=<token>: the page of a share link - for
 }
 
 const FE_EDIT_MAX= 2 * 1024 * 1024;     // The biggest text file the editor opens (bytes)
+const FE_TINY_LANGS= 'ar ar-SA az be bg-BG bn-BD bs ca cs cy da de el eo es es-MX et eu fa fi fr-FR gl he-IL hr hu-HU hy id is-IS it ja ka-GE kab kk ko-KR lt lv '.
+                    'nb-NO ne nl nl-BE oc pl pt-BR pt-PT ro ru sk sl-SI sr sv-SE ta tg th-TH tr ug uk vi zh-CN zh-HK zh-MO zh-TW';     // The packs of tinymce-i18n (langs8)
+
+function fe_tiny_lang() { // The language pack of TinyMCE for the language of the page - '' = English (or none)
+    $l= str_replace('_', '-', (string)($GLOBALS['lang'] ?? 'en'));
+    if (($GLOBALS['fe_tinymce_lang'] ?? '') === '' || $l === 'en' || $l === '') return '';
+    $all= explode(' ', FE_TINY_LANGS);
+    if (in_array($l, $all, true)) return $l;
+    foreach ($all as $a) if (strpos($a, substr($l, 0, 2).'-') === 0 || $a === substr($l, 0, 2)) return $a;
+    return '';
+}
 
 function fe_edit_refused($file) { // Why the logged user may not edit the file $file (a normalized real path) in the editor - '' = it may
     if (!is_file($file) || is_link($file)) return lang('@File not found');
@@ -1602,6 +1618,8 @@ $p2h_Style = '
     .feFindTbl { width: 100%; }  .feFindTbl td { vertical-align: top; }
     .feFindLine code { white-space: pre-wrap; word-break: break-word; font-size: 12px; }
     .feShareGone td { opacity: .55; }
+    dialog.feDlgFixed { position: fixed; inset: 0; margin: auto; height: fit-content; max-height: 96vh; z-index: 1200; }     /* TinyMCE: not modal - its menus (z-index 1300) above */
+    .feDlgBack { position: fixed; inset: 0; z-index: 1150; background: rgba(0, 0, 0, .4); }
     .feDlgInp { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 5px 7px; border: 1px solid #8a96a3 !important; border-radius: 4px;
                 background: #fff !important; color: #222 !important; font: inherit; font-weight: normal; }
     [data-theme="dark"] .feDlgInp { background: #1d2126 !important; color: #e3e7eb !important; border-color: #5a6672 !important; }
@@ -2407,7 +2425,8 @@ function p2h_fileExplore($path,$parentDir) {
               'w'=>$can_write_here && fe_can('w') ? 1 : 0,                                                              // New folder here
               'o'=>($pvKind > '' && $pvKind !== 'lock') ? basename(__FILE__).'?pv='.rawurlencode(p2h_norm_path($file_path)).'&v='.$ftime.($pvKind === 'table' ? '&raw=1' : '') : '',
               'd'=>$can_dl ? $dlUrl : '',
-              'x'=>$wr_file && $filesize_raw <= FE_EDIT_MAX && fe_preview_kind($fld, true) === 'txt' && !fe_program_file($file_path) ? 1 : 0,   // Edit (a text file)
+              'x'=>$fe_x= $wr_file && $filesize_raw <= FE_EDIT_MAX && fe_preview_kind($fld, true) === 'txt' && !fe_program_file($file_path) ? 1 : 0,   // Edit (a text file)
+              'h'=>$fe_x && $GLOBALS['fe_tinymce_url'] !== '' && in_array(strtolower($ext), ['html', 'htm', 'xhtml'], true) ? 1 : 0,                  // Edit with TinyMCE (HTML)
               'l'=>!$is_link && fe_share_may_make(p2h_norm_path($file_path)) ? 1 : 0];                                                 // Share link
         $nm= '<span class="feBp" data-bp="'.p2h_enc(p2h_norm_path($file_path)).'" hidden></span><span class="feFileName" tabindex="0" role="button" aria-haspopup="menu" data-fm="'.p2h_enc(json_encode($fm, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)).'">'.p2h_enc($fld).'</span>';
         if ($calc_folder)
@@ -2710,7 +2729,10 @@ if ($is_logged && isset($_GET['edt'])) {               // The text of a file for
     $raw= (string)file_get_contents($file);
     if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) $raw= substr($raw, 3);        // The byte order mark: kept when it is saved
     if (!mb_check_encoding($raw, 'UTF-8')) exit(json_encode(['err' => lang('@The file is not UTF-8 text - it can not be edited here')], JSON_UNESCAPED_UNICODE));
-    exit(json_encode(['t' => $raw, 'm' => sha1_file($file), 'n' => basename($file)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    $dir= p2h_norm_path(dirname($file));  $doc= p2h_norm_path(realpath($_SERVER['DOCUMENT_ROOT'] ?? '') ?: '');  $web= '';
+    if ($doc !== '' && fe_in_dir($dir, $doc) && !array_filter(fe_protected_dirs(), fn($pd) => fe_in_dir($dir, $pd)))      // The web address of its folder: TinyMCE shows relative images
+        $web= '/'.implode('/', array_map('rawurlencode', array_filter(explode('/', substr($dir, strlen($doc))), 'strlen'))).'/';
+    exit(json_encode(['t' => $raw, 'm' => sha1_file($file), 'n' => basename($file), 'b' => str_replace('//', '/', $web)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 }
 
 if ($is_logged && fe_can('w')) fe_conf_init();          // A taken name: as chosen (copy, move, unpack, upload)
@@ -3983,7 +4005,10 @@ run_Script('
                  'eTitle'=>lang('@Edit'), 'eSave'=>lang('@Save'), 'eSaved'=>lang('@Saved'), 'eChanged'=>lang('@Changed - not saved'), 'eLines'=>lang('@lines'),
                  'eWrap'=>lang('@Wrap long lines'), 'eLose'=>lang('@Close without saving the changes?'),
                  'eForce'=>lang('@The file was changed by someone else after you opened it. Save your version anyway? (The other version goes into the trash.)'),
-                 'eTrash'=>fe_trash_dir() !== false ? lang('@Each save puts the old version into the trash') : '', 'eKeys'=>lang('@Ctrl+S saves')])).');
+                 'eTrash'=>fe_trash_dir() !== false ? lang('@Each save puts the old version into the trash') : '', 'eKeys'=>lang('@Ctrl+S saves'),
+                 'load'=>lang('@Loading...'), 'tTitle'=>lang('@Edit with TinyMCE'), 'tNote'=>lang('@TinyMCE writes the HTML in its own way - scripts and styles are kept'),
+                 'tFail'=>lang('@TinyMCE could not be loaded (no internet access?) - the text editor is used'),
+                 'tUrl'=>$fe_tinymce_url, 'tLang'=>fe_tiny_lang(), 'tLangUrl'=>$fe_tinymce_lang])).');
     var feDays= '.json_encode(array_values(array_merge(array_filter(array_unique([1, 7, 30, (int)$fe_share_days]), fn($d) => $d > 0 && $d <= (int)$fe_share_days), fe_is_admin() ? [0] : []))).';
     function feDlg(title, wide) {   /* An empty dialog of the program: [dialog, body, foot] */
         var mk= function(tag, cls) { var e= document.createElement(tag);  if (cls) e.className= cls;  return e; };
@@ -4033,30 +4058,42 @@ run_Script('
         };
         d.showModal();  sel.focus();
     }
-    function feEdit(f) {            /* File menu: Edit a text file - the text is fetched, saved with the time it had (someone else changed it: asked) */
+    var feTinyP= null;
+    function feTinyLoad() {         /* TinyMCE: fetched the first time it is used (not on every page) */
+        if (window.tinymce) return Promise.resolve(window.tinymce);
+        return feTinyP= feTinyP || new Promise(function(ok, no) {
+            var s= document.createElement("script");  s.src= feDT.tUrl + "tinymce.min.js";  s.referrerPolicy= "origin";
+            s.onload= function() { window.tinymce ? ok(window.tinymce) : no(); };  s.onerror= function() { feTinyP= null;  no(); };
+            document.head.appendChild(s);
+        });
+    }
+    function feEdit(f, rich) {      /* File menu: Edit a text file - Edit with TinyMCE (HTML: only the body is edited, the head is kept) - saved with the checksum it had (someone else changed it: asked) */
         document.body.style.cursor= "progress";
         fetch('.p2h_js(basename(__FILE__).'?edt=').' + encodeURIComponent(f.b), {credentials: "same-origin"}).then(function(r) { return r.json(); }).then(function(j) {
             document.body.style.cursor= "";
             if (j.err) { sysAlert(j.err);  return; }
-            var x= feDlg(feDT.eTitle + ": " + j.n, true), d= x[0], b= x[1], ft= x[2], mt= j.m, any= false;
-            var ta= document.createElement("textarea");  ta.className= "feEdTa";  ta.spellcheck= false;  ta.value= j.t;  ta.setAttribute("aria-label", feDT.eTitle + ": " + j.n);
+            var x= feDlg((rich ? feDT.tTitle : feDT.eTitle) + ": " + j.n, true), d= x[0], b= x[1], ft= x[2], mt= j.m, any= false, ed= null, back= null;
+            var m= rich ? /^([\s\S]*?<body\b[^>]*>)([\s\S]*?)(<\/body\s*>[\s\S]*)$/i.exec(j.t) : null;      /* A whole document: its head before - the end after */
+            var pre= m ? m[1] : "", post= m ? m[3] : "";
+            var ta= document.createElement("textarea");  ta.className= "feEdTa";  ta.spellcheck= false;  ta.value= m ? m[2] : j.t;  ta.setAttribute("aria-label", feDT.eTitle + ": " + j.n);
             ta.wrap= "off";  b.appendChild(ta);
-            var saved= ta.value;
+            var text= function() { return ed ? pre + ed.getContent() + post : ta.value; };
+            var saved= text();
             var st= document.createElement("span");  st.className= "feEdSt";  st.setAttribute("aria-live", "polite");
             var wl= document.createElement("label");  wl.className= "feEdWrap";  var wc= document.createElement("input");  wc.type= "checkbox";
             wl.appendChild(wc);  wl.appendChild(document.createTextNode(" " + feDT.eWrap));
             wc.onchange= function() { ta.wrap= wc.checked ? "soft" : "off"; };
-            ft.appendChild(st);  ft.appendChild(wl);
+            ft.appendChild(st);  if (!rich) ft.appendChild(wl);
             var bc= feBtn(ft, feDT.close), bs= feBtn(ft, feDT.eSave, true), at= "";
             var show= function() {
-                var dirty= ta.value !== saved;
-                st.textContent= ta.value.split("\n").length + " " + feDT.eLines + "  ·  " + (dirty ? feDT.eChanged : (at ? feDT.eSaved + " " + at : feDT.eKeys)) +
+                var now= text(), dirty= now !== saved;
+                st.textContent= (ed ? feDT.tNote : now.split("\n").length + " " + feDT.eLines) + "  ·  " + (dirty ? feDT.eChanged : (at ? feDT.eSaved + " " + at : feDT.eKeys)) +
                                 (feDT.eTrash && !dirty && !at ? "  ·  " + feDT.eTrash : "");
                 st.classList.toggle("feEdDirty", dirty);  bs.disabled= !dirty;
             };
             var save= function(force) {
                 bs.disabled= true;
-                var txt= ta.value;
+                var txt= text();
                 feJson([["fe_edit", f.n], ["fe_text", txt], ["fe_ver", String(mt)], ["fe_force", force ? "1" : ""]]).then(function(r) {
                     if (r.conflict) { show();  sysConfirm(feDT.eForce, function() { save(true); });  return; }
                     if (r.err) { show();  sysAlert(r.err);  return; }
@@ -4064,13 +4101,42 @@ run_Script('
                     at= new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});  show();
                 }).catch(function() { show();  sysAlert(feDT.fail); });
             };
-            var close= function() { d.close();  d.remove();  if (any) location.replace(location.href); };       /* GET: a reload of the Analyse page (a POST) asked to send it again */
-            var ask= function() { if (ta.value !== saved) sysConfirm(feDT.eLose, close);  else close(); };
+            var close= function() {
+                if (ed) { try { ed.remove(); } catch (e) {} }
+                d.close();  d.remove();  if (back) back.remove();
+                if (any) location.replace(location.href);       /* GET: a reload of the Analyse page (a POST) asked to send it again */
+            };
+            var ask= function() { if (text() !== saved) sysConfirm(feDT.eLose, close);  else close(); };
             ta.addEventListener("input", show);
-            d.addEventListener("keydown", function(e) { if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault();  if (ta.value !== saved) save(false); } });
+            d.addEventListener("keydown", function(e) { if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault();  if (text() !== saved) save(false); } });
             d.addEventListener("cancel", function(e) { e.preventDefault();  ask(); });
             bc.onclick= ask;  bs.onclick= function() { save(false); };
-            show();  d.showModal();  ta.focus();  ta.setSelectionRange(0, 0);  ta.scrollTop= 0;
+            if (!rich) { show();  d.showModal();  ta.focus();  ta.setSelectionRange(0, 0);  ta.scrollTop= 0;  return; }
+            /* TinyMCE puts its menus and dialogs in the body: a modal dialog (the top layer) would hide them - so this one is not modal, with a backdrop of its own */
+            back= document.createElement("div");  back.className= "feDlgBack";  document.body.appendChild(back);
+            d.classList.add("feDlgFixed");  st.textContent= feDT.load;  bs.disabled= true;  d.show();
+            var dark= document.documentElement.getAttribute("data-theme") === "dark";
+            feTinyLoad().then(function(tm) {
+                return tm.init({target: ta, license_key: "gpl", promotion: false, branding: false, height: "64vh", resize: false,
+                    language: feDT.tLang || undefined, language_url: feDT.tLang ? feDT.tLangUrl + feDT.tLang + ".js" : undefined,
+                    skin: dark ? "oxide-dark" : "oxide", content_css: dark ? "dark" : "default",
+                    plugins: "lists advlist link image table code searchreplace visualblocks charmap autolink wordcount fullscreen",
+                    menubar: "edit insert format table tools",
+                    toolbar: "undo redo | blocks | bold italic underline | alignleft aligncenter alignright | bullist numlist outdent indent | link image table | removeformat code",
+                    entity_encoding: "raw", convert_urls: false, document_base_url: j.b ? location.origin + j.b : undefined, browser_spellcheck: true, contextmenu: false,
+                    protect: [/<script[\s\S]*?<\/script>/gi, /<style[\s\S]*?<\/style>/gi, /<\?[\s\S]*?\?>/g],      /* Kept as they are - TinyMCE would remove them */
+                    setup: function(e) {
+                        e.addShortcut("meta+s", feDT.eSave, function() { if (text() !== saved) save(false); });
+                        e.on("input change undo redo keyup SetContent", show);
+                    }
+                }).then(function(list) {
+                    ed= list && list[0];
+                    if (!ed) throw 0;
+                    saved= text();  show();  ed.focus();       /* TinyMCE writes the HTML in its own way: that is not a change */
+                });
+            }).catch(function() { ed= null;  ta.value= j.t;  pre= "";  post= "";  saved= text();  rich= false;  ft.insertBefore(wl, bc);
+                                  d.close();  d.classList.remove("feDlgFixed");  back.remove();  back= null;  show();  d.showModal();
+                                  sysAlert(feDT.tFail); });
         }).catch(function() { document.body.style.cursor= "";  sysAlert(feDT.fail); });
     }
     function feAct(act, name, to) {     // File menu: move / copy / zip / unzip in the current folder
@@ -4092,7 +4158,7 @@ echo '<script src="fe-preview.js?v='.@filemtime(__DIR__.'/fe-preview.js').'" def
     'copy'=>lang('@Copy file'), 'zip'=>lang('@Create ZIP'), 'del'=>lang('@Delete file'),
     'moveQ'=>lang('@New name - or a path below this folder (sub/name.ext):'), 'copyQ'=>lang('@Name of the copy - or a path below this folder:'),
     'copyN'=>lang('@copy'), 'onlyEx'=>lang('@Rename, copy, ZIP and delete: only in folders you may write in'),
-    'share'=>lang('@Share link ...'), 'edit'=>lang('@Edit'),
+    'share'=>lang('@Share link ...'), 'edit'=>lang('@Edit'), 'tiny'=>lang('@Edit with TinyMCE'),
     'bkIn'=>lang('@Put in the basket'), 'bkOut'=>lang('@Take out of the basket'), 'unzip'=>lang('@Unpack here'),
     'prog'=>['title'=>'Folder-explorer', 'admin'=>fe_is_admin() ? 1 : 0, 'pw'=>fe_may_change_pw($_SESSION[p2h_SESSION_ID]['logged'] ?? '') ? 1 : 0,
              'unl'=>$fe_unlocked ? 1 : 0, 'out'=>$use_auth ? basename(__FILE__).'?logout=1&t='.urlencode((string)($_SESSION['csrf_token'] ?? '')) : '',
@@ -4355,6 +4421,7 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             '<b>Share link:</b> in the file or folder menu - a link for people without an account, with an end date and maybe a password. A folder is fetched as one ZIP file. Program menu - <b>Shared links</b>: copy or delete your links.',
             'A link works only while you may still download the file - and stops at its end date or when you delete it.',
             '<b>Edit:</b> in the file menu of a text file (up to 2 MB) in a folder you may write in. Ctrl+S saves - the old version goes to the trash. If someone else changed the file meanwhile, you are asked.',
+            '<b>Edit with TinyMCE:</b> HTML files also in a word-processor view - only the body is edited, the head is kept, and scripts and styles are kept as they are. TinyMCE is fetched the first time you use it.',
             '<b>Search:</b> the search field in the heading of Folder content searches this folder and all folders below it - by name (* and ? for the whole name), and if you like in the text of text files.',
             '<b>Gallery</b> (heading of Folder content): the files as tiles, images as small pictures - click a tile for the file menu, double-click to view, check the box to select. Click Gallery again for the table.',
             '<b>Duplicates</b> (Analyse mode, heading of Folder content): files with the same content in this folder and below it - the most space first. Move the copies you do not need to the trash.',

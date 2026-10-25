@@ -227,7 +227,7 @@
     // ---------- Menu on the file name: actions on the file (span.feFileName data-fm = the file facts and what the user may do) ----------
     // n name, r path, t type, s bytes, m modified, a accessed, p permissions, u owner, o view address, d download address,
     // e: change the file (rename / copy / ZIP / unpack / delete) 1 = yes, 2 = the account may not, 3 = a protected file, 0 = not a write folder
-    // b: the path (basket), k: 1 = in the basket - x: 1 = may be edited (a text file) - l: 1 = a share link may be made
+    // b: the path (basket), k: 1 = in the basket - x: 1 = may be edited (a text file) - h: 1 = also with TinyMCE (HTML) - l: 1 = a share link may be made
     var menu = null, mName = null, mShow = null, mHide = null;
 
     function properties(f) {
@@ -299,6 +299,7 @@
             item('fas fa-shopping-basket', f.k ? T.bkOut : T.bkIn, function () { window.feBasket(f.k ? 'remove' : 'add', [f.b]); });
         menu.appendChild(el('div', 'fePmSep'));
         if (!f.dir && f.x) item('fas fa-edit', T.edit, function () { window.feEdit(f); }, '', typeof window.feEdit !== 'function' || !window.fetch);
+        if (!f.dir && f.h) item('fas fa-pen-fancy', T.tiny, function () { window.feEdit(f, true); }, '', typeof window.feEdit !== 'function' || !window.fetch);
         item('fas fa-pen-square', f.dir ? T.moveD : T.move, function () { ask(T.moveQ, f.n, function (to) { if (to !== f.n) window.feAct('move', f.n, to); }); }, '', off);
         item('fas fa-copy', f.dir ? T.copyD : T.copy, function () { ask(T.copyQ, f.dir ? f.n + ' - ' + T.copyN : copyName(f.n), function (to) { window.feAct('copy', f.n, to); }); }, '', off);
         item('far fa-file-archive', T.zip, function () { window.feAct('zip', f.n); }, '', off || (!f.dir && /\.zip$/i.test(f.n)));

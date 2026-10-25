@@ -49,6 +49,10 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   The page of the link speaks the language of the browser, when there is a translation.
 - **Edit** (file menu): text files up to 2 MB in a folder you may write in - Ctrl+S saves, the old version goes to the trash, the line
   ends and a byte order mark are kept. Changed by someone else meanwhile: you are asked before your version replaces it.
+- **Edit with TinyMCE** (file menu of an HTML file): a word-processor view - only the body is edited (the head is kept),
+  `<script>`, `<style>` and PHP tags are kept as they are, relative images are shown when the folder is on the web.
+  TinyMCE (8.9.3, cdnjs) and its language pack (tinymce-i18n, jsdelivr) are fetched the first time it is used, not on every page -
+  settings `$fe_tinymce_url` and `$fe_tinymce_lang` (`''` = not offered / English). Without internet access the text editor is used.
 - **Search in all subfolders** - also in Quick mode: the search field in the heading of *Folder content* searches this folder and all
   below it, by name (`*` and `?` for the whole name) and if you like in the text of text files you may download (up to 2 MB per file).
 - **Gallery** (button in the heading of *Folder content*): the files as tiles, images as small pictures made with GD (kept a week in
@@ -255,6 +259,8 @@ Updating from 2.2.0: replace the program files (`folder-explorer.php`, `php2html
 | `$fe_trash_max` | `500 MB` | bytes in the trash - above it the oldest are deleted for good |
 | `$fe_shares_file` | `fe-shares.php` | the share links (file menu - Share link, program menu - Shared links) |
 | `$fe_share_days` | `90` | the longest time a share link may work - `0`: no share links |
+| `$fe_tinymce_url` | cdnjs TinyMCE 8.9.3 | where TinyMCE is fetched (Edit with TinyMCE) - `''`: not offered, `'_assets/tinymce/'`: a local copy |
+| `$fe_tinymce_lang` | jsdelivr tinymce-i18n | the language packs of TinyMCE - `''`: English |
 
 ### Login and safety:
 - At most 10 failed logins per address and account in 15 minutes; the slider *Are you human?* is checked on the server too.
