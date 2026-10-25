@@ -711,7 +711,7 @@ const FE_PV_TXT= ['txt','text','md','markdown','log','ini','cnf','conf','cfg','p
     'srt','vtt','diff','patch','htaccess','env','gitignore','editorconfig','lock','mk','makefile','dockerfile'];
 function fe_temp_cleanup() { // Old temp files of the program: ZIPs never fetched (2 hours), counters of failed logins and folder sizes (a day)
     $t= sys_get_temp_dir();
-    foreach ([['fez*', 7200], ['fe-login-*.txt', 86400], ['fe-size-*.txt', 86400]] as [$pat, $age])
+    foreach ([['fez*', 7200], ['fe-login-*.txt', 86400], ['fe-size-*.txt', 86400], ['fe-thumb-*.jpg', 7 * 86400]] as [$pat, $age])
         foreach (glob($t.'/'.$pat) ?: [] as $f) if (is_file($f) && @filemtime($f) < time() - $age) @unlink($f);
 }
 
@@ -1306,6 +1306,72 @@ function fe_find($dir, $term, $content) { // Search the names below $dir - and t
     return [$hits, $seen, $cut];
 }
 
+function fe_thumb($file, $ext) { // A JPEG of at most 240 px of an image (GD) for the gallery - kept a week in the temp folder - null: none (no GD, a type GD can not read, too big)
+    $fn= ['jpg'=>'imagecreatefromjpeg', 'jpeg'=>'imagecreatefromjpeg', 'jfif'=>'imagecreatefromjpeg', 'pjpeg'=>'imagecreatefromjpeg', 'png'=>'imagecreatefrompng',
+          'apng'=>'imagecreatefrompng', 'gif'=>'imagecreatefromgif', 'webp'=>'imagecreatefromwebp', 'bmp'=>'imagecreatefrombmp', 'avif'=>'imagecreatefromavif'][$ext] ?? '';
+    if ($fn === '' || !function_exists($fn) || !function_exists('imagecreatetruecolor')) return null;
+    $t= sys_get_temp_dir().'/fe-thumb-'.md5(__FILE__.'|'.$file.'|'.filemtime($file).'|'.filesize($file)).'.jpg';
+    if (is_file($t)) { @touch($t);  return $t; }
+    $info= @getimagesize($file);
+    if (!$info || $info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 40000000) return null;     // Over 40 megapixels: not read (the memory)
+    $need= memory_get_usage() + $info[0] * $info[1] * 5 + 16 * 1048576;                             // What GD may need
+    $lim=  fe_ini_bytes((string)ini_get('memory_limit'));
+    if ($lim > 0 && $need > $lim) { if ($need > 512 * 1048576 || @ini_set('memory_limit', (string)$need) === false) return null; }
+    $im= @$fn($file);
+    if (!$im) return null;
+    $w= imagesx($im);  $h= imagesy($im);  $k= min(1, 240 / max($w, $h));
+    $tw= max(1, (int)round($w * $k));  $th= max(1, (int)round($h * $k));
+    $out= imagecreatetruecolor($tw, $th);
+    imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255));        // A transparent image: on white
+    imagecopyresampled($out, $im, 0, 0, 0, 0, $tw, $th, $w, $h);
+    $im= null;
+    if ($fn === 'imagecreatefromjpeg' && function_exists('exif_read_data')) {     // A photo turned by the camera
+        $o= (int)(@exif_read_data($file)['Orientation'] ?? 1);
+        if (in_array($o, [3, 6, 8], true)) $out= imagerotate($out, [3 => 180, 6 => -90, 8 => 90][$o], 0) ?: $out;
+    }
+    $tmp= $t.'.'.bin2hex(random_bytes(3)).'.tmp';
+    $ok=  @imagejpeg($out, $tmp, 80);
+    $out= null;
+    if (!$ok || !@rename($tmp, $t)) { @unlink($tmp);  return null; }
+    return $t;
+}
+
+function fe_dupes($dir) { // Files with the same content below $dir - only files the user may download: [[[size, [paths]], ...] the most space first, files seen, stopped]
+    $bySize= [];  $seen= 0;  $cut= false;  $t0= microtime(true);
+    $stack= [$dir];
+    while ($stack && !$cut) {
+        $d= array_pop($stack);
+        $list= @scandir($d);
+        if ($list === false) continue;
+        foreach ($list as $f) {
+            if ($f === '.' || $f === '..' || (empty($GLOBALS['fe_unlocked']) && $f[0] === '.')) continue;
+            $p= $d.'/'.$f;
+            if (is_link($p) || fe_is_trash($p)) continue;
+            if (is_dir($p)) { $stack[]= $p;  continue; }
+            if (++$seen > 200000 || microtime(true) - $t0 > 15) { $cut= true;  break; }
+            $s= (int)@filesize($p);
+            if ($s > 0 && fe_can_read($p)) $bySize[$s][]= $p;
+        }
+        fe_more_time();
+    }
+    $groups= [];
+    foreach ($bySize as $s => $ps) {        // The same size - then the same first 64 KB - then the same SHA-1 of the whole file
+        if (count($ps) < 2) continue;
+        if (microtime(true) - $t0 > 40) { $cut= true;  break; }
+        $first= [];
+        foreach ($ps as $p) { $c= @file_get_contents($p, false, null, 0, 65536);  if (is_string($c)) $first[sha1($c)][]= $p; }
+        foreach ($first as $same) {
+            if (count($same) < 2) continue;
+            $full= [];
+            foreach ($same as $p) { $h= $s <= 65536 ? 'x' : @sha1_file($p);  if ($h) $full[$h][]= $p; }
+            foreach ($full as $g) if (count($g) > 1) { natcasesort($g);  $groups[]= [(int)$s, array_values($g)]; }
+            fe_more_time();
+        }
+    }
+    usort($groups, fn($a, $b) => $b[0] * (count($b[1]) - 1) <=> $a[0] * (count($a[1]) - 1));
+    return [$groups, $seen, $cut];
+}
+
 function fe_redirect($dir) { // Post/Redirect/Get - back to the folder
     header('Location: '.basename(__FILE__).'?show='.urlencode($dir), true, 303);
     exit;
@@ -1537,6 +1603,31 @@ $p2h_Style = '
     [data-theme="dark"] .feFindBox { border-bottom-color: #3f4852; }
     [data-theme="dark"] .p2hDlgFoot .feEdSt { color: #aeb8c2; }
     [data-theme="dark"] .feFindCut, [data-theme="dark"] .p2hDlgFoot .feEdSt.feEdDirty { color: #ffb066; }
+    /* Gallery and Duplicates (card header) */
+    .feGalBtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px; border: 1px solid #9aa5b1; border-radius: 17px; background: #fff;
+                color: #555; font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap; box-shadow: none; }
+    .feGalBtn[aria-pressed=true] { background: #3c8dbc; border-color: #3c8dbc; color: #fff; }
+    .feGal { display: none; }
+    .feGalOn > .wrapper { display: none !important; }
+    .feGalOn > .feGal { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; padding: 6px 4px 10px; text-align: center; }
+    .feTile { position: relative; padding: 6px; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; min-width: 0; }
+    .feTile.feTileOn { outline: 2px solid #3c8dbc; background: #eef6fc; }
+    .feTileChk { position: absolute; top: 8px; left: 8px; z-index: 1; margin: 0; width: 16px; height: 16px; }
+    .feTilePic { display: flex; align-items: center; justify-content: center; height: 118px; overflow: hidden; border-radius: 4px; background: #f3f5f7; cursor: pointer; }
+    .feTilePic:focus-visible { outline: 2px solid #3c8dbc; outline-offset: 2px; }
+    .feTilePic img { max-width: 100%; max-height: 118px; object-fit: contain; }
+    .feTileIc { font-size: 46px; color: #7a8a99; }  .feTileIc.feTileDir { color: #e2b33c; }
+    .feTileName { margin-top: 5px; font-size: 12px; line-height: 1.25; max-height: 2.5em; overflow: hidden; word-break: break-word; }
+    .feTileMeta { font-size: 11px; color: #777; }
+    .feGalNone { grid-column: 1 / -1; color: #777; }
+    .feDupHead td { padding-top: 10px !important; border-bottom: 1px solid #d0d7de; }
+    [data-theme="dark"] .feGalBtn { background: #2b3036; color: #e3e7eb; border-color: #5a6672; }
+    [data-theme="dark"] .feGalBtn[aria-pressed=true] { background: #2d6a96; border-color: #2d6a96; color: #fff; }
+    [data-theme="dark"] .feTile { background: #232a31; border-color: #3f4852; }
+    [data-theme="dark"] .feTile.feTileOn { background: #1d3447; }
+    [data-theme="dark"] .feTilePic { background: #1b2026; }
+    [data-theme="dark"] .feTileMeta, [data-theme="dark"] .feGalNone { color: #aeb8c2; }
+    [data-theme="dark"] .feDupHead td { border-bottom-color: #3f4852; }
     /* Used space (Analyse): the % text on the middle of the bar */
     .feMeter { position: relative; width: 95%; }
     .feMeter meter { width: 100%; display: block; }
@@ -2289,7 +2380,7 @@ function p2h_fileExplore($path,$parentDir) {
             $mime_type = p2h_get_mime_type($file_path);
             $fileInfo= p2h_fileView($view_title, $fld, $ext, $file_path, $filesize_raw, $mime_type);
         }
-        // Where the user may read: a download icon before the name - where the user may write: rename, copy ... in the file menu
+        // Where the user may read: Download in the file menu - where the user may write: rename, copy ... in the file menu
         $wr_file= $can_write_here && fe_name_allowed($fld);
         $can_dl=  fe_can_read($file_path);
         $dlUrl=   basename(__FILE__).'?dl='.rawurlencode(p2h_norm_path($file_path));
@@ -2312,8 +2403,6 @@ function p2h_fileExplore($path,$parentDir) {
             $nameFld= '<div class="file-name-div">'.$ic.'&nbsp;'. $nm. ($ix < 1200 ? '<div class="live-preview-img">'.$fileInfo.'</div>' : ''). '</div>';  // Max 200 on one page ($ix starts at 1000)
         else
             $nameFld= $ic.'&nbsp;'. $nm;
-        if ($can_dl)
-            $nameFld= fe_hint('<a href="'.p2h_enc($dlUrl).'" download><i class="fas fa-download colr9"></i></a>', lang('@Download to your PC')).' '.$nameFld;
         if ($ext>'') $ext = '.'.p2h_enc($ext);
         $rec['ix']= $ix;
         $rec['name']= $nameFld;
@@ -2577,6 +2666,29 @@ if ($is_logged && isset($_GET['pv'])) {                // Hover preview of a fil
     exit;
 }
 
+if ($is_logged && isset($_GET['thumb'])) {             // A small picture of an image for the gallery - where the preview may show it
+    session_write_close();                              // Many at the same time: never one after the other
+    $file= realpath((string)$_GET['thumb']);
+    $kind= ($file !== false && is_file($file) && fe_in_dir(p2h_norm_path($file), $root_path)) ? fe_preview_kind(basename($file), fe_can_read($file), fe_media_ok($file)) : '';
+    while (ob_get_level()) ob_end_clean();
+    if ($kind !== 'img') { http_response_code(404);  exit; }
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, max-age=86400');
+    $ext= strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    if (($t= fe_thumb($file, $ext)) !== null) {
+        header('Content-Type: image/jpeg');
+        header('Content-Length: '.filesize($t));
+        readfile($t);
+        exit;
+    }
+    if (filesize($file) <= 3 * 1024 * 1024) {           // No GD, an SVG, an icon ...: the image itself (not a big one)
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
+        fe_send_inline($file, FE_PV_MEDIA[$ext][1] ?? 'application/octet-stream');
+    }
+    http_response_code(404);
+    exit;
+}
+
 if ($is_logged && isset($_GET['edt'])) {               // The text of a file for the editor (file menu: Edit)
     $file= realpath((string)$_GET['edt']);
     while (ob_get_level()) ob_end_clean();
@@ -2733,6 +2845,21 @@ if ($is_logged && isset($_POST['fe_edit'])) {      // Save the text of the edito
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     exit(json_encode($res, JSON_UNESCAPED_UNICODE));
+}
+if ($is_logged && isset($_POST['fe_dupdel'])) {    // Duplicates (card): one file into the trash - it may be in a folder below this one
+    $fe_log_act= '@Delete file';
+    $file= realpath(is_string($_POST['fe_dupdel']) ? $_POST['fe_dupdel'] : '');
+    $fe_log_obj= $file === false ? '' : fe_show_path(p2h_norm_path($file));
+    if (!fe_can('w') || $file === false || !is_file($file) || is_link($file) || !fe_in_dir(p2h_norm_path($file), $currPath) || !fe_can_write(p2h_norm_path(dirname($file)))
+        || !fe_name_allowed(basename($file)) || fe_program_file($file) || fe_is_trash($file))
+                            fe_msg(p2h_enc(lang('@This file can not be changed here')), 'error');
+    elseif (!csrf_verify()) fe_msg(p2h_enc(lang('@The form has expired - reload the page and try again')), 'error');
+    elseif (($inTrash= fe_trash_put($file, $tn, $ts)) && $tn)
+                            fe_msg(p2h_enc(lang(empty($fe_trash_big) ? '@Moved to the trash' : '@Deleted - too big for the trash')).': <b>'.p2h_enc(basename($file)).'</b>'.fe_trash_link());
+    elseif (!$inTrash && @unlink($file)) fe_msg(p2h_enc(lang('@Deleted')).': <b>'.p2h_enc(basename($file)).'</b>');
+    else                    fe_msg(p2h_enc(lang('@Could not delete')).': '.p2h_enc(basename($file)), 'error');
+    header('Location: '.basename(__FILE__).'?show='.urlencode($currPath).'&dupl=1', true, 303);
+    exit;
 }
 if ($is_logged && isset($_POST['fe_act'])) {      // File / folder menu: rename / move, copy, ZIP, unpack, new folder - in the current folder
     $act=  (string)$_POST['fe_act'];
@@ -3408,7 +3535,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                     $go=  basename(__FILE__).'?show='.urlencode($isDir ? $p : $dir);
                     echo '<tr><td><a href="'.p2h_enc($go).'"><i class="far fa-'.($isDir ? 'folder' : 'file').'"></i> '.p2h_enc(basename($p)).'</a>'.
                          (!$isDir && fe_can_read($p) ? ' '.fe_hint('<a href="'.p2h_enc(basename(__FILE__).'?dl='.rawurlencode($p)).'" aria-label="'.p2h_enc(lang('@Download')).'"><i class="fas fa-download"></i></a>', p2h_enc(lang('@Download'))) : '').'</td>'.
-                         '<td><a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($dir)).'">'.p2h_enc(ltrim(substr($dir, strlen($currPath)), '/') ?: '.').'</a></td>'.
+                         '<td><a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($dir)).'">'.p2h_enc(ltrim(substr($dir, strlen($currPath)), '/') ?: lang('@(this folder)')).'</a></td>'.
                          '<td style="white-space:nowrap; text-align:right;">'.($isDir ? '' : p2h_nice_filesize((int)@filesize($p))).'</td>'.
                          '<td style="white-space:nowrap;">'.date('Y-m-d H:i', (int)@filemtime($p)).'</td>'.
                          ($qc ? '<td class="feFindLine">'.($ln ? '<small>'.p2h_enc(lang('@line')).' '.$ln.':</small> <code>'.p2h_enc($snip).'</code>' : '').'</td>' : '').'</tr>';
@@ -3416,6 +3543,43 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                 echo '</table></div>';
             }
             echo '<small>'.p2h_enc(lang('@Tip: * and ? search the whole name (*.pdf, report-202?.txt) - else a part of the name. The text: only text files you may download, up to 2 MB.')).'</small></div>';
+        htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
+        htm_nl(1);
+    }
+
+    if (isset($_GET['dupl'])) {         // Duplicates: files with the same content in this folder and below it - the most space first
+        [$groups, $seen, $cut]= fe_dupes($currPath);
+        $act=   basename(__FILE__).'?show='.urlencode($currPath);
+        $waste= array_sum(array_map(fn($g) => $g[0] * (count($g[1]) - 1), $groups));
+        htm_Card_(capt:'@Duplicates',icon:'fas fa-clone',hint:'@Files with the same content in this folder and all folders below it - only files you may download. Keep one of each.',
+                  form:'',acti:'',clas:'cardWmax',wdth:'800px',styl:'background-color: white;',attr:'text-align: left; padding:8px; background-color: white;',show:true, head:'background-color: white;');
+            echo '<div class="feUsers"><form id="feDupForm" method="post" action="'.p2h_enc($act).'">'.csrf_field(true).'</form>';
+            echo '<p class="feFindSum" role="status">'.($groups
+                    ? '<b>'.count($groups).'</b> '.p2h_enc(lang('@groups of equal files')).' - <b>'.array_sum(array_map(fn($g) => count($g[1]) - 1, $groups)).'</b> '.
+                      p2h_enc(lang('@copies too many')).' - '.p2h_enc(lang('@space to save')).': <b>'.p2h_nice_filesize($waste).'</b>'
+                    : p2h_enc(lang('@No duplicates found'))).
+                 ' - '.$seen.' '.p2h_enc(lang('@files compared in')).' <b>'.p2h_enc(fe_show_path($currPath)).'</b> '.p2h_enc(lang('@and below')).
+                 ($cut ? ' - <span class="feFindCut">'.p2h_enc(lang('@stopped early (200000 files or the time) - look in a folder further down')).'</span>' : '').'</p>';
+            if ($groups) {
+                echo '<div class="feFindWrap"><table class="feUsrTbl feDupTbl"><tr><th>'.p2h_enc(lang('@Name')).'</th><th>'.p2h_enc(lang('@Folder')).'</th><th>'.p2h_enc(lang('@Modified')).'</th><th></th></tr>';
+                foreach (array_slice($groups, 0, 300) as $gi => [$size, $paths]) {
+                    echo '<tr class="feDupHead"><td colspan="4"><b>'.count($paths).' &times; '.p2h_nice_filesize($size).'</b> <small>('.p2h_enc(lang('@space to save')).': '.p2h_nice_filesize($size * (count($paths) - 1)).')</small></td></tr>';
+                    foreach ($paths as $p) {
+                        $dir= p2h_norm_path(dirname($p));
+                        $mayDel= fe_can('w') && fe_can_write($dir) && fe_name_allowed(basename($p)) && !fe_program_file($p);
+                        echo '<tr><td><i class="far fa-file"></i> '.p2h_enc(basename($p)).'</td>'.
+                             '<td><a href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($dir)).'">'.p2h_enc(ltrim(substr($dir, strlen($currPath)), '/') ?: lang('@(this folder)')).'</a></td>'.
+                             '<td style="white-space:nowrap;">'.date('Y-m-d H:i', (int)@filemtime($p)).'</td><td style="white-space:nowrap;">'.
+                             fe_hint('<a class="txtbutt feXfBtn" href="'.p2h_enc(basename(__FILE__).'?dl='.rawurlencode($p)).'" aria-label="'.p2h_enc(lang('@Download')).'"><i class="fas fa-download"></i></a>', p2h_enc(lang('@Download'))).
+                             ($mayDel ? ' '.fe_hint('<button type="submit" form="feDupForm" name="fe_dupdel" value="'.p2h_enc($p).'" class="txtbutt feXfBtn feUsrDel" aria-label="'.p2h_enc(lang('@Move to the trash')).'" '.
+                                        'onclick="return feConfirmSubmit(this, '.p2h_enc(p2h_js(lang('@Move the file to the trash').': '.basename($p).' ?')).')"><i class="fas fa-trash-alt"></i></button>', p2h_enc(lang('@Move to the trash'))) : '').
+                             '</td></tr>';
+                    }
+                }
+                echo '</table></div>'.(count($groups) > 300 ? '<p><small>'.p2h_enc(lang('@The first 300 groups are shown')).'</small></p>' : '');
+            }
+            echo '<small>'.p2h_enc(lang('@The same size, then the same start, then the same SHA-1 checksum of the whole file - the name does not matter.')).'</small> &nbsp; '.
+                 '<a href="'.p2h_enc($act).'" class="txtbutt feXfBtn"><i class="fas fa-times"></i> '.p2h_enc(lang('@Close')).'</a></div>';
         htm_Card_end(labl:'', icon:'', hint:'', name:'', form:'', subm:false, attr:'', akey:'', kind:'save', simu:false);
         htm_nl(1);
     }
@@ -3455,6 +3619,10 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
                         '<b>'.lang('@Quick').':</b> '.lang('@shows the folder at once.').'<br>'.
                         '<b>'.lang('@Analyse').':</b> '.lang('@calculates the content of all sub-folders - size, graphs, Sync/ZipClone - and can take time in big folders.').'<br>'.
                         '<i>'.lang('@Click to switch.').'</i>').
+                fe_hint('<button type="button" id="feGalBtn" class="feGalBtn" aria-pressed="false" onclick="feGalToggle()"><i class="fas fa-th-large"></i> '.lang('@Gallery').'</button>',
+                        lang('@The files as tiles - images as small pictures. Click a tile: the file menu - double-click: view. Click again: the table.')).
+                ($calc_folder ? fe_hint('<a class="feGalBtn" href="'.p2h_enc(basename(__FILE__).'?show='.urlencode($currPath).'&dupl=1').'"><i class="fas fa-clone"></i> '.lang('@Duplicates').'</a>',
+                                        lang('@Find files with the same content in this folder and all folders below it')) : '').
                 '</form>'.      // (Language, "Logged as" and Logout: in the view bar)
             '</div><div style="clear: both;"></div>'
                 , '90%','html','','left'] 
@@ -3559,6 +3727,67 @@ run_Script('
         if (!q || !q.value.trim()) { if (q) q.focus();  return; }
         location.href= '.p2h_js(basename(__FILE__).'?show='.urlencode($currPath).'&find=').' + encodeURIComponent(q.value.trim()) + (c && c.checked ? "&fc=1" : "");
     }
+    /* Gallery (the button in the card header): the rows of the table as tiles - images as small pictures (?thumb=) - remembered in this browser */
+    function feGalOn() { try { return localStorage.getItem("feGallery") === "1"; } catch (e) { return false; } }
+    function feGalSpan() { var s= document.querySelector("[id^=tblSpan]");  return s && s.querySelector(":scope > .wrapper") ? s : null; }
+    function feGalBuild() {
+        var span= feGalSpan();  if (!span) return;
+        var wrap= span.querySelector(":scope > .wrapper"), g= document.getElementById("feGal"), tb= wrap.querySelector("table");
+        if (!g) { g= document.createElement("div");  g.id= "feGal";  g.className= "feGal";  g.setAttribute("role", "list");  wrap.parentNode.insertBefore(g, wrap); }
+        g.innerHTML= "";
+        var mk= function(tag, cls, txt) { var e= document.createElement(tag);  if (cls) e.className= cls;  if (txt !== undefined) e.textContent= txt;  return e; };
+        Array.prototype.forEach.call(tb && tb.tBodies[0] ? tb.tBodies[0].rows : [], function(tr) {
+            if (tr.style.display === "none" || tr.classList.contains("filtered")) return;      /* Hidden by the filter row */
+            var nm= tr.querySelector(".feFileName"), src= nm || tr.querySelector(".feBp[data-fm]"), f;
+            if (!src) return;
+            try { f= JSON.parse(src.dataset.fm); } catch (e) { return; }
+            var chk= tr.querySelector("input[type=checkbox]"), ic= tr.querySelector(".feFileIc");
+            var tile= mk("div", "feTile" + (chk && chk.checked ? " feTileOn" : "")), pic= mk("div", "feTilePic");
+            tile.setAttribute("role", "listitem");  pic.tabIndex= 0;  pic.setAttribute("role", "button");  pic.setAttribute("aria-label", f.n);  pic.title= f.n;
+            var icon= function() { return mk("i", (f.dir ? "fas fa-folder feTileDir" : (ic ? ic.className.replace("feFileIc", "") : "far fa-file")) + " feTileIc"); };
+            if (ic && ic.dataset.pk === "img" && ic.dataset.pv) {
+                var im= new Image();  im.alt= "";  im.loading= "lazy";  im.decoding= "async";
+                im.onerror= function() { im.replaceWith(icon()); };
+                im.src= ic.dataset.pv.replace("?pv=", "?thumb=");  pic.appendChild(im);
+            } else pic.appendChild(icon());
+            if (chk) {
+                var cb= mk("input", "feTileChk");  cb.type= "checkbox";  cb.checked= chk.checked;  cb.setAttribute("aria-label", f.n);
+                cb.onchange= function() { chk.checked= cb.checked;  tile.classList.toggle("feTileOn", cb.checked);  chk.dispatchEvent(new Event("change", {bubbles: true})); };
+                tile._chk= [cb, chk];  tile.appendChild(cb);
+            }
+            var open= function() {
+                if (f.dir) { location.href= f.g;  return; }
+                var r= pic.getBoundingClientRect();     /* The file menu - as a right-click of the row */
+                nm.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.bottom - 6}));
+            };
+            pic.addEventListener("click", function(e) { e.stopPropagation();  open(); });
+            pic.addEventListener("dblclick", function() { if (!f.dir && f.o) window.open(f.o, "_blank", "noopener"); });
+            pic.addEventListener("keydown", function(e) {
+                if (e.key === "Enter") { e.preventDefault();  open(); }
+                else if (e.key === " " && cb) { e.preventDefault();  cb.click(); }
+            });
+            tile.appendChild(pic);  tile.appendChild(mk("div", "feTileName", f.n));
+            tile.appendChild(mk("div", "feTileMeta", f.dir ? "" : (ic ? ic.dataset.ps : "")));
+            g.appendChild(tile);
+        });
+        if (!g.children.length) g.appendChild(mk("p", "feGalNone", '.p2h_js(lang('@Nothing to show')).'));
+    }
+    function feGalSync() {          /* The check boxes of the table changed (All / None / Inverse): the tiles too */
+        document.querySelectorAll("#feGal .feTile").forEach(function(t) { if (t._chk) { t._chk[0].checked= t._chk[1].checked;  t.classList.toggle("feTileOn", t._chk[1].checked); } });
+    }
+    function feGalShow() {
+        var span= feGalSpan(), on= feGalOn(), b= document.getElementById("feGalBtn");
+        if (b) b.setAttribute("aria-pressed", on ? "true" : "false");
+        if (!span) return;
+        span.classList.toggle("feGalOn", on);
+        if (on) feGalBuild();
+    }
+    function feGalToggle() { try { localStorage.setItem("feGallery", feGalOn() ? "0" : "1"); } catch (e) {}  feGalShow(); }
+    addEventListener("load", function() {
+        setTimeout(feGalShow, 50);
+        if (window.jQuery) jQuery("[id^=tblSpan] table").on("filterEnd sortEnd", function() { if (feGalOn()) feGalBuild(); });
+    });
+    document.addEventListener("change", function(e) { if (e.target.matches && e.target.matches("[id^=tblSpan] table input[type=checkbox]")) feGalSync(); });
     var feT= JSON.parse('.p2h_js(json_encode(['title'=>lang('@The name is taken'), 'q'=>lang('@These names are taken in the destination - what shall be done?'),
                  'name'=>lang('@Name'), 'new'=>lang('@New'), 'there'=>lang('@There now'), 'do'=>lang('@Do'), 'all'=>lang('@All'), 'folder'=>lang('@folder'),
                  'rename'=>lang('@New name - name (2)'), 'over'=>lang(fe_trash_dir() !== false ? '@Overwrite - the old one into the trash' : '@Overwrite'),
@@ -3644,6 +3873,7 @@ run_Script('
             if (how === "none") c.checked= false;  else if (shown) c.checked= how === "all" ? true : !c.checked;
         });
         feSelSum();
+        if (typeof feGalSync === "function") feGalSync();
     }
     function feSelSum() {      /* Below the table: how many rows are checked - and the total size of the checked files (folders: when Analyse has counted them) */
         var out= document.getElementById("feSelSum");  if (!out) return;
@@ -4111,11 +4341,13 @@ for ($ix=0;$ix<count($arrFnames ?? 0);$ix++) { $key= 'i'.$ix.'_chck';
             '<b>Upload:</b> drag files or whole folders from your PC onto the drop zone - they go to the destination. A ZIP file is unpacked with the file menu: Unpack here.',
             '<b>A taken name:</b> choose in the field A taken name - Stop and ask (you see the names and choose for each), a new name (name (2)), overwrite (the old file goes to the trash) or skip. Two folders are merged. The message tells what was done.',
         ]],
-        ['Share, edit and search', [
+        ['Share, edit, search, gallery', [
             '<b>Share link:</b> in the file or folder menu - a link for people without an account, with an end date and maybe a password. A folder is fetched as one ZIP file. Program menu - <b>Shared links</b>: copy or delete your links.',
             'A link works only while you may still download the file - and stops at its end date or when you delete it.',
             '<b>Edit:</b> in the file menu of a text file (up to 2 MB) in a folder you may write in. Ctrl+S saves - the old version goes to the trash. If someone else changed the file meanwhile, you are asked.',
             '<b>Search:</b> the search field in the heading of Folder content searches this folder and all folders below it - by name (* and ? for the whole name), and if you like in the text of text files.',
+            '<b>Gallery</b> (heading of Folder content): the files as tiles, images as small pictures - click a tile for the file menu, double-click to view, check the box to select. Click Gallery again for the table.',
+            '<b>Duplicates</b> (Analyse mode, heading of Folder content): files with the same content in this folder and below it - the most space first. Move the copies you do not need to the trash.',
         ]],
         ['Folder tree', [
             'The current folder is bold, with an open folder. The number at the left is the level.',

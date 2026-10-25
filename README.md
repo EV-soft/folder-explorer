@@ -51,6 +51,11 @@ Context menus can be activated by right-clicking on a file or folder row in the 
   ends and a byte order mark are kept. Changed by someone else meanwhile: you are asked before your version replaces it.
 - **Search in all subfolders** - also in Quick mode: the search field in the heading of *Folder content* searches this folder and all
   below it, by name (`*` and `?` for the whole name) and if you like in the text of text files you may download (up to 2 MB per file).
+- **Gallery** (button in the heading of *Folder content*): the files as tiles, images as small pictures made with GD (kept a week in
+  the temp folder) - a tile opens the file menu, a double-click views it, the check box selects it. Remembered in the browser.
+- **Duplicates** (Analyse mode): files with the same content in this folder and below it (the same size, the same first 64 KB, the same
+  SHA-1) - the most space to save first, with a button to move a copy to the trash.
+- The download icon before the file name is gone - *Download* is in the file menu (rest the mouse on the name, or right-click the row).
 - The checked rows: the status text below *All / None / Inverse / Basket*; the file features are locked to the bottom of the
   scrolling file window; the file window is higher; the line below the card headings; the % text on the bar of *Used space*.
 
