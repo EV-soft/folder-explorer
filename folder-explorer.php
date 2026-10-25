@@ -1651,6 +1651,9 @@ $p2h_Style = '
     [data-theme="dark"] .feFindBox { border-bottom-color: #3f4852; }
     [data-theme="dark"] .p2hDlgFoot .feEdSt { color: #aeb8c2; }
     [data-theme="dark"] .feFindCut, [data-theme="dark"] .p2hDlgFoot .feEdSt.feEdDirty { color: #ffb066; }
+    /* Closed cards: all the same height - the 8 px padding of some cards (Folder tree, Transfer ...) only around an open body */
+    [id^=card]:has(> [id^=HideBody][style*="display: none"]) { padding-top: 2px !important; padding-bottom: 2px !important; }
+    .feDetTools.feInHead .inpField { min-height: 0 !important; margin: 0 !important; }      /* The search field in the heading: no higher than the other tools (the library: min-height 38px) */
     /* Gallery and Duplicates (card header) */
     .feGalBtn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px; border: 1px solid #9aa5b1; border-radius: 17px; background: #fff;
                 color: #555; font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap; box-shadow: none; }
@@ -1890,7 +1893,7 @@ ul.feTree .feTreeNum { display: inline-block; min-width: 10ch; text-align: right
 .feDetTools.feInHead { display: flex; align-items: center; gap: 8px; }          /* (frmMode is inside the card form "xxx": the browser drops the inner form tag) */
 .feInHead span:has(> #FileSearch) { position: relative; }                       /* The search list opens below the field */
 .feInHead .inpField { padding: 0 !important; width: auto !important; vertical-align: middle !important; }
-.feInHead .fieldContent { padding: 0 !important; box-shadow: none !important; border: 0 !important; background: transparent !important; }
+.feInHead .fieldContent { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: 0 !important; background: transparent !important; }
 .feInHead .inpField label { display: none; }                                    /* No "Search" label: the icon says it */
 .feInHead .dropbtn { height: 28px; box-sizing: border-box; display: flex; align-items: center; padding: 0 12px !important; border: 1px solid #9aa5b1 !important;
     border-radius: 14px; white-space: nowrap; cursor: pointer; font-size: 13px; }
@@ -3391,7 +3394,7 @@ htm_Page_(titl:'Folder-explorer', hint:lang('@Tip: Toggle fullscreen-mode with f
         echo '<abbr class="hint p2hCtrlHint" id="feSizeTool">'.
                 '<a href="'.basename(__FILE__).'?show='.urlencode($currPath).'&amp;treesize='.($fe_treesize && !$calc_folder ? '0' : ($calc_folder ? (empty($_SESSION[p2h_SESSION_ID]['treesize']) ? '0' : '1') : '1')).'" '.
                     'aria-label="'.p2h_enc(strip_tags($tsHint)).'" aria-pressed="'.($fe_treesize ? 'true' : 'false').'" '.
-                    'style="text-decoration: none; margin: 5px 8px 0 0; font-size: 13px; display: inline-block; color: '.($fe_treesize ? '#1a7f37' : '#555').';">'.
+                    'style="text-decoration: none; margin: 0 8px 0 0; padding-top: 4px; line-height: 16px; font-size: 13px; display: inline-block; color: '.($fe_treesize ? '#1a7f37' : '#555').';">'.
                     '<ic class="fas fa-hdd"></ic></a>'.
                 '<data-hint>'.$tsHint.'</data-hint>'.
              '</abbr>'.
